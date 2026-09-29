@@ -139,7 +139,7 @@ res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过
 
 线上地址：**https://anon-chihaya-fansite.vercel.app**（Vercel 项目名 `anon-chihaya-fansite`）
 
-更新线上内容：
+仓库已连接 Vercel，**推送到 `main` 分支会自动部署到生产环境**，不用再手动跑命令。手动触发（例如改完还没提交）时也可以用：
 
     vercel deploy --prod --yes
 
