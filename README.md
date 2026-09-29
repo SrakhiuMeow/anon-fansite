@@ -149,7 +149,7 @@ res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过
 
 部署范围由 `.vercelignore` 控制：只发布站点本身（`index.html`、`assets/`），`data/`、`scripts/`、文档与仓库文件都不上传。
 
-有一个容易踩的坑：规则必须写成 `/data/` 这样的根目录锚定写法。写成 `data/` 会把 `assets/data/anon-cards.js` 一起排除掉，线上卡面图鉴就会加载不出来。
+有一个容易踩的坑：规则必须写成 `/data/` 这样的根目录锚定写法。写成 `data/` 会匹配任意层级的 data 目录，把 `assets/data/anon-cards.js` 一起排除掉，线上卡面图鉴就会加载不出来。**`.vercelignore` 和 `.gitignore` 两处都要注意**——Git 方式的部署会同时参考 `.gitignore`。
 
 ## 12. 后续路线图
 
