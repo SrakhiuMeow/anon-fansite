@@ -127,10 +127,13 @@ res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过
 
 站点实际读取的 `assets/data/anon-cards.js` 是入库的，所以即使没有 `data/`，克隆下来也能直接打开页面；需要重新抓取时再执行 `scripts/` 下的两个脚本即可。
 
+远端仓库：**https://github.com/SrakhiuMeow/anon-fansite**（私有，SSH 地址 `git@github.com:SrakhiuMeow/anon-fansite.git`）
+
 新增或修改内容后：
 
     git add -A
     git commit -m "说明这次改了什么"
+    git push
 
 ## 11. 部署（Vercel）
 

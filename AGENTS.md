@@ -3,6 +3,7 @@
 ## 版本管理
 
 - **本项目使用 Git 管理，之后的所有改动都要提交到 Git。** 每完成一处改动，就 `git add -A` 并写一条中文提交信息。
+- 远端仓库是 `origin` → `git@github.com:SrakhiuMeow/anon-fansite.git`（私有）。提交后要 `git push`，让本地和远端保持一致；推送走 SSH，不需要额外配置代理。
 - **`data/` 目录不入库**（已在 `.gitignore` 中排除）。里面是通过 Bestdori 抓取的原始 JSON 与清洗后的中间数据，体积大、可重新生成：
 
   ```bash
