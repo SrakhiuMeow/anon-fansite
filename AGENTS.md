@@ -6,6 +6,8 @@
 - 远端仓库是 `origin` → `git@github.com:SrakhiuMeow/anon-fansite.git`（私有）。提交后要 `git push`，让本地和远端保持一致；推送走 SSH，不需要额外配置代理。
 - **`data/` 目录不入库**（已在 `.gitignore` 中排除）。里面是通过 Bestdori 抓取的原始 JSON 与清洗后的中间数据，体积大、可重新生成：
 
+  > 规则必须写成根目录锚定的 `/data/`。写成 `data/` 会匹配任意层级的 data 目录，把 `assets/data/anon-cards.js` 一起排除；Vercel 的 Git 部署也会参考 `.gitignore`，那样线上卡面图鉴会直接 404。
+
   ```bash
   python3 scripts/fetch_bestdori.py     # 抓取素材（需要联网）
   python3 scripts/build_site_data.py    # 重新生成 assets/data/anon-cards.js

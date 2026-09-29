@@ -1,9 +1,12 @@
 # ---- 数据目录：按项目约定不入库 ----
+# 注意：必须写成 /data/ 这样的根目录锚定形式。
+# 未锚定的 data/ 会匹配任意层级的 data 目录，把 assets/data/anon-cards.js 一起排除——
+# 而 Vercel 的 Git 部署也会参考 .gitignore，那样线上卡面图鉴就会加载不出来。
 # data/ 里是 Bestdori 抓取的原始 JSON 与清洗后的中间数据，体积较大且可随时重新生成。
 # 需要恢复时执行：
 #   python3 scripts/fetch_bestdori.py     # 抓取（需要联网）
 #   python3 scripts/build_site_data.py    # 重新生成 assets/data/anon-cards.js
-data/
+/data/
 
 # ---- 系统与编辑器 ----
 .DS_Store
