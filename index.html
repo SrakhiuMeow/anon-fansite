@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="day">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>千早爱音 | Chihaya Anon · 非官方应援站</title>
+<meta name="description" content="千早爱音（MyGO!!!!! 吉他手）的非官方应援站 Demo：角色资料、性格解读、成长线、音乐作品与留言板。" />
+<link rel="icon" href="assets/favicon.svg" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+
+<header class="site-header" id="siteHeader">
+  <div class="wrap header-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">愛</span>
+      <span class="brand-text">
+        <strong>ANON CHIHAYA</strong>
+        <small>千早愛音 非公式応援サイト</small>
+      </span>
+    </a>
+
+    <nav class="nav" id="nav" aria-label="站内导航">
+      <a href="#profile">资料</a>
+      <a href="#about">介绍</a>
+      <a href="#traits">性格</a>
+      <a href="#story">成长线</a>
+      <a href="#music">音乐</a>
+      <a href="#cards">卡面</a>
+      <a href="#letters">留言</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="icon-btn theme-toggle" id="themeToggle" type="button" aria-pressed="false" title="切换日夜主题">
+        <span aria-hidden="true">🌙</span><span class="sr-only">切换主题</span>
+      </button>
+      <button class="icon-btn nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="nav" title="展开菜单">
+        <span aria-hidden="true">☰</span><span class="sr-only">展开菜单</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" id="top">
+    <div class="hero-bg" aria-hidden="true">
+      <span class="blob blob-1"></span>
+      <span class="blob blob-2"></span>
+      <span class="note note-1">♪</span>
+      <span class="note note-2">♫</span>
+      <span class="note note-3">♩</span>
+      <span class="strings"></span>
+    </div>
+
+    <div class="wrap hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="dot"></span>MyGO!!!!! · Gt. &amp; Chorus</p>
+        <h1>
+          <span class="jp">千早 愛音</span>
+          <span class="romaji">Chihaya Anon</span>
+        </h1>
+        <p class="lead">
+          羽丘女子学园一年生、吉他手、前学生会会长，以及——
+          一个想让所有人看见自己的女孩子。
+        </p>
+
+        <div class="cta">
+          <a class="btn btn-primary" href="#profile">认识爱音</a>
+          <a class="btn btn-ghost" href="#music">看她唱的歌</a>
+        </div>
+
+        <ul class="quick-stats">
+          <li><b>9.8</b><span>生日</span></li>
+          <li><b>160<small>cm</small></b><span>身高</span></li>
+          <li><b>Gt.</b><span>担当</span></li>
+          <li><b>珊瑚粉</b><span>成员色</span></li>
+        </ul>
+      </div>
+
+      <div class="hero-art">
+        <div class="art-card">
+          <span class="art-halo" aria-hidden="true"></span>
+          <img
+            class="art-standing"
+            id="heroStanding"
+            src="assets/img/standing/res037002.png"
+            alt="千早爱音的官方立绘"
+            width="1024" height="1024"
+          />
+          <span class="art-badge">Gt.</span>
+          <span class="art-flag" id="heroCardTag">官方卡面 · Bestdori</span>
+          <figcaption class="art-plate">
+            <strong>千早 愛音</strong>
+            <span>CV. 立石凛</span>
+          </figcaption>
+        </div>
+
+        <div class="eq" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROFILE ============ -->
+  <section class="section" id="profile">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>角色资料<span class="en">Profile</span></h2>
+        <p class="section-sub">先把「她是谁」说清楚。</p>
+      </header>
+
+      <div class="profile-grid">
+        <div class="stat-card reveal">
+          <span class="stat-label">姓名</span>
+          <strong>千早 愛音</strong>
+          <em>ちはや あのん / Chihaya Anon</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">生日</span>
+          <strong>9 月 8 日</strong>
+          <em>处女座 · 距离下次生日 <span id="birthdayCountdown">—</span></em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">身高</span>
+          <strong>160 cm</strong>
+          <em>MyGO!!!!! 第二高</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">担当</span>
+          <strong>吉他 / 和声</strong>
+          <em>Gt. &amp; Chorus</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">成员色</span>
+          <strong><span class="swatch"></span>珊瑚粉</strong>
+          <em>コーラルピンク · #FF8899</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">学校</span>
+          <strong>羽丘女子学园</strong>
+          <em>高中一年级</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">声优</span>
+          <strong>立石 凛</strong>
+          <em>Tateishi Rin</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">所属</span>
+          <strong>MyGO!!!!!</strong>
+          <em>2022 年 4 月 29 日 始动</em>
+        </div>
+        <div class="stat-card reveal">
+          <span class="stat-label">官方卡面</span>
+          <strong><span id="cardCountStat">16</span> 张</strong>
+          <em>★5 × <span id="r5Count">6</span> · 素材来自 Bestdori</em>
+        </div>
+      </div>
+
+      <p class="source-note">
+        资料核对：TV 动画《BanG Dream! It's MyGO!!!!!》官方角色页 + MyGO!!!!! 公开资料（2026 年 9 月校对）。
+        角色 ID、成员色色值、卡面与发行日期取自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a>。
+        非官方整理，如有出入以官方为准。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ ABOUT ============ -->
+  <section class="section section-alt" id="about">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>官方介绍 · 中文解读<span class="en">About</span></h2>
+        <p class="section-sub">官方原文很短，但信息量不小。</p>
+      </header>
+
+      <div class="about-grid">
+        <blockquote class="quote-card reveal">
+          <p class="quote-jp">
+            羽丘女子学園の高校1年生。成績優秀でコミュ力と行動力があり、中学時代はクラスの人気者で、
+            生徒会長も務めていた。ミーハーな性格で流行っているものに手を出しがち。
+          </p>
+          <footer>— 官方角色介绍原文</footer>
+        </blockquote>
+
+        <div class="about-text reveal">
+          <p class="trans">
+            羽丘女子学园的高一学生。成绩优秀，沟通能力和行动力都很强；初中时是班里的人气王，
+            还担任过学生会会长。性格爱赶时髦，容易追着流行的东西跑。
+          </p>
+          <p>
+            官方用两句话就把她的矛盾点写完了：<b>能力很强，动机很轻</b>。她不是被热爱推着走的人，
+            而是被人群的目光推着走——想被看见、想被夸、想站在最中间。这份「承认欲求」既是她的笑点，
+            也是她所有行动的起点。
+          </p>
+          <p>
+            所以她的成长并不是「突然爱上音乐」的爽文，而是<b>从表演给谁看，变成认真弹给谁听</b>。
+            她会因为别人的评价而动摇，也会为了不输而练到手指发疼——这种不彻底、会犯懒、却一直在往前走的姿态，
+            大概就是她最容易被喜欢的地方。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRAITS ============ -->
+  <section class="section" id="traits">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>性格关键词<span class="en">Traits</span></h2>
+        <p class="section-sub">六张卡，看懂爱音ちゃん的行动逻辑。</p>
+      </header>
+
+      <div class="trait-grid">
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">👀</span>
+          <h3>承认欲求，拉满</h3>
+          <p>想被所有人注意到、被夸奖、被当成主角。这份欲望毫不遮掩，反而是她最鲜明的标签。</p>
+          <span class="trait-tag">核心动机</span>
+        </article>
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">💬</span>
+          <h3>社交力满点</h3>
+          <p>沟通力与行动力俱佳，初中是班级人气王，还当过学生会会长。让她出面交涉，基本都能谈成。</p>
+          <span class="trait-tag">官方设定</span>
+        </article>
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">✨</span>
+          <h3>ミーハー（爱赶潮）</h3>
+          <p>什么火就追什么，乐器、穿搭、话题都跟得上。学吉他的起点，也带着一点「现在流行这个」的味道。</p>
+          <span class="trait-tag">官方设定</span>
+        </article>
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">📚</span>
+          <h3>成绩优秀</h3>
+          <p>别被轻浮的外表骗了。官方明确写着成绩优秀——要做事的时候，她是真的能做成的类型。</p>
+          <span class="trait-tag">官方设定</span>
+        </article>
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">🎸</span>
+          <h3>起步晚，但不肯输</h3>
+          <p>半路出家开始练琴，嘴上说着轻松，手上却越练越狠。她讨厌的不是辛苦，是被人比下去。</p>
+          <span class="trait-tag">性格解读</span>
+        </article>
+        <article class="trait-card reveal">
+          <span class="trait-icon" aria-hidden="true">🫧</span>
+          <h3>在意目光，也学着做自己</h3>
+          <p>她会被别人的评价搅乱心情，也会逞强。但在乐队里，她一点点学会了：被看见，不等于要变成别人期待的样子。</p>
+          <span class="trait-tag">成长主题</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STORY ============ -->
+  <section class="section section-alt" id="story">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>成长线<span class="en">Story</span></h2>
+        <p class="section-sub">从「想红」到「想一起走下去」。</p>
+      </header>
+
+      <ol class="timeline">
+        <li class="reveal">
+          <span class="tl-date">剧情 ①</span>
+          <div class="tl-body">
+            <h3>转学与相遇</h3>
+            <p>转入羽丘女子学园的爱音，遇见了抱着笔记本、独自唱歌的高松燈。一个想被人群包围的人，先认识了一个躲开人群的人。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">剧情 ②</span>
+          <div class="tl-body">
+            <h3>为了「被看见」拿起吉他</h3>
+            <p>动机并不纯粹：组一支乐队、站上舞台、被人记住。但她真的开始练了，也真的开始在意弹得好不好。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">剧情 ③</span>
+          <div class="tl-body">
+            <h3>五个人，各有各的迷路</h3>
+            <p>与长崎そよ、要楽奈、椎名立希陆续结识。成员们各自带着旧伤和执念，谁都不是轻松凑在一起的伙伴。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">剧情 ④</span>
+          <div class="tl-body">
+            <h3>「迷子のバンド」→ MyGO!!!!!</h3>
+            <p>直到第 12 话，乐队才终于有了名字。全员都是迷路的孩子；同时，「It's my go.」＝「轮到我了」。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">2022.04.29</span>
+          <div class="tl-body">
+            <h3>现实中的乐队始动</h3>
+            <p>MyGO!!!!! 作为 BanG Dream! 第五支真实乐队启动，初期以「声优未公开」的形式活动。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">2023.06.29</span>
+          <div class="tl-body">
+            <h3>TV 动画开播</h3>
+            <p>《BanG Dream! It's MyGO!!!!!》开始播出，角色与声优同时公开，爱音的形象被更多人认识。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">2024.09.21</span>
+          <div class="tl-body">
+            <h3>首次海外公演 · 上海</h3>
+            <p>6th LIVE 追加公演在上海举行，这是乐队第一次走出日本开唱。</p>
+          </div>
+        </li>
+        <li class="reveal">
+          <span class="tl-date">2026.07.15</span>
+          <div class="tl-body">
+            <h3>第三张专辑《致並跡》</h3>
+            <p>乐队持续产出新作与公演，爱音也一路唱到了现在——还在往更远的地方走。</p>
+          </div>
+        </li>
+      </ol>
+
+      <p class="source-note">
+        剧情节点为动画内容概括，细节请以动画 / 游戏本篇为准；现实活动时间线取自公开资料。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ MUSIC ============ -->
+  <section class="section" id="music">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>音乐作品<span class="en">Discography</span></h2>
+        <p class="section-sub">MyGO!!!!! 的单曲与专辑，附带一个经典谜题：这名字到底怎么读？</p>
+      </header>
+
+      <div class="filters" role="tablist" aria-label="作品筛选">
+        <button class="chip is-active" data-filter="all" role="tab" aria-selected="true">全部</button>
+        <button class="chip" data-filter="single" role="tab" aria-selected="false">单曲</button>
+        <button class="chip" data-filter="album" role="tab" aria-selected="false">专辑</button>
+      </div>
+
+      <div class="music-grid" id="musicGrid">
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">1st Single</span>
+          <h3>迷星叫</h3>
+          <p class="reading">まよいうた</p>
+          <time>2022.11.09</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">2nd Single</span>
+          <h3>音一会</h3>
+          <p class="reading">おといちえ</p>
+          <time>2023.04.12</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">3rd Single</span>
+          <h3>壱雫空</h3>
+          <p class="reading">ひとしずく</p>
+          <time>2023.08.09</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">4th Single</span>
+          <h3>砂寸奏 / 回層浮</h3>
+          <p class="reading">双 A 面</p>
+          <time>2024.03.20</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">5th Single</span>
+          <h3>端程山</h3>
+          <p class="reading">读法见官方</p>
+          <time>2024.07.24</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">6th Single</span>
+          <h3>聿日箋秋</h3>
+          <p class="reading">读法见官方</p>
+          <time>2025.04.23</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">7th Single</span>
+          <h3>往欄印</h3>
+          <p class="reading">读法见官方</p>
+          <time>2025.08.06</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">8th Single</span>
+          <h3>静降想</h3>
+          <p class="reading">读法见官方</p>
+          <time>2025.12.03</time>
+        </article>
+        <article class="music-card reveal" data-kind="single">
+          <span class="music-no">9th Single</span>
+          <h3>世点彩</h3>
+          <p class="reading">读法见官方</p>
+          <time>2026.11.11</time>
+        </article>
+        <article class="music-card reveal" data-kind="album">
+          <span class="music-no">1st Album</span>
+          <h3>迷跡波</h3>
+          <p class="reading">めいせきは</p>
+          <time>2023.11.01</time>
+        </article>
+        <article class="music-card reveal" data-kind="album">
+          <span class="music-no">2nd Album</span>
+          <h3>跡暖空</h3>
+          <p class="reading">读法见官方</p>
+          <time>2024.12.18</time>
+        </article>
+        <article class="music-card reveal" data-kind="album">
+          <span class="music-no">3rd Album</span>
+          <h3>致並跡</h3>
+          <p class="reading">读法见官方</p>
+          <time>2026.07.15</time>
+        </article>
+      </div>
+
+      <aside class="fun-fact reveal">
+        <h3>小知识：这些曲名，第一眼真的读不出来</h3>
+        <p>
+          MyGO!!!!! 的曲名以「难读汉字」闻名，官方甚至把这当成企划特色之一。收在 1st 专辑里的
+          <b>影色舞</b>（シルエットダンス）、<b>詩超絆</b>（うたことば）、<b>迷路日々</b>（メロディー）、
+          <b>無路矢</b>（のろし）、<b>名無声</b>（なもなき）——念不出来，反而更想查。
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ CARDS ============ -->
+  <section class="section section-alt" id="cards">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>卡面图鉴<span class="en">Cards</span></h2>
+        <p class="section-sub">
+          共 <b id="cardTotal">16</b> 张官方卡面，按稀有度排列。点开任意一张可看大图，并切换「特训前 / 特训后」。
+        </p>
+      </header>
+
+      <div class="filters" role="tablist" aria-label="稀有度筛选">
+        <button class="chip is-active" data-rarity="all" role="tab" aria-selected="true">全部</button>
+        <button class="chip" data-rarity="5" role="tab" aria-selected="false">★5</button>
+        <button class="chip" data-rarity="4" role="tab" aria-selected="false">★4</button>
+        <button class="chip" data-rarity="3" role="tab" aria-selected="false">★3</button>
+        <button class="chip" data-rarity="2" role="tab" aria-selected="false">★2</button>
+        <button class="chip" data-rarity="1" role="tab" aria-selected="false">★1</button>
+        <span class="filter-count" id="cardFilterCount"></span>
+      </div>
+
+      <div class="card-grid" id="cardGrid"></div>
+
+      <noscript>
+        <p class="notice">卡面图鉴需要开启 JavaScript 才能显示。图片文件位于 <code>assets/img/cards/</code>。</p>
+      </noscript>
+
+      <div class="notice">
+        <strong>素材来源与版权：</strong>
+        卡面图片与卡片数据通过 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 获取，
+        版权归 BanG Dream! Project 所有，此处仅用于个人学习与自用演示。
+        若要公开上线，建议改用自己绘制的应援图，并遵守官方的二次创作指引。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LETTERS ============ -->
+  <section class="section" id="letters">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>想对爱音说的话<span class="en">Letters</span></h2>
+        <p class="section-sub">Demo 留言板：内容只存在你自己的浏览器里，不会上传。</p>
+      </header>
+
+      <div class="letters-grid">
+        <form class="letter-form reveal" id="letterForm">
+          <label>
+            <span>你的名字</span>
+            <input type="text" id="letterName" maxlength="16" placeholder="例如：迷子 001 号" required />
+          </label>
+          <label>
+            <span>留言</span>
+            <textarea id="letterBody" maxlength="120" rows="4" placeholder="想对爱音ちゃん说点什么？（120 字以内）" required></textarea>
+          </label>
+          <div class="letter-form-foot">
+            <small><span id="letterCount">0</span>/120</small>
+            <button class="btn btn-primary" type="submit">投进信箱</button>
+          </div>
+        </form>
+
+        <div class="letter-wall">
+          <div class="letter-wall-head">
+            <h3>留言墙</h3>
+            <button class="link-btn" id="clearLetters" type="button">清空</button>
+          </div>
+          <ul class="letter-list" id="letterList"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LINKS ============ -->
+  <section class="section section-alt" id="links">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>官方入口<span class="en">Links</span></h2>
+        <p class="section-sub">想看一手消息，去这几个地方。</p>
+      </header>
+
+      <div class="link-grid">
+        <a class="link-card reveal" href="https://bang-dream.com/mygo" target="_blank" rel="noopener">
+          <strong>MyGO!!!!! 官方站</strong>
+          <span>bang-dream.com/mygo</span>
+        </a>
+        <a class="link-card reveal" href="https://anime.bang-dream.com/mygo/" target="_blank" rel="noopener">
+          <strong>TV 动画官网</strong>
+          <span>anime.bang-dream.com/mygo</span>
+        </a>
+        <a class="link-card reveal" href="https://x.com/bang_dream_mygo" target="_blank" rel="noopener">
+          <strong>官方 X</strong>
+          <span>@bang_dream_mygo</span>
+        </a>
+        <a class="link-card reveal" href="https://www.youtube.com/@bang_dream_mygo" target="_blank" rel="noopener">
+          <strong>YouTube 频道</strong>
+          <span>每周三「迷子集会」更新</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div>
+      <strong>千早愛音 非公式応援サイト</strong>
+      <p>本页面为学习 / 演示用途的非官方粉丝站，与 BanG Dream! Project 无隶属关系。</p>
+    </div>
+    <p class="copyright">© BanG Dream! Project ／ 本站 Demo 由 <span>Anon Fan Site</span> 制作</p>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="卡面预览">
+  <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭">×</button>
+  <div class="lightbox-content">
+    <img class="lightbox-img" id="lightboxImg" src="" alt="" />
+    <div class="lightbox-body">
+      <div class="lightbox-head">
+        <strong id="lightboxTitle"></strong>
+        <span class="lightbox-meta" id="lightboxMeta"></span>
+      </div>
+      <div class="lightbox-variants" id="lightboxVariants"></div>
+    </div>
+    <p class="lightbox-note">卡面版权归 BanG Dream! Project 所有 · 图片来源 Bestdori</p>
+  </div>
+</div>
+
+<script src="assets/data/anon-cards.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

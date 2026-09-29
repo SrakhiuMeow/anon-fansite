@@ -1,0 +1,7 @@
+# 只部署网站本身，资料抓取脚本与原始数据留在本地仓库
+data/
+scripts/
+README.md
+.agents/
+.codex/
+.git/
