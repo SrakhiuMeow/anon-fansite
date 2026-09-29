@@ -12,3 +12,6 @@ desktop.ini
 *.log
 .vscode/
 .idea/
+
+# ---- 部署工具本地目录（vercel.json / .vercelignore 本身要入库）----
+.vercel/
