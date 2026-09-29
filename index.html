@@ -28,6 +28,7 @@
       <a href="#story">成长线</a>
       <a href="#music">音乐</a>
       <a href="#cards">卡面</a>
+      <a href="#live2d">Live2D</a>
       <a href="#letters">留言</a>
     </nav>
 
@@ -498,6 +499,52 @@
     </div>
   </section>
 
+  <!-- ============ LIVE2D ============ -->
+  <section class="section" id="live2d">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Live2D 立绘<span class="en">Live2D</span></h2>
+        <p class="section-sub">
+          从游戏资源里提取的 3 套 Live2D 模型，可以换装、播放动作与表情。点击画面里的她，还会有不同反应。
+        </p>
+      </header>
+
+      <div class="l2d-layout">
+        <div class="l2d-stage" id="l2dStage">
+          <canvas id="l2dCanvas"></canvas>
+          <p class="l2d-status" id="l2dStatus">滚动到这里时才会开始加载 Live2D 运行时…</p>
+          <div class="l2d-fallback" id="l2dFallback" hidden>
+            <img src="assets/img/standing/res037002.png" alt="千早爱音立绘（静态备用）" />
+            <p>Live2D 运行时没能加载（多为 CDN 不可达），这里先显示静态立绘。</p>
+          </div>
+        </div>
+
+        <div class="l2d-controls">
+          <div class="l2d-group">
+            <span class="l2d-label">服装</span>
+            <div class="l2d-chips" id="l2dCostumes"></div>
+          </div>
+          <div class="l2d-group">
+            <span class="l2d-label">动作</span>
+            <div class="l2d-chips" id="l2dMotions"></div>
+          </div>
+          <div class="l2d-group">
+            <span class="l2d-label">表情</span>
+            <div class="l2d-chips" id="l2dExpressions"></div>
+          </div>
+          <p class="l2d-hint" id="l2dHint"></p>
+        </div>
+      </div>
+
+      <p class="source-note">
+        Live2D 模型来自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 的游戏拆包资源（Cubism 2.1 格式），
+        运行时使用 pixi.js + pixi-live2d-display + Live2D Cubism 2 Core，全部由 CDN 提供。
+        模型版权归 BanG Dream! Project 所有，仅供个人学习与自用。
+        直接双击打开 index.html 时浏览器会拦截模型文件的读取，请用本地服务或线上地址访问。
+      </p>
+    </div>
+  </section>
+
   <!-- ============ LINKS ============ -->
   <section class="section section-alt" id="links">
     <div class="wrap">
@@ -555,6 +602,8 @@
 </div>
 
 <script src="assets/data/anon-cards.js"></script>
+<script src="assets/data/anon-live2d.js"></script>
 <script src="assets/js/main.js"></script>
+<script src="assets/js/live2d-viewer.js?v=2"></script>
 </body>
 </html>

@@ -105,6 +105,39 @@
 补充说明：bili_res037001（bilibili 联动卡）位于 CN 服资源目录，脚本会自动回退查找；
 res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过。
 
+### Live2D 模型（已接入）
+
+Bestdori 上的 Live2D 是**游戏拆包资源**，不是网页常见的格式：每个服装一套，清单文件 `buildData.asset`（Unity TextAsset，内容是 JSON）里记录模型、物理、贴图、动作、表情各自的真实文件名。脚本按清单抓齐后重新组装成标准 Cubism 2.1 的 `model.json`。
+
+| 项目 | 数量 | 说明 |
+| --- | --- | --- |
+| 服装 | 3 套 | 私服（春）、制服（冬）、制服（夏） |
+| 动作 | 每套 41 个 | `*.mtn.bytes` → 去掉 `.bytes` 即标准 `.mtn` |
+| 表情 | 每套 28 个 | `*.exp.json` |
+| 体积 | 约 6.6 MB | 存放在 `assets/live2d/<服装>/` |
+
+刷新模型：`python3 scripts/fetch_live2d.py`（需要联网，产物清单写入 `assets/data/anon-live2d.js`）。
+
+网页端用 pixi.js + pixi-live2d-display（Cubism 2 版）+ Live2D Cubism 2 Core 渲染，三者都从 CDN 加载。
+
+几个必须知道的坑：
+
+- **Cubism 2 是 2013 年前后的老格式**，官方 CDN 上已经没有对应核心，现在用的是社区镜像 `cdn.jsdelivr.net/gh/dylanNew/live2d`。要长期上线，建议换自建 CDN 并确认 Live2D 的授权条款。
+- **直接双击打开 index.html 时播放器无法工作**——浏览器会拦截 `file://` 下的模型文件读取，请用本地服务或线上地址。
+- Bestdori 的清单没有保留动作分组（idle / tap 等），脚本统一放进 `idle` 组，由站点按索引调用。
+- Cubism 2 的 `getLocalBounds()` 在第一帧之后才给出真实几何，因此播放器会先摆一次、再量一次重新取景。
+- 作者样式会盖过浏览器默认的 `[hidden]{display:none}`：`.l2d-fallback` 这类元素必须显式写 `[hidden]{display:none}`，否则备用图会一直盖在画布上。
+
+### 3D 模型（目前不可行）
+
+结论：**能下载，但不能直接用**。
+
+- Bestdori 的工具里只有 Live2D 查看器（另有资源浏览器 AssetExplorer、剧情查看器、音乐播放器等），**没有 3D 模型查看器**。
+- 游戏里的 3D / SD 模型是 Unity 资源包（AssetBundle），`sdAssetBundleName`（爱音为 `00037`）只是索引名，模型本身不是 glTF/VRM 这类网页可渲染格式。
+- 要放进网页，需要额外做一条转换流水线：UnityPy 解包 → 提取网格/材质/骨骼/贴图 → 转成 glTF → 用 three.js 渲染。工程量比 Live2D 大一个量级，而且转换质量、动画（动作、表情、口型）都需要单独验证。
+
+如果确实要做，建议单独立项，先跑通「一个模型 + 一个待机动作」的最小闭环，再考虑批量。
+
 ## 8. 版权与合规（重要）
 
 - 卡面、立绘、音乐、Logo 版权归 **BanG Dream! Project / Bushiroad** 所有，本站仅作个人学习与自用演示。
