@@ -132,7 +132,23 @@ res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过
     git add -A
     git commit -m "说明这次改了什么"
 
-## 11. 后续路线图
+## 11. 部署（Vercel）
+
+线上地址：**https://anon-chihaya-fansite.vercel.app**（Vercel 项目名 `anon-chihaya-fansite`）
+
+更新线上内容：
+
+    vercel deploy --prod --yes
+
+换一台机器时先关联项目：
+
+    vercel link --project anon-chihaya-fansite
+
+部署范围由 `.vercelignore` 控制：只发布站点本身（`index.html`、`assets/`），`data/`、`scripts/`、文档与仓库文件都不上传。
+
+有一个容易踩的坑：规则必须写成 `/data/` 这样的根目录锚定写法。写成 `data/` 会把 `assets/data/anon-cards.js` 一起排除掉，线上卡面图鉴就会加载不出来。
+
+## 12. 后续路线图
 
 **Phase 1 · 内容打磨**：补全曲名读法、给成长线加动画话数标注、卡面再按属性/年份分层筛选。
 

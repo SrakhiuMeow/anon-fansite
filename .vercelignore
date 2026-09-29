@@ -1,7 +1,13 @@
-# 只部署网站本身，资料抓取脚本与原始数据留在本地仓库
-data/
-scripts/
-README.md
-.agents/
-.codex/
-.git/
+# 只部署网站本身，资料抓取脚本与原始数据留在本地仓库。
+# 注意：必须写成 /data/ 这样的根目录锚定形式，否则会连 assets/data/ 一起排除掉。
+/data/
+/scripts/
+/README.md
+/AGENTS.md
+/.agents/
+/.codex/
+/.git/
+/.vercel/
+
+# 本地凭据
+.env*
