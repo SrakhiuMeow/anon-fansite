@@ -81,10 +81,10 @@ class Element {
   scrollIntoView() {}
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, modelReact, modelReady = true } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
-    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatAccessField",
+    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatAccessField", "anonChatEmotion",
   ].map((id) => [id, new Element()]));
   const send = new Element();
   const aiOption = new Element(); aiOption.disabled = true;
@@ -105,7 +105,10 @@ async function browserFixture({ accessCodeRequired = false, mobile = false } = {
     location: { protocol: "https:" },
     matchMedia: () => ({ matches: mobile }),
     requestAnimationFrame: (callback) => { frames.push(callback); },
-    AnonLive2D: { react: (reaction) => { reactions.push(reaction); return Promise.resolve(); } },
+    AnonLive2D: {
+      react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
+      getState: () => ({ ready: modelReady }),
+    },
     fetch: async (url, options = {}) => {
       assert.equal(url, "/api/chat");
       if (options.method !== "POST") return { ok: true, json: async () => ({ enabled: true, accessCodeRequired }) };
@@ -140,7 +143,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false } = {
     lastText() { return ids.anonChatLog.children.at(-1)?.children[1]?.textContent; },
     async complete(text) {
       const request = requests.at(-1);
-      request.write({ type: "reaction", motion: "smile01", expression: "smile01" });
+      request.write({ type: "reaction", motion: "smile01", expression: "smile01", label: "微笑" });
       request.write({ type: "delta", text }); request.write({ type: "done" }); request.close();
       await settle(() => !send.disabled, "完成后应恢复发送");
     },
@@ -256,8 +259,77 @@ async function testClient() {
   await gated.complete("欢迎来玩");
 }
 
+async function testEmotionFeedback() {
+  const ui = await browserFixture();
+  ui.submit("爱音真可爱");
+  const shy = { type: "reaction", motion: "shame01", expression: "shame01", label: "害羞" };
+  ui.requests.at(-1).write(shy);
+  await settle(() => ui.ids.anonChatEmotion.textContent === "回应：害羞", "应在模型确认后显示情绪标签");
+  assert.deepEqual({ ...ui.reactions.at(-1) }, shy);
+  assert.match(ui.ids.anonChatEmotion.title, /已应用/);
+  await ui.complete("突然夸我，有点不好意思啦。");
+
+  const paused = await browserFixture({ modelReact: async () => ({ ok: false, reason: "模型已暂停" }) });
+  paused.submit("眨眼");
+  paused.requests.at(-1).write({ type: "reaction", motion: "wink01", expression: "wink01", label: "眨眼" });
+  await settle(() => paused.ids.anonChatEmotion.textContent === "回应：眨眼 · 未播放", "暂停模型不能报告动作已播放");
+  assert.equal(paused.ids.anonChatEmotion.title, "模型已暂停");
+  await paused.complete("收到啦。");
+
+  let fail = false;
+  const failed = await browserFixture({ modelReact: async () => {
+    if (fail) throw new Error("模型资源异常");
+    return { ok: true };
+  } });
+  failed.submit("你好");
+  await failed.complete("你好呀。");
+  assert.match(failed.ids.anonChatEmotion.title, /已应用/);
+  fail = true;
+  failed.submit("微笑");
+  await failed.complete("我听见了。");
+  assert.match(failed.ids.anonChatEmotion.textContent, /未播放|暂不可用/);
+  assert.doesNotMatch(failed.ids.anonChatEmotion.title || "", /已应用/, "失败状态不能保留上一轮成功的悬浮说明");
+
+  // 手动决定模型异步调用的完成顺序，验证旧思考、旧轮次均不能回写新状态。
+  const pending = [];
+  const race = await browserFixture({ modelReact: (reaction) => new Promise((resolve, reject) => pending.push({ reaction, resolve, reject })) });
+  race.submit("第一句");
+  const thinking = pending.at(-1);
+  race.requests.at(-1).write(shy);
+  await settle(() => pending.length === 2, "应收到思考后的情绪动作");
+  pending[1].resolve({ ok: true });
+  await settle(() => race.ids.anonChatEmotion.textContent === "回应：害羞", "最新模型回调应写入状态");
+  thinking.resolve({ ok: false, reason: "过期的思考动作" });
+  await tick();
+  assert.equal(race.ids.anonChatEmotion.textContent, "回应：害羞");
+  await race.complete("第一句回答");
+  const oldTurn = pending.at(-1);
+  race.ids.anonChatClear.dispatch("click");
+  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机" });
+  pending.at(-1).resolve({ ok: true });
+  await settle(() => race.ids.anonChatEmotion.textContent === "回应：平静待机", "清空后应恢复待机");
+  oldTurn.resolve({ ok: true });
+  await tick();
+  assert.equal(race.ids.anonChatEmotion.textContent, "回应：平静待机");
+
+  race.submit("第二句");
+  const stoppedThinking = pending.at(-1);
+  race.requests.at(-1).write(shy);
+  await settle(() => pending.at(-1).reaction.label === "害羞", "第二轮应收到情绪动作");
+  const stoppedReaction = pending.at(-1);
+  race.ids.anonChatStop.dispatch("click");
+  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机" });
+  pending.at(-1).resolve({ ok: true });
+  await settle(() => !race.send.disabled && race.ids.anonChatEmotion.textContent === "回应：平静待机", "停止后应恢复待机与发送控件");
+  stoppedReaction.reject(new Error("停止后的旧动作失败"));
+  stoppedThinking.resolve({ ok: true });
+  await tick();
+  assert.equal(race.ids.anonChatEmotion.textContent, "回应：平静待机");
+}
+
 (async () => {
   await testParser();
   await testClient();
-  console.log("聊天前端验证通过：UTF-8 分块、NDJSON 残尾/错误、停止/清空/切模式竞争、历史窗口、故障降级与口令边界。");
+  await testEmotionFeedback();
+  console.log("聊天前端验证通过：UTF-8/NDJSON、生命周期竞争、历史预算、故障降级、口令编码、情绪动作实际结果与回调竞争。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

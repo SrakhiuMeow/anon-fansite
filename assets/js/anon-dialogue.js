@@ -15,6 +15,7 @@
   const clear = root.document.getElementById("anonChatClear");
   const access = root.document.getElementById("anonChatAccessCode");
   const accessField = root.document.getElementById("anonChatAccessField");
+  const emotion = root.document.getElementById("anonChatEmotion");
   const send = form.querySelector('[type="submit"]');
   const prompts = [...root.document.querySelectorAll("[data-chat-prompt]")];
   let history = [];
@@ -23,6 +24,7 @@
   let busy = false;
   let modeChosen = false;
   let requiresCode = false;
+  let reactionRequest = 0;
   const setState = (text) => { if (state) state.textContent = text; };
   const setBusy = (value) => {
     busy = value;
@@ -51,8 +53,31 @@
     log.scrollTop = log.scrollHeight;
     return content;
   };
-  const react = (result) => { void root.AnonLive2D?.react(result)?.catch(() => {}); };
-  const cancel = () => { controller?.abort(); };
+  const react = async (result) => {
+    const version = ++reactionRequest;
+    const turn = request;
+    const label = result.label || "平静待机";
+    if (emotion) { emotion.textContent = `回应：${label}…`; emotion.title = "正在应用对应的 Live2D 表情与动作"; }
+    try {
+      const outcome = await root.AnonLive2D?.react(result);
+      if (version !== reactionRequest || turn !== request) return;
+      if (emotion) {
+        emotion.textContent = outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
+        emotion.title = outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
+      }
+    } catch {
+      if (version === reactionRequest && turn === request && emotion) {
+        emotion.textContent = `回应：${label} · 暂不可用`;
+        emotion.title = "模型动作未能应用，请检查模型加载状态";
+      }
+    }
+  };
+  const cancel = () => {
+    controller?.abort();
+    ++reactionRequest;
+    if (root.AnonLive2D?.getState?.().ready) void react({ motion: "idle01", expression: "default", label: "平静待机" });
+    else if (emotion) { emotion.textContent = "随对话变化"; emotion.title = "对话会自动选择对应表情与动作"; }
+  };
   const submit = async (raw) => {
     if (busy) return;
     const result = api.reply(raw);
@@ -93,7 +118,7 @@
       return;
     }
     setState("爱音正在想怎么回答…");
-    react({ motion: "thinking01", expression: "thinking01" });
+    react({ motion: "thinking01", expression: "thinking01", label: "思考" });
     let content = null;
     let answer = "";
     let complete = false;
