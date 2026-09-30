@@ -7,7 +7,7 @@
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
 <link rel="icon" href="assets/favicon.svg" />
-<link rel="stylesheet" href="assets/css/style.css?v=20260929-3" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260930-1" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -129,7 +129,9 @@
 
         <div class="l2d-controls">
           <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge">应援小剧场</span></div>
-          <p class="chat-disclosure" id="chatDisclosure">本站原创的关键词互动，非官方台词，也非 AI 聊天。内容不上传，刷新即清空。</p>
+          <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip" id="anonChatClear" type="button">清空对话</button></div>
+          <p class="chat-disclosure" id="chatDisclosure">本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。</p>
+          <div class="chat-access" id="anonChatAccessField" hidden><label for="anonChatAccessCode">聊天口令</label><input id="anonChatAccessCode" type="password" maxlength="200" autocomplete="off" placeholder="填写站长提供的口令" /><small>仅本页使用，刷新后需重新填写。</small></div>
           <div class="chat-log" id="anonChatLog" role="log" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
           <div class="chat-prompts" aria-label="试试这些话题">
             <button type="button" class="chip" data-chat-prompt="你好，爱音！">打个招呼</button>
@@ -141,7 +143,7 @@
             <label for="anonChatInput">想对爱音说的话</label>
             <div class="chat-compose"><input id="anonChatInput" name="message" maxlength="200" autocomplete="off" placeholder="例如：眨眨眼、生日快乐…" aria-describedby="chatDisclosure" required /><button class="btn btn-primary" type="submit">发送</button></div>
           </form>
-          <p id="anonChatState" class="chat-state" role="status"></p>
+          <div class="chat-status-row"><p id="anonChatState" class="chat-state" role="status"></p><button class="chip" id="anonChatStop" type="button" hidden>停止回复</button></div>
           <div class="room-tools"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip is-active" type="button" id="l2dFollowMouse" role="switch" aria-checked="true" aria-label="自动跟随鼠标">跟随鼠标：开</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
           <details class="model-settings" open><summary>换装与动作</summary>
           <div class="l2d-group">
@@ -624,7 +626,7 @@
       <header class="section-head"><h2>每一份喜欢，都有出处<span class="en">Sources</span></h2></header>
       <div class="source-grid">
         <article><h3>官方设定与周边</h3><p>角色资料归纳自 BanG Dream! 官方网站；商品图片、价格与售卖状态取自武士道官方商店。商品信息为核验时快照，结算以商店页面为准。</p><a href="https://bang-dream.com/artist/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">官方角色页</a> · <a href="https://bushiroad-store.com/collections/anon" target="_blank" rel="noopener noreferrer">官方商店</a></article>
-        <article><h3>卡面与 Live2D</h3><p>素材通过非官方资料站 Bestdori 获取，角色 ID 为 37。模型与图片版权归各权利人所有；互动对话为本站原创，不代表官方发言。</p><a href="https://bestdori.com/info/characters/37/Chihaya-Anon" target="_blank" rel="noopener noreferrer">Bestdori 角色资料</a> · <a href="https://www.live2d.com/en/sdk/license/" target="_blank" rel="noopener noreferrer">Live2D 许可</a></article>
+        <article><h3>卡面与 Live2D</h3><p>素材通过非官方资料站 Bestdori 获取，角色 ID 为 37。模型与图片版权归各权利人所有；互动对话为非官方同人演绎，不代表官方发言。</p><a href="https://bestdori.com/info/characters/37/Chihaya-Anon" target="_blank" rel="noopener noreferrer">Bestdori 角色资料</a> · <a href="https://www.live2d.com/en/sdk/license/" target="_blank" rel="noopener noreferrer">Live2D 许可</a></article>
         <article><h3>百科摘编与荣誉</h3><p>摘编自萌娘百科《千早爱音》，保留版本与原文链接。相关归纳改写文本依 CC BY-NC-SA 4.0 共享；该许可不涵盖角色及商品图片。</p><a href="https://zh.moegirl.org.cn/index.php?title=千早爱音&amp;action=history" target="_blank" rel="noopener noreferrer">原文贡献者</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans" target="_blank" rel="noopener noreferrer">文本许可</a></article>
       </div>
       <noscript><p class="notice">请启用 JavaScript 以使用卡面、商品图鉴与互动功能；官方资料和来源链接仍可直接阅读。</p></noscript>
@@ -664,6 +666,6 @@
 <script src="assets/js/main.js?v=20260929-3"></script>
 <script src="assets/js/content.js?v=20260929-3"></script>
 <script src="assets/js/live2d-viewer.js?v=20260929-5"></script>
-<script src="assets/js/anon-dialogue.js?v=20260929-3"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-1"></script>
 </body>
 </html>

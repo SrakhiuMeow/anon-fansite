@@ -1,4 +1,4 @@
-/* 原创同人规则对话：仅在本页内匹配，不调用 AI，不发送或保存聊天内容。 */
+/* 同人对话：本地预设始终可用；DeepSeek 经同源服务端调用，浏览器不持有 API Key。 */
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
@@ -9,7 +9,35 @@
   const log = root.document.getElementById("anonChatLog");
   const state = root.document.getElementById("anonChatState");
   if (!form || !input || !log) return;
+  const mode = root.document.getElementById("anonChatMode");
+  const disclosure = root.document.getElementById("chatDisclosure");
+  const stop = root.document.getElementById("anonChatStop");
+  const clear = root.document.getElementById("anonChatClear");
+  const access = root.document.getElementById("anonChatAccessCode");
+  const accessField = root.document.getElementById("anonChatAccessField");
+  const send = form.querySelector('[type="submit"]');
+  const prompts = [...root.document.querySelectorAll("[data-chat-prompt]")];
+  let history = [];
   let request = 0;
+  let controller = null;
+  let busy = false;
+  let modeChosen = false;
+  let requiresCode = false;
+  const setState = (text) => { if (state) state.textContent = text; };
+  const setBusy = (value) => {
+    busy = value;
+    if (send) send.disabled = value;
+    prompts.forEach((button) => { button.disabled = value; });
+    if (stop) stop.hidden = !value;
+    log.setAttribute("aria-busy", String(value));
+  };
+  const syncMode = () => {
+    const ai = mode?.value === "deepseek";
+    if (disclosure) disclosure.textContent = ai
+      ? "DeepSeek 驱动的非官方角色扮演。发送后，本条消息与最近几轮 AI 对话将经服务端交给 DeepSeek；本页不持久保存，刷新或清空即可重置。"
+      : "本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。";
+    if (accessField) accessField.hidden = !ai || !requiresCode;
+  };
   const append = (role, text) => {
     const item = root.document.createElement("p");
     item.className = `chat-message chat-message--${role}`;
@@ -21,14 +49,27 @@
     log.appendChild(item);
     while (log.children.length > 40) log.firstElementChild.remove();
     log.scrollTop = log.scrollHeight;
+    return content;
   };
+  const react = (result) => { void root.AnonLive2D?.react(result)?.catch(() => {}); };
+  const cancel = () => { controller?.abort(); };
   const submit = async (raw) => {
+    if (busy) return;
     const result = api.reply(raw);
     if (!result) { input.focus(); return; }
+    const useAI = mode?.value === "deepseek";
+    if (useAI && requiresCode && !access?.value.trim()) {
+      setState("请先输入站长提供的聊天口令。");
+      access?.focus();
+      return;
+    }
     const version = ++request;
-    append("user", api.normalize(raw));
-    append("anon", result.text);
+    const text = api.normalize(raw);
+    append("user", text);
     input.value = "";
+    setBusy(true);
+    const active = new AbortController();
+    controller = active;
     // 手机将画面带回模型与最新回复，收起软键盘；两个面板不会互相遮挡。
     if (root.matchMedia?.("(max-width: 700px)").matches) {
       input.blur();
@@ -37,18 +78,101 @@
       root.document.getElementById("anonRoom")?.scrollIntoView({ block: "start", behavior: "instant" });
       await new Promise((resolve) => root.requestAnimationFrame(() => root.requestAnimationFrame(resolve)));
     }
-    if (state) state.textContent = "正在尝试播放对应动作…";
+    if (version !== request) return;
+    if (active.signal.aborted) {
+      setState("已停止，本次内容不会加入后续对话记忆。");
+      setBusy(false); controller = null;
+      return;
+    }
+    if (!useAI) {
+      append("anon", result.text);
+      react(result);
+      setState(`本地互动：${result.label}。对话为本站原创同人内容。`);
+      setBusy(false);
+      controller = null;
+      return;
+    }
+    setState("爱音正在想怎么回答…");
+    react({ motion: "thinking01", expression: "thinking01" });
+    let content = null;
+    let answer = "";
+    let complete = false;
+    const timeout = setTimeout(() => active.abort("timeout"), 50000);
     try {
-      const outcome = await root.AnonLive2D?.react(result);
+      const context = history.slice(-10);
+      // 按服务端预算保留完整轮次；极长回答时可少于五轮。
+      while (context.length && context.reduce((size, item) => size + item.content.length, text.length) > 6000) context.splice(0, 2);
+      const response = await root.fetch("/api/chat", {
+        method: "POST", signal: active.signal,
+        headers: { "Content-Type": "application/json", ...(requiresCode ? { "X-Chat-Access-Code": encodeURIComponent(access.value.trim()) } : {}) },
+        body: JSON.stringify({ messages: [...context, { role: "user", content: text }] }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "AI 服务暂时不可用");
+      }
+      if (!response.headers.get("content-type")?.includes("application/x-ndjson") || !response.body) throw new Error("AI 服务返回格式异常");
+      await api.readEvents(response.body, (event) => {
+        if (version !== request || active.signal.aborted) return;
+        if (event.type === "reaction") react(event);
+        if (event.type === "delta" && typeof event.text === "string") {
+          answer = (answer + event.text).slice(0, 1000);
+          if (!content) content = append("anon", "");
+          content.textContent = answer;
+          log.scrollTop = log.scrollHeight;
+          setState("爱音正在回复…");
+        }
+        if (event.type === "done") complete = true;
+        if (event.type === "error") throw new Error(event.message || "AI 回复中断");
+      });
       if (version !== request) return;
-      if (state) state.textContent = outcome?.ok ? `已响应：${result.label}。对话为本站原创同人内容。` : outcome?.reason || "文字回复已送达；模型暂未就绪。";
-    } catch {
-      if (version === request && state) state.textContent = "文字回复已送达；模型暂不可用，可点重试。";
+      if (active.signal.aborted || !complete || !answer.trim()) throw new Error("AI 回复未完成");
+      history.push({ role: "user", content: text }, { role: "assistant", content: answer });
+      history = history.slice(-10);
+      setState("DeepSeek 回复完成 · 非官方同人演绎");
+    } catch (error) {
+      if (version !== request) return;
+      if (active.signal.aborted && active.signal.reason !== "timeout") {
+        if (!answer) append("anon", "（已停止本次回复）");
+        setState("已停止，本次内容不会加入后续对话记忆。");
+      } else if (answer) {
+        setState("AI 回复中断，已保留收到的文字；本次内容未加入对话记忆。");
+      } else {
+        append("anon", result.text);
+        react(result);
+        setState(`${active.signal.reason === "timeout" ? "AI 回复超时" : error.message.replace(/[。；;\s]+$/u, "")}；本次使用本地预设回复。`);
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (version === request) { setBusy(false); controller = null; }
     }
   };
   form.addEventListener("submit", (event) => { event.preventDefault(); void submit(input.value); });
   append("anon", "欢迎来到我的应援小房间！试着打个招呼，或对我说「眨眼」吧。");
-  root.document.querySelectorAll("[data-chat-prompt]").forEach((button) => button.addEventListener("click", () => { void submit(button.dataset.chatPrompt); }));
+  prompts.forEach((button) => button.addEventListener("click", () => { void submit(button.dataset.chatPrompt); }));
+  stop?.addEventListener("click", cancel);
+  clear?.addEventListener("click", () => {
+    ++request; cancel(); controller = null; history = []; log.replaceChildren(); setBusy(false);
+    append("anon", "从这里重新开始吧！今天想聊什么？");
+    setState("已清空本页聊天记录与对话记忆。");
+  });
+  mode?.addEventListener("change", () => {
+    modeChosen = true; ++request; cancel(); controller = null; history = []; setBusy(false); syncMode();
+    setState("已切换模式，对话记忆已重置。");
+  });
+  syncMode();
+  // 仅检查服务状态，不上传对话；普通静态服务器没有此接口时仍可本地互动。
+  if (/^https?:$/.test(root.location.protocol)) {
+    root.fetch("/api/chat", { signal: AbortSignal.timeout(5000), cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((config) => {
+        if (!config?.enabled || !mode) return;
+        requiresCode = !!config.accessCodeRequired;
+        mode.querySelector('[value="deepseek"]').disabled = false;
+        if (!modeChosen && !busy) mode.value = "deepseek";
+        syncMode();
+      }).catch(() => {});
+  }
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
   const normalize = (value) => String(value ?? "").normalize("NFKC").trim().slice(0, 200);
@@ -88,5 +212,24 @@
     if (/你好|您好|早[上安]|午[好安]|晚上好|嗨|hello|\bhi\b|初次见面/i.test(text)) return response("你好呀！我是爱音。今天想聊聊吉他，还是看看我的新表情？", "bye01", "smile01", "打个招呼");
     return response("我在听哦！这里的我只会一些预先写好的回应。可以试试「给我加油」「眨眼」或「聊聊吉他」。", "thinking01", "default", "认真倾听");
   };
-  return { normalize, reply };
+  // 网络分块可落在任意 UTF-8 字符或换行处；只处理完整 NDJSON 事件。
+  const readEvents = async (body, onEvent) => {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const consume = (line) => { if (line.trim()) onEvent(JSON.parse(line)); };
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        if (buffer.length > 65536) throw new Error("AI 响应超出限制");
+        let newline;
+        while ((newline = buffer.indexOf("\n")) >= 0) {
+          consume(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1);
+        }
+        if (done) { consume(buffer); break; }
+      }
+    } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  };
+  return { normalize, reply, readEvents };
 });

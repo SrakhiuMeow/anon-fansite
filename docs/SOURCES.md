@@ -67,4 +67,4 @@
 
 运行时：PixiJS 6.5.10、pixi-live2d-display 0.4.0（MIT），与 Live2D Cubism 2 Core（专有许可，不能标为 MIT）。Core 采用插件文档推荐镜像的固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a`，所有 CDN 文件均加 SRI 校验与加载超时；源码内记录准确 URL。参见 [pixi-live2d-display 官方文档](https://github.com/guansss/pixi-live2d-display)、[Live2D 许可说明](https://www.live2d.com/en/sdk/license/)及[原 SDK 说明](https://github.com/dylanNew/live2d/blob/fd9fd400845e9a00bb194fdac0b6635c753a1e8a/webgl/Live2D/ReadMe.txt)。运行时许可与游戏角色素材权利彼此独立。
 
-聊天脚本为本站原创同人回应，不是动画或游戏台词；关键词规则在本机执行，不调用远程 AI、不保存聊天、不向第三方传送聊天内容。留言板仍仅保存在访客浏览器。
+聊天为非官方同人演绎，不是动画或游戏台词。本地模式使用本站原创的关键词回应，不上传聊天；可选 DeepSeek 模式由 Vercel 服务端发送本条消息及最近的 AI 对话上下文到 DeepSeek，驱动文字与白名单表情动作。聊天仅保留在页面内存，刷新或清空即重置；本站代码不持久存储聊天。AI 回复可能产生错误，不作为官方角色资料或商品信息来源。配置与服务提供商文档见 [DeepSeek 接入说明](DEEPSEEK.md)。留言板仍仅保存在访客浏览器。

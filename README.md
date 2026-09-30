@@ -15,24 +15,28 @@
 | 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可 |
 | 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本，支持筛选、灯箱和版本切换 |
 | Live2D | 私服（春）、制服（冬）、制服（夏）3 套服装；每套收录 41 个动作、28 个表情，提供常用动作与表情按钮 |
-| 互动对话 | 根据输入关键词生成本站原创同人回应，并触发对应模型动作与表情 |
+| 互动对话 | 可选 DeepSeek 流式对话、近期上下文与情绪动作；保留本地关键词互动、停止回复和清空对话 |
 | 原有栏目 | 保留角色解读、成长线、音乐、官方入口、主题切换及本地留言板 |
 
 商品数据为核验快照，价格、库存与配送范围以官方商店页面及结算结果为准。社区荣誉属于粉丝赛事或评审结果，不是 BanG Dream! 官方授予的角色头衔；卡面也不宣称覆盖所有最新实装。
 
-对话由浏览器内的关键词规则处理，**不是生成式 AI，也不是官方台词**。聊天内容不上传、不持久保存。留言板和主题偏好保存在当前浏览器的 `localStorage`，不会同步至其他设备。
+本地互动在浏览器内匹配关键词，不上传聊天内容。配置服务端密钥后可使用 DeepSeek AI：本条消息及最多最近 5 轮成功的 AI 对话经 Vercel 服务端发送到 DeepSeek，流式回复同时触发表情和动作。两种模式均为非官方同人演绎，聊天历史仅保留在当前页面内存；刷新、清空或切换模式会重置 AI 上下文。本站代码不将聊天写入数据库、浏览器持久存储或应用日志，服务提供商的数据处理以其政策为准。留言板和主题偏好仍保存在当前浏览器的 `localStorage`。
+
+**启用 AI：** 在 Vercel 项目环境变量中设置 `DEEPSEEK_API_KEY` 并重新部署。密钥仅在 `/api/chat` 服务端使用，禁止放入前端脚本或提交 Git。可选 `CHAT_ACCESS_CODE` 限制聊天访问。完整配置、限流边界与验证步骤见 [DeepSeek 接入说明](docs/DEEPSEEK.md)。
 
 Live2D 控制区提供“跟随鼠标”开关，默认开启。关闭后恢复正向视线；开关偏好保存在当前浏览器，换装、重新加载与刷新后继续生效，不影响对话、动作和表情按钮。
 
 ## 本地运行
 
-网站使用纯静态 HTML、CSS 和原生 JavaScript，无需 npm 安装或构建。在仓库根目录启动 HTTP 服务：
+页面使用静态 HTML、CSS 和原生 JavaScript，无需 npm 安装或构建；可选 AI 接口使用 Vercel Node.js Function。在仓库根目录启动 HTTP 服务可测试页面与本地互动：
 
 ```sh
 python3 -m http.server 5173
 ```
 
 打开 [http://localhost:5173](http://localhost:5173)。Windows 可按本机 Python 安装情况将 `python3` 换成 `py` 或 `python`。
+
+Python 静态服务器不运行 `/api/chat`，因此本地互动正常、AI 选项不可用。需要本地联调接口时使用 `vercel dev`，服务端环境变量配置见接入说明。
 
 Live2D 需要通过 HTTP/HTTPS 读取模型，不能依赖双击 `index.html` 的 `file://` 方式运行。模型和图片随仓库部署；Live2D 运行时从 CDN 加载，因此该模块仍需要网络和支持 WebGL 的浏览器。
 
@@ -81,15 +85,17 @@ python3 scripts/fetch_live2d.py
 ```sh
 node scripts/check-site.cjs
 node scripts/test-dialogue.cjs
+node scripts/test-chat-api.cjs
+node scripts/test-chat-client.cjs
 ```
 
-前者检查页面引用、本地文件、图片格式、数据字段与脚本语法；后者检查关键词回应以及动作、表情与三套模型资源的对应关系。两者均为离线检查，浏览器布局、实际模型渲染、外链可达性和最新库存仍需另行验证。
+站点检查覆盖页面引用、本地文件、图片格式、数据字段与脚本语法；对话检查覆盖关键词回应与模型素材。AI 测试用模拟上游检查输入边界、流式解析、错误与取消等行为，不调用付费 API。浏览器布局、实际模型渲染、真实 API 联通、外链可达性和最新库存仍需另行验证。
 
 Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0**，以及固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a` 的 Cubism 2 Core 镜像。CDN 脚本使用 SRI 完整性校验，加载器设置超时、备用 CDN 入口和页面重试按钮。网络、CDN 或 WebGL 故障时会显示备用内容与状态提示，文字回应仍可使用；这些措施不保证外部服务始终可用。
 
 ## 部署与忽略规则
 
-仓库已连接 Vercel，推送到 `main` 后自动部署至 [https://anon.srakhiumeow.top](https://anon.srakhiumeow.top)。`vercel.json` 使用静态部署配置，构建命令为空，输出目录为仓库根目录。部署完成后刷新页面查看更新；若旧资源仍被缓存，可强制刷新。
+仓库已连接 Vercel，推送到 `main` 后自动部署至 [https://anon.srakhiumeow.top](https://anon.srakhiumeow.top)。`vercel.json` 保留空构建命令与仓库根输出目录，`api/chat.js` 自动部署为 Node.js Function；未配置密钥时仍可使用静态页面及本地互动。部署完成后刷新页面查看更新；若旧资源仍被缓存，可强制刷新。
 
 ```sh
 git add -A

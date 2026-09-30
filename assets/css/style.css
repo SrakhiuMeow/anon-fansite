@@ -719,6 +719,17 @@ button:disabled{cursor:wait;opacity:.55}
 .l2d-controls{box-shadow:none;padding:1.4rem}
 .chat-heading{display:flex;align-items:center;justify-content:space-between;gap:.7rem}
 .chat-heading h3{font-size:1.2rem}
+.chat-options{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.8rem;font-size:.8rem}
+.chat-options select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:.4rem;background:var(--bg);color:var(--ink)}
+.chat-options .chip{margin-left:auto;font-size:.8rem}
+.chat-access{margin-bottom:1rem;font-size:.8rem}
+.chat-access input{display:block;width:100%;box-sizing:border-box;margin:.4rem 0;padding:.6rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.chat-access small{color:var(--ink-soft)}
+.chat-status-row{display:flex;align-items:center;gap:.5rem;min-height:2rem}
+.chat-status-row .chat-state{flex:1}
+.chat-status-row .chip{font-size:.75rem;flex-shrink:0}
+.chat-message span{white-space:pre-wrap}
+.chat-compose button:disabled,.chat-prompts button:disabled{opacity:.55;cursor:wait}
 .small-badge{color:var(--coral-deep);background:var(--bg-alt);font-size:.75rem;padding:.2rem .6rem;border-radius:99px;white-space:nowrap}
 .chat-disclosure{font-size:.8rem;color:var(--ink-soft);line-height:1.7;margin:.65rem 0 1rem}
 .chat-log{height:240px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;align-items:stretch;gap:.8rem;padding:1rem;background:var(--bg);border:1px solid var(--line);border-radius:14px;scroll-behavior:smooth}
