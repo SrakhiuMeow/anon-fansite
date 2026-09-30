@@ -63,11 +63,10 @@ function createSite() {
   document.body = add("body", "", document);
   document.createElement = (tag) => createElement(tag, "", registry);
   document.getElementById = (id) => registry.get(id) || null;
-  [
-    "officialSummary", "officialProfileLink", "officialCheckedAt", "officialDetails",
-    "goodsGrid", "goodsCategory", "goodsSort", "goodsCount", "goodsEmpty", "goodsReset",
-    "wikiSummary", "wikiTraits", "honorsList", "moePosters",
-  ].forEach((id) => add(id === "officialProfileLink" ? "a" : "div", id));
+  // 按首页真实存在的 id 建 DOM：content.js 一旦写入已删除的元素就会抛错。
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1]);
+  ids.forEach((id) => add("div", id));
   ["all", "available", "preorder"].forEach((status) => {
     const chip = add("button", "", document.body);
     chip.className = "chip"; chip.dataset.goodsFilter = status; chip.setAttribute("aria-pressed", "false");

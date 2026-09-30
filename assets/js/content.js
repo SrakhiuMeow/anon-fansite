@@ -34,7 +34,6 @@
   if (official) {
     $('officialSummary').textContent = official.profile.summary;
     $('officialProfileLink').href = official.profile.artistSource || official.profile.source;
-    $('officialCheckedAt').textContent = official.checkedAt;
     // 主资料卡已有姓名、乐队等信息；补充官网中的日常喜好与班级。
     official.profile.details.filter((detail) => /班级|食物|兴趣/.test(detail.label)).forEach((detail) => {
       const item = make('div');
