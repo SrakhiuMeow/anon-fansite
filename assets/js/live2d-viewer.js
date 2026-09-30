@@ -55,10 +55,14 @@
     }
     if (!model) return;
     model.autoInteract = followMouse;
-    if (!followMouse) {
+    if (followMouse) {
+      model.registerInteraction(app.renderer.plugins.interaction);
+    } else {
+      // 0.4.0 的 autoInteract setter 不会卸载已注册的 pointermove，需显式解绑。
+      model.unregisterInteraction();
       // 关闭后清除上一次指针位置，暂停时也立即回到正向视线。
       model.internalModel.focusController.focus(0, 0, true);
-      model.update(0);
+      model.update(1);
       app?.render();
     }
   };
