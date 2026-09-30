@@ -12,8 +12,8 @@ const clients = new Map();
 let windowStart = 0;
 let windowCount = 0;
 // 站长指定口令的加盐摘要，仅用于服务端验证；明文不进入仓库和浏览器资源。
-const ACCESS_SALT = "5a1d08352afe32a34e25599adf36da0e";
-const ACCESS_HASH = Buffer.from("c09abd6e9f7ab7776ef570832bdb84b99d99d47a0f4574f70eafdc75f019a485", "hex");
+const ACCESS_SALT = "9d7fd8b9c6001828a37c583c58f05203";
+const ACCESS_HASH = Buffer.from("479d3e7ff2ddb8ae141bee66c9b4ef134765e2a1bb2aa11db4b0ae36ddde999b", "hex");
 const accessFailures = new Map();
 let accessWindowStart = 0;
 let accessWindowCount = 0;
