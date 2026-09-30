@@ -11,6 +11,8 @@
   const hintEl = byId("l2dHint");
   const retryEl = byId("l2dRetry");
   const pauseEl = byId("l2dPause");
+  const followMouseEl = byId("l2dFollowMouse");
+  const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
   // Core 是 Live2D 专有运行时（非 MIT）；镜像由 pixi-live2d-display 文档推荐。
@@ -34,6 +36,8 @@
   let loading = false;
   let failed = false;
   let layoutTimer = null;
+  let followMouse = true;
+  try { followMouse = localStorage.getItem(FOLLOW_MOUSE_STORAGE) !== "false"; } catch { /* 隐私模式下仍可使用开关 */ }
 
   const setStatus = (text) => {
     if (!statusEl) return;
@@ -42,7 +46,22 @@
   };
   const setHint = (text) => { if (hintEl) hintEl.textContent = text; };
   const emitState = () => window.dispatchEvent(new CustomEvent("anon:live2d-state", { detail: getState() }));
-  const getState = () => ({ ready: !!model, loading, paused, failed, costume: current?.id || null });
+  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, costume: current?.id || null });
+  const syncMouseTracking = () => {
+    if (followMouseEl) {
+      followMouseEl.textContent = followMouse ? "跟随鼠标：开" : "跟随鼠标：关";
+      followMouseEl.setAttribute("aria-checked", String(followMouse));
+      followMouseEl.classList.toggle("is-active", followMouse);
+    }
+    if (!model) return;
+    model.autoInteract = followMouse;
+    if (!followMouse) {
+      // 关闭后清除上一次指针位置，暂停时也立即回到正向视线。
+      model.internalModel.focusController.focus(0, 0, true);
+      model.update(0);
+      app?.render();
+    }
+  };
   const markActive = (host, value) => host?.querySelectorAll("button[data-value]").forEach((button) => {
     const active = button.dataset.value === value;
     button.classList.toggle("is-active", active);
@@ -165,7 +184,7 @@
     emitState();
     try {
       const next = await window.PIXI.live2d.Live2DModel.from(costume.modelJson, {
-        autoInteract: true, autoUpdate: false, idleMotionGroup: "idle",
+        autoInteract: followMouse, autoUpdate: false, idleMotionGroup: "idle",
         motionPreload: window.PIXI.live2d.MotionPreloadStrategy.IDLE,
       });
       if (version !== loadVersion) { next.destroy(); return false; }
@@ -174,6 +193,8 @@
       current = costume;
       app.stage.addChild(next);
       if (previous) { app.stage.removeChild(previous); previous.destroy(); }
+      // 加载期间也能切换偏好，以完成加载时的最新开关状态为准。
+      syncMouseTracking();
       next.update(0);
       fitModel();
       clearTimeout(layoutTimer);
@@ -254,6 +275,13 @@
 
   window.AnonLive2D = { react, retry: start, getState };
   retryEl?.addEventListener("click", () => { void start(); });
+  followMouseEl?.addEventListener("click", () => {
+    followMouse = !followMouse;
+    try { localStorage.setItem(FOLLOW_MOUSE_STORAGE, String(followMouse)); } catch { /* 无法保存时仅本次有效 */ }
+    syncMouseTracking();
+    setHint(followMouse ? "已开启跟随鼠标，移动鼠标试试看。" : "已关闭跟随鼠标，仍可使用对话、动作和表情。" );
+    emitState();
+  });
   pauseEl?.addEventListener("click", () => {
     paused = !paused;
     syncPlayback();
@@ -271,5 +299,6 @@
     }, { threshold: 0 });
     observer.observe(stage);
   } else { inView = true; void start(); }
+  syncMouseTracking();
   syncPlayback();
 })();
