@@ -55,6 +55,8 @@ async function harness(options = {}) {
   const models = [];
   const plays = [];
   const resources = [];
+  const networkLoads = [];
+  const factory = { motionTasksMap: new WeakMap(), expressionTasksMap: new WeakMap() };
   const modelLoads = [];
   const textures = new Map();
   const pendingModels = new Map();
@@ -64,6 +66,32 @@ async function harness(options = {}) {
   const buildModel = (id) => {
     const { motions, expressions } = costumes.find((costume) => costume.id === id);
     const waiting = new Map();
+    const faults = new Map();
+    // 对照0.4.0真实库：失败会同时留在manager结果缓存与Factory请求缓存。
+    // 只在此模式模拟网络；旧测试的waiting仍可精准控制任意加载边界。
+    const cachedResource = async (manager, group, index, key, value) => {
+      const motion = group !== null;
+      const cache = motion ? manager.motionGroups[group] : manager.expressions;
+      if (cache[index] === null) return undefined;
+      if (cache[index]) return cache[index];
+      const tasks = motion ? factory.motionTasksMap.get(manager)[group] : factory.expressionTasksMap.get(manager);
+      if (!tasks[index]) tasks[index] = (async () => {
+        networkLoads.push({ id, key });
+        await Promise.resolve();
+        const fault = faults.get(key);
+        if (fault?.remaining > 0) {
+          fault.remaining -= 1;
+          if (fault.barrier) await fault.barrier.promise;
+          // Factory会吞掉网络异常并保留已兑现为空的失败Promise。
+          return undefined;
+        }
+        delete tasks[index];
+        return value;
+      })();
+      const result = await tasks[index];
+      cache[index] = motion ? result ?? null : result;
+      return result;
+    };
     if (options.warmBarrier) waiting.set("motion:thinking01", options.warmBarrier);
     const expressionObjects = expressions.map((name) => options.cubism2Expressions
       ? Object.assign(new Cubism2ExpressionManager().createExpression({ fade_in: 750, fade_out: 1100 }), { name }) : ({ name,
@@ -71,11 +99,16 @@ async function harness(options = {}) {
       getFadeOutTime: () => options.expressionFadeOut ?? 0.5,
     }));
     const expressionManager = {
-      expressions: expressionObjects,
+      expressions: options.failedCache ? [] : expressionObjects,
       currentExpression: null,
       getExpressionIndex: (name) => expressions.indexOf(name),
-      loadExpression: (index) => { resources.push("expression:" + expressions[index]); return waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]); },
+      loadExpression: (index) => {
+        const key = "expression:" + expressions[index]; resources.push(key);
+        return options.failedCache ? cachedResource(expressionManager, null, index, key, expressionObjects[index])
+          : waiting.get(key)?.promise || Promise.resolve(expressionObjects[index]);
+      },
     };
+    factory.expressionTasksMap.set(expressionManager, []);
     const managerEvents = new Map();
     const motionObject = (group, index) => {
       const motion = { group, index };
@@ -91,17 +124,23 @@ async function harness(options = {}) {
     };
     const manager = {
       expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, finished: false,
+      motionGroups: { reaction: [], idle: [] },
       on(name, callback) { managerEvents.set(name, callback); },
       emit(name) { managerEvents.get(name)?.(); },
       isFinished() { return this.finished; },
-      loadMotion: (group, index) => { resources.push("motion:" + actions.stem(motions[index])); return waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve(motionObject(group, index)); },
+      loadMotion: (group, index) => {
+        const key = "motion:" + actions.stem(motions[index]); resources.push(key);
+        return options.failedCache ? cachedResource(manager, group, index, key, motionObject(group, index))
+          : waiting.get(key)?.promise || Promise.resolve(motionObject(group, index));
+      },
     };
+    factory.motionTasksMap.set(manager, { reaction: [], idle: [] });
     const textureId = options.sharedTextures ? "shared" : id;
     if (!textures.has(textureId) || textures.get(textureId).destroyed) textures.set(textureId, {
       baseTexture: {}, destroyed: false, destroy(baseTexture) { this.destroyed = true; this.baseDestroyed = baseTexture; },
     });
     const model = {
-      id, waiting, destroyed: false, elapsedTime: 0, deltaTime: 0, scale: { value: 1, set(value) { this.value = value; } },
+      id, waiting, faults, destroyed: false, elapsedTime: 0, deltaTime: 0, scale: { value: 1, set(value) { this.value = value; } },
       textures: [textures.get(textureId)],
       internalModel: { motionManager: manager, focusController: { focus() {} },
         handlers: {}, on(name, handler) { this.handlers[name] = handler; }, emit(name) { this.handlers[name]?.(); },
@@ -155,7 +194,7 @@ async function harness(options = {}) {
         }
         start() {} stop() {} render() { renderCount += 1; this.stage.current?.renderFrame(); }
       },
-      live2d: { config: { expressionFadingDuration: 500 }, Cubism2ExpressionManager, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => { modelLoads.push(id); return pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id); } } },
+      live2d: { config: { expressionFadingDuration: 500 }, Live2DFactory: factory, Cubism2ExpressionManager, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => { modelLoads.push(id); return pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id); } } },
     },
     navigator: { connection: { saveData: !!options.saveData } },
     addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: (query) => query.includes("max-width") ? media : ({ matches: !!options.paused }),
@@ -173,7 +212,7 @@ async function harness(options = {}) {
   if (!options.hidden && options.visible !== false) await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, setNativeTime: (milliseconds) => { nativeTime = milliseconds; }, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
+  return { viewer: window.AnonLive2D, models, plays, resources, networkLoads, factory, modelLoads, textures, elements, pendingModels, buildModel, document, setNativeTime: (milliseconds) => { nativeTime = milliseconds; }, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
@@ -319,6 +358,67 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     const result = await h.viewer.react({ emotion: "shy" });
     assert.equal(result.ok, false, "预加载资源缺失时应明确失败");
     assert.deepEqual(h.plays, [], "预加载失败不能进入库的播放/重试路径，以免迟到重试越过取消检查");
+  }
+  for (const resource of ["motion:shame01", "expression:shame01"]) {
+    const h = await harness({ failedCache: true, saveData: true });
+    const model = h.models[0], manager = model.internalModel.motionManager, expressionManager = manager.expressionManager;
+    const idleMotion = manager.motionGroups.reaction[0];
+    const defaultExpression = expressionManager.expressions[expressionManager.getExpressionIndex("default")];
+    const unrelatedMotionTask = deferred().promise, unrelatedExpressionTask = deferred().promise;
+    h.factory.motionTasksMap.get(manager).reaction[99] = unrelatedMotionTask;
+    h.factory.expressionTasksMap.get(expressionManager)[99] = unrelatedExpressionTask;
+    model.faults.set(resource, { remaining: 1 });
+    assert.equal((await h.viewer.react({ emotion: "shy", source: "chat" })).ok, true, `${resource}一次瞬断后自动恢复`);
+    assert.equal(h.networkLoads.filter((load) => load.key === resource).length, 2, "需要真正重发请求，不能只重读已失败的Promise");
+    assert.equal(manager.motionGroups.reaction[0], idleMotion, "重试不能清除其他已成功缓存动作");
+    assert.equal(expressionManager.expressions[expressionManager.getExpressionIndex("default")], defaultExpression, "重试不能清除其他已成功表情");
+    assert.equal(h.factory.motionTasksMap.get(manager).reaction[99], unrelatedMotionTask, "重试仅清指定动作slot，保留并行预热任务");
+    assert.equal(h.factory.expressionTasksMap.get(expressionManager)[99], unrelatedExpressionTask, "重试仅清指定表情slot，保留其他在途请求");
+    assert.ok(h.plays.some((play) => play.type === "motion" && play.name === "shame01.mtn"));
+    assert.ok(h.plays.some((play) => play.type === "expression" && play.name === "shame01"));
+    const successfulSibling = resource.startsWith("motion:") ? "expression:shame01" : "motion:shame01";
+    assert.equal(h.networkLoads.filter((load) => load.key === successfulSibling).length, 1, "仅失败分支重试，成功配套资源不重复下载");
+  }
+  for (const resource of ["motion:shame01", "expression:shame01"]) {
+    const h = await harness({ failedCache: true, saveData: true });
+    const fault = { remaining: 2 }; h.models[0].faults.set(resource, fault);
+    assert.equal((await h.viewer.react({ emotion: "shy", source: "chat" })).ok, false, `${resource}连续两次失败明确返回`);
+    assert.equal(h.networkLoads.filter((load) => load.key === resource).length, 2, "每次回应最多请求两次，不无限重试");
+    assert.deepEqual(h.plays, [], "持续失败不误报已播放");
+    assert.equal((await h.viewer.react({ emotion: "shy", source: "chat" })).ok, true, "网络恢复后的下一次回应可以重新取资源，无需刷新页面");
+    assert.equal(h.networkLoads.filter((load) => load.key === resource).length, 3);
+  }
+  for (const type of ["motion", "expression"]) {
+    const h = await harness({ failedCache: true, saveData: true });
+    const motionManager = h.models[0].internalModel.motionManager;
+    const manager = type === "motion" ? motionManager : motionManager.expressionManager;
+    const method = type === "motion" ? "loadMotion" : "loadExpression";
+    const original = manager[method]; let attempts = 0;
+    manager[method] = async (...args) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("模拟加载器首次拒绝Promise");
+      return original(...args);
+    };
+    assert.equal((await h.viewer.react({ emotion: "shy", source: "chat" })).ok, true, `${type}抛出加载异常也可有限恢复`);
+    assert.equal(attempts, 2);
+  }
+  for (const interruption of ["abort", "pause", "offscreen", "hidden", "costume"]) {
+    for (const resource of ["motion:shame01", "expression:shame01"]) {
+      const h = await harness({ failedCache: true, saveData: true });
+      const controller = new AbortController(), barrier = deferred();
+      h.models[0].faults.set(resource, { remaining: 1, barrier });
+      const pending = h.viewer.react({ emotion: "shy", source: "chat", signal: controller.signal });
+      await settle(() => h.networkLoads.some((load) => load.key === resource), "失败请求已发出");
+      if (interruption === "abort") controller.abort();
+      if (interruption === "pause") h.elements.l2dPause.click();
+      if (interruption === "offscreen") h.intersect(false);
+      if (interruption === "hidden") { h.document.hidden = true; h.visibility(); }
+      if (interruption === "costume") h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+      barrier.resolve();
+      assert.equal((await pending).ok, false, `${interruption}后的失败不再重试`);
+      assert.equal(h.networkLoads.filter((load) => load.id === "first" && load.key === resource).length, 1, `${interruption}不能继续旧模型重试`);
+      assert.ok(!h.plays.some((play) => play.id === "first"), `${interruption}不能在旧模型播放失效回应`);
+    }
   }
   {
     const h = await harness();
@@ -556,6 +656,27 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     }
   }
   {
+    const h = await harness({ motionRuntime: "cubism4", motionDuration: 1000, expressionFadeIn: 0.1, expressionFadeOut: 0.1 });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    assert.equal(h.viewer.getState().reactionReady, false, "刚启动动作不能宣称已达续接进度");
+    h.advance(1); h.advance(799);
+    assert.equal(h.viewer.getState().reactionReady, false, "状态读取遵守真实79.9%渲染边界");
+    h.advance(1);
+    assert.equal(h.viewer.getState().reactionReady, true, "状态可供流式聊天按80%进度决定续接");
+    h.elements.l2dPause.click();
+    assert.equal(h.viewer.getState().reactionReady, false, "暂停时即使进度足够也不可自动续接");
+    h.elements.l2dPause.click(); await tick();
+    h.document.hidden = true; h.visibility();
+    assert.equal(h.viewer.getState().reactionReady, false, "后台页不触发续接");
+    h.document.hidden = false; h.visibility(); await tick();
+    h.intersect(false);
+    assert.equal(h.viewer.getState().reactionReady, false, "离屏时不触发续接");
+  }
+  {
+    const h = await harness({ paused: true });
+    assert.equal(h.viewer.getState().reactionReady, false, "没有activeReaction时不宣称已准备续接");
+  }
+  {
     const h = await harness({ motionRuntime: "cubism4", motionDuration: (name) => name === "smile01" ? 1000 : 5000, expressionFadeIn: 0.1, expressionFadeOut: 0.1 });
     await h.viewer.react({ emotion: "smile", source: "chat" });
     let complete = false;
@@ -735,6 +856,37 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
   }
   {
     const h = await harness({ performance: true });
+    await h.viewer.react({ emotion: "smile" });
+    const firstChat = await h.viewer.react({ emotion: "smile", source: "chat" });
+    assert.equal(firstChat.motion, "mtn_play02_01", "该语气首次聊天也避开当前实际正在播放的同动作");
+    h.models[0].internalModel.motionManager.finished = true;
+    const serious = await h.viewer.react({ emotion: "serious", source: "chat" });
+    assert.equal(serious.motion, "mtn_play01_01", "跨语气比较当前真实姿态，避免分别取各语气首候选而原地不动");
+  }
+  {
+    const h = await harness({ performance: true, motionRuntime: "cubism4", motionDuration: 2000 });
+    const before = h.plays.filter((event) => event.type === "motion").length;
+    const first = await h.viewer.react({ emotion: "sad", source: "chat" });
+    h.advance(1); h.advance(1600);
+    assert.equal(await h.viewer.whenReactionComplete(), true, "sad达到80%后允许下一语气衔接");
+    const middle = await h.viewer.react({ emotion: "angry", source: "chat" });
+    assert.notEqual(middle.motion, first.motion, "angry只在自身语义候选内避开当前演奏动作");
+    h.advance(1); h.advance(1600);
+    assert.equal(await h.viewer.whenReactionComplete(), true, "angry达到80%后允许回到sad语气");
+    const last = await h.viewer.react({ emotion: "sad", source: "chat" });
+    assert.equal(last.ok, true);
+    assert.equal(last.emotion, "sad");
+    assert.notEqual(last.motion, middle.motion, "sad未使用候选恰好等于当前angry姿态时重开候选周期，不能只沿用旧动作余下20%");
+    assert.equal(last.motion, first.motion, "仍从同一sad候选池选择另一真实动作，不跨语义扩大范围");
+    assert.equal(h.plays.filter((event) => event.type === "motion").length - before, 3, "三段语气必须实际启动三次动作");
+    assert.equal(h.viewer.getState().reactionReady, false, "第三段是新动作，不能继承第二段已达80%的状态");
+    h.advance(1); h.advance(1599);
+    assert.equal(h.viewer.getState().reactionReady, false, "第三段独立计算播放进度");
+    h.advance(1);
+    assert.equal(h.viewer.getState().reactionReady, true);
+  }
+  {
+    const h = await harness({ performance: true });
     assert.match(h.elements.l2dHint.textContent, /聊天会自动触发此款真实舞台动作/);
     await h.viewer.react({ emotion: "smile" });
     const before = h.plays.length;
@@ -864,7 +1016,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       const h = await harness({ costume });
       assert.equal(h.viewer.getState().zoomPercent, costume.source === "https://bdon.moe" ? 180 : 100, `${costume.id}初始加载采用来源默认比例`);
       for (const emotion of Object.keys(actions.defaults)) {
-        const candidates = actions.variants(costume, { emotion });
+        const candidates = actions.variants(costume, { emotion, source: "chat" });
         const expected = candidates.map((choice) => `${choice.motion}|${choice.expression}`).sort();
         assert.ok(expected.length, `${costume.id}/${emotion}应有真实候选`);
         for (let cycle = 0; cycle < 3; cycle++) {
@@ -885,5 +1037,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log(`Live2D viewer 验证通过：加载/资源释放/两代动作与表情80%衔接/未知时长等待结束/循环时长与原生时钟/实际渲染边界/同动作进度保留/取消与离屏释放/手机150%及跨模型缩放记忆/200%缩放上限/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
+  console.log(`Live2D viewer 验证通过：双层失败缓存有限重试及下一次恢复/成功资源与并行请求保留/中断不重试/跨语气实际姿态避重复/加载与资源释放/两代动作与表情80%衔接/reactionReady状态/未知时长等待结束/循环时长与原生时钟/实际渲染边界/同动作进度保留/取消与离屏释放/手机150%及跨模型缩放记忆/200%缩放上限/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

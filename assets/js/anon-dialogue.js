@@ -263,7 +263,6 @@
     let segmentStarted = 0;
     let lastReaction = null;
     let lastReactionAt = 0;
-    let continuations = 0;
     const requireCurrent = () => { if (version !== request || active.signal.aborted) throw new Error("对话已取消"); };
     // 服务端最多 45 秒；另为正文和完整动作衔接预留播放时间。
     const timeout = setTimeout(() => active.abort("timeout"), 120000);
@@ -314,12 +313,18 @@
             if (!reducedMotion) {
               await pausePlayback(20, active.signal);
               requireCurrent();
-              // 长段落在自然句读处延续同一语气；无后台计时器，文字结束即停止续接。
-              if (lastReaction && continuations < 3 && Date.now() - lastReactionAt >= 4500 && /[。！？；，、….!?;,]/u.test(piece)) {
-                await react({ ...lastReaction, continuation: true }, active.signal);
-                requireCurrent();
-                lastReactionAt = Date.now();
-                continuations += 1;
+              // 自然句读处按模型真实80%进度续接；短动作不必空等4.5秒。
+              // 老版播放器仍保留原间隔，无后台计时器，文字结束即停止续接。
+              if (lastReaction && /[。！？；，、….!?;,]/u.test(piece)) {
+                const elapsed = Date.now() - lastReactionAt;
+                const reactionReady = root.AnonLive2D?.getState?.().reactionReady;
+                const canContinue = typeof reactionReady === "boolean"
+                  ? reactionReady && elapsed >= 1200 : elapsed >= 4500;
+                if (canContinue) {
+                  await react({ ...lastReaction, continuation: true }, active.signal);
+                  requireCurrent();
+                  lastReactionAt = Date.now();
+                }
               }
             }
           }

@@ -9,6 +9,7 @@ const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(root, "assets/data/anon-live2d.js"), "utf8"), context);
 const costumes = context.window.ANON_LIVE2D.costumes;
 const coverage = new Map();
+const neutralChatModels = { story: 0, performance: 0 };
 for (const costume of costumes) {
   const filename = path.join(root, costume.modelJson);
   const model = JSON.parse(fs.readFileSync(filename, "utf8"));
@@ -67,10 +68,36 @@ for (const costume of costumes) {
         }
       }
     }
-    if (emotion === "neutral") assert.equal(variants.length, 1, "初始和清空的待机不能轮换");
+    if (emotion === "neutral") {
+      assert.equal(variants.length, 1, "初始和清空的待机不能轮换");
+      assert.deepEqual(actions.variants(costume, { emotion, source: "control" }), [choice], "控制操作保持唯一待机");
+      const chatVariants = actions.variants(costume, { emotion, source: "chat" });
+      if (costume.source === "https://bdon.moe") {
+        neutralChatModels[costume.mode]++;
+        const performance = costume.mode === "performance";
+        const expectedMotions = performance ? ["mtn_play01_01", "mtn_play02_01"] : ["mtn_nod01_C", "mtn_nod01_L", "mtn_nod01_R"];
+        assert.deepEqual(chatVariants.map(item => item.motion), expectedMotions, `${costume.id}: 中性聊天只用轻点头或平缓演奏`);
+        for (const variant of chatVariants) {
+          assert.equal(variant.emotion, "neutral", "有动作回应仍保持中性语义");
+          assert.notEqual(variant.motion, choice.motion, "中性聊天不只播放待机");
+          assert.equal(variant.expression, performance ? "" : "exp_idle01", "中性聊天不能附加开心、汗滴或闭眼表情");
+          assert.equal(actions.stem(costume.motions[variant.index]), variant.motion);
+          const motionFile = groups[variant.group][variant.index].File;
+          assert.ok(fs.existsSync(path.join(path.dirname(filename), motionFile)), "候选必须来自真实素材");
+          const motion = JSON.parse(fs.readFileSync(path.join(path.dirname(filename), motionFile), "utf8"));
+          assert.equal(motion.Meta.Loop, false, "中性聊天动作应能正常结束并衔接下一段");
+          assert.ok(motion.Meta.Duration > 0 && motion.Curves.length > 0);
+        }
+      } else {
+        assert.deepEqual(chatVariants, [choice], "Bestdori 中性映射保持不变");
+      }
+      assert.deepEqual(actions.resolve(costume, { emotion, source: "chat" }), choice, "聊天候选不改写基础映射");
+    } else {
+      assert.deepEqual(actions.variants(costume, { emotion, source: "chat" }), variants, "其他语义候选保持不变");
+    }
   }
   const before = new Set(Object.keys(actions.defaults).map(emotion => actions.resolve(costume, { emotion }).motion));
-  const after = new Set(Object.keys(actions.defaults).flatMap(emotion => actions.variants(costume, { emotion }).map(v => v.motion)));
+  const after = new Set([...before, ...Object.keys(actions.defaults).flatMap(emotion => actions.variants(costume, { emotion, source: "chat" }).map(v => v.motion))]);
   const beforeExpressions = new Set(Object.keys(actions.defaults).map(emotion => actions.resolve(costume, { emotion }).expression).filter(Boolean));
   const afterExpressions = new Set(Object.keys(actions.defaults).flatMap(emotion => actions.variants(costume, { emotion }).map(v => v.expression)).filter(Boolean));
   const format = costume.mode === "performance" ? "舞台" : costume.format === "cubism4" ? "Our Notes剧情" : "Bestdori";
@@ -127,6 +154,22 @@ for (const costume of costumes) {
     assert.deepEqual(actions.variants(costume, expressionOnly), [actions.resolve(costume, expressionOnly)], "只切表情不应附加动作");
   }
 }
+assert.deepEqual(neutralChatModels, { story: 8, performance: 1 }, "覆盖 bdon 全部8套剧情和1套演奏模型的中性聊天");
+for (const mode of ["story", "performance"]) {
+  const full = costumes.find(costume => costume.source === "https://bdon.moe" && costume.mode === mode);
+  const base = actions.resolve(full, { emotion: "neutral" });
+  const onlyIdle = { ...full, motions: full.motions.filter(name => actions.stem(name) === base.motion) };
+  assert.deepEqual(actions.variants(onlyIdle, { emotion: "neutral", source: "chat" }), [actions.resolve(onlyIdle, { emotion: "neutral" })], "没有轻动作时回退真实待机");
+  const firstMotion = mode === "story" ? "mtn_nod01_C" : "mtn_play01_01";
+  const partial = { ...full, motions: full.motions.filter(name => [base.motion, firstMotion].includes(actions.stem(name))) };
+  assert.deepEqual(actions.variants(partial, { emotion: "neutral", source: "chat" }).map(item => item.motion), [firstMotion], "部分缺失时只使用存在的中性动作");
+  const manual = { motion: firstMotion, expression: base.expression, source: "control" };
+  assert.deepEqual(actions.variants(full, manual), [actions.resolve(full, manual)], "手动中性动作不加入自动轮换");
+  if (mode === "story") {
+    const missingNeutralExpression = { ...full, expressions: ["exp_idle02"], reactions: { ...full.reactions, neutral: { ...full.reactions.neutral, expression: "exp_idle02" } } };
+    assert.deepEqual(actions.variants(missingNeutralExpression, { emotion: "neutral", source: "chat" }), [actions.resolve(missingNeutralExpression, { emotion: "neutral" })], "没有中性表情时不将汗滴表情配给聊天轻动作");
+  }
+}
 
 // 只有明确声明无独立表情能力的演奏模型允许空表情，不能靠缺少文件绕过校验。
 const performance = { mode: "performance", motions: ["mtn_idle_01.motion3.json", "mtn_play01_01.motion3.json"], expressions: [], reactions: { smile: { motion: "mtn_idle_01", expression: "" } }, motionGroup: "reaction" };
@@ -141,5 +184,5 @@ const sparse = { motions: ["smile01.mtn", "smile04.mtn"], expressions: ["smile01
 const sparseVariants = actions.variants(sparse, { emotion: "smile" });
 assert.deepEqual([...new Set(sparseVariants.map(v => v.motion))], ["smile01", "smile04"], "候选必须过滤此服装缺少的动作");
 assert.ok(sparseVariants.every(v => ["smile01", "smile04"].includes(v.expression)), "候选必须过滤此服装缺少的表情");
-console.log(`Live2D 语义映射验证通过：${costumes.length} 套模型，13种语义、旧版互动、完整动作文件索引及无独立表情的演奏模型。`);
+console.log(`Live2D 语义映射验证通过：${costumes.length} 套模型，13种语义、旧版互动、完整动作文件索引及无独立表情的演奏模型；bdon 中性聊天覆盖8套剧情轻点头和1套平缓演奏，初始化和控制保持待机。`);
 console.log(`聊天动作覆盖（固定映射→候选/素材总数）：${[...coverage].map(([format, counts]) => `${format} ${counts}`).join("；")}。`);

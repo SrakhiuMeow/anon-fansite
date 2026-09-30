@@ -76,7 +76,8 @@
   };
   const setHint = (text) => { if (hintEl) hintEl.textContent = text; };
   const emitState = () => window.dispatchEvent(new CustomEvent("anon:live2d-state", { detail: getState() }));
-  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, zoomPercent, costume: current?.id || null });
+  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, zoomPercent, costume: current?.id || null,
+    reactionReady: !!activeReaction && !loading && !paused && inView && !document.hidden && reactionComplete(activeReaction) });
   const syncZoomControls = () => {
     if (zoomValueEl) zoomValueEl.textContent = `${zoomPercent}%`;
     if (zoomOutEl) zoomOutEl.disabled = !model || zoomPercent <= ZOOM_MIN;
@@ -160,6 +161,24 @@
     // Cubism 2 Core 使用自己的毫秒时钟；Cubism 4 使用模型累计渲染时间。
     const nativeTime = legacy ? window.UtSystem?.getUserTimeMSec?.() : undefined;
     return Number.isFinite(nativeTime) ? nativeTime : target.elapsedTime;
+  };
+  const loadReactionResource = async (manager, type, group, index, isCurrent) => {
+    const load = () => type === "motion" ? manager.loadMotion(group, index) : manager.loadExpression(index);
+    for (let attempt = 0; attempt < 2 && isCurrent(); attempt++) {
+      let resource;
+      try { resource = await load(); } catch { /* 瞬断只重试当前资源，不重载整套模型。 */ }
+      if (resource) return resource;
+      if (attempt || !isCurrent()) break;
+      const cache = type === "motion" ? manager.motionGroups?.[group] : manager.expressions;
+      if (cache?.[index] != null) continue;
+      // 0.4.0 同时缓存空资源和已失败的加载 Promise；两层都需按单项清除。
+      // 此时该次加载已结束，不能清除其他资源或仍在预热的请求。
+      if (cache) delete cache[index];
+      const factory = window.PIXI?.live2d?.Live2DFactory;
+      const tasks = type === "motion" ? factory?.motionTasksMap?.get(manager)?.[group] : factory?.expressionTasksMap?.get(manager);
+      if (tasks) delete tasks[index];
+    }
+    return null;
   };
   const syncPlayback = () => {
     const running = !!model && !paused && inView && !document.hidden;
@@ -345,7 +364,7 @@
       const choices = new Map();
       for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry", "cry", "pose"]) {
         const variants = actions.variants
-          ? actions.variants(costume, { emotion }).slice(0, 3)
+          ? actions.variants(costume, { emotion, source: "chat" }).slice(0, 3)
           : [actions.resolve(costume, { emotion })];
         for (const choice of variants) {
           if (choice) choices.set(`${choice.group}:${choice.index}:${choice.expression || ""}`, choice);
@@ -522,10 +541,25 @@
       return { choice: candidates[ordinal], ordinal, consume: false };
     }
     const history = variantHistory.get(`${costume.id}:${initial.emotion}`);
-    if (!history) return { choice: candidates[0], ordinal: 0, consume: true, resetCycle: false };
+    const activeChoice = activeReaction?.target === model ? activeReaction.choice : null;
+    const previousChoice = activeChoice || history;
+    const changeScore = (choice) => previousChoice
+      ? (choice.motion !== previousChoice.motion ? 1 : 0) + (choice.expression !== previousChoice.expression ? 1 : 0) : 0;
+    if (!history) {
+      let ordinal = 0;
+      for (let index = 1; index < candidates.length; index++) {
+        if (changeScore(candidates[index]) > changeScore(candidates[ordinal])) ordinal = index;
+      }
+      return { choice: candidates[ordinal], ordinal, consume: true, resetCycle: false };
+    }
     const start = (candidates.findIndex((choice) => signature(choice) === history.signature) + 1) % candidates.length;
     const unused = candidates.map((choice, index) => !history.used.has(signature(choice)) ? index : -1).filter((index) => index >= 0);
-    const resetCycle = unused.length === 0;
+    // 跨语气可能已播放本语气仅剩的组合。此时重开候选轮次，避免为完成
+    // 历史覆盖而强制重复当前组合（演奏款会只剩上一动作最后20%）。
+    const repeatsCurrent = activeChoice && unused.length > 0
+      && unused.every((index) => signature(candidates[index]) === signature(activeChoice))
+      && candidates.some((choice) => signature(choice) !== signature(activeChoice));
+    const resetCycle = unused.length === 0 || repeatsCurrent;
     const eligible = new Set(resetCycle ? candidates.map((_, index) => index) : unused);
     // 每轮先覆盖所有候选，避免双不同评分长期跳过同动作/表情的候选。
     // 在本轮未用候选内，仍优先同时换动作与表情。
@@ -535,7 +569,7 @@
       const index = (start + offset) % candidates.length;
       if (!eligible.has(index)) continue;
       const choice = candidates[index];
-      const score = (choice.motion !== history.motion ? 1 : 0) + (choice.expression !== history.expression ? 1 : 0);
+      const score = changeScore(choice);
       if (score > bestScore) { ordinal = index; bestScore = score; }
       if (score === 2) break;
     }
@@ -571,10 +605,11 @@
     try {
       const expressionManager = motionManager.expressionManager;
       const expressionIndex = expression ? expressionManager?.getExpressionIndex(expression) : -1;
+      const isCurrent = () => !signal?.aborted && version === reactionVersion && target === model && !paused && inView && !document.hidden;
       // 先加载，后检查版本再播放：迟到的旧请求不能把停止/新情绪覆盖回去。
       const loaded = await Promise.all([
-        motion ? motionManager.loadMotion(group, index) : null,
-        expressionIndex >= 0 ? expressionManager.loadExpression(expressionIndex) : null,
+        motion ? loadReactionResource(motionManager, "motion", group, index, isCurrent) : null,
+        expressionIndex >= 0 ? loadReactionResource(expressionManager, "expression", null, expressionIndex, isCurrent) : null,
       ]);
       if (signal?.aborted || version !== reactionVersion || target !== model || paused || !inView || document.hidden) return { ok: false, reason: "已响应较新的操作，或模型已暂停。" };
       if ((motion && !loaded[0]) || (expression && !loaded[1])) return { ok: false, reason: "文字回复已送达；动作或表情资源暂不可用，请重试。" };

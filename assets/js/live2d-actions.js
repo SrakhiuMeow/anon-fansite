@@ -51,8 +51,8 @@
     return { emotion, motion, expression, index: motion ? motionIndex(costume, motion) : -1, group: costume.motionGroup || "reaction" };
   }
 
-  // 候选只来自模型实际提供的同类动作；不以增加覆盖率为由混入点头、
-  // 张望或其他含义的表演。动作、表情分别通过语义筛选后再配对。
+  // 候选只来自模型实际提供的同类动作；不以增加覆盖率为由混入
+  // 其他含义的表演。中性聊天的轻点头单独限定；动作、表情分别筛选。
   // nf/nnf 等用途不明的动作不参与聊天。
   const legacyFamilies = Object.freeze({
     smile: ["smile"], wink: ["wink"], shy: ["shame"], surprised: ["surprised"],
@@ -96,10 +96,11 @@
     const base = resolve(costume, request);
     if (!base) return [];
     const emotion = base.emotion;
+    const chatNeutral = emotion === "neutral" && request.source === "chat" && costume.source === "https://bdon.moe";
     // 初始/清空只用指定待机；手动表情、未知动作仍严格遵循 resolve。
-    if (!emotion || emotion === "neutral" || !base.motion) return [base];
-    const results = [base];
-    const seen = new Set([`${base.motion}\n${base.expression}`]);
+    if (!emotion || (emotion === "neutral" && !chatNeutral) || !base.motion) return [base];
+    const results = chatNeutral ? [] : [base];
+    const seen = new Set(results.map(choice => `${choice.motion}\n${choice.expression}`));
     const add = (motion, expression) => {
       const index = motionIndex(costume, motion);
       const motionOnly = costume.mode === "performance" && costume.expressions.length === 0;
@@ -109,6 +110,15 @@
       seen.add(key);
       results.push({ emotion, motion, expression, index, group: base.group });
     };
+    if (chatNeutral) {
+      // 普通回应可轻点头或平缓演奏，不把中性语句改成开心、出汗或闭眼。
+      if (costume.mode === "performance") {
+        for (const motion of ["mtn_play01_01", "mtn_play02_01"]) add(motion, "");
+      } else if (costume.mode === "story") {
+        for (const side of ["C", "L", "R"]) add(`mtn_nod01_${side}`, "exp_idle01");
+      }
+      return results.length ? results : [base];
+    }
     if (costume.mode === "performance") {
       for (const motion of performanceMotions[emotion] || []) add(motion, "");
       return results;

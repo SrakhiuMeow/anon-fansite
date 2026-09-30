@@ -119,7 +119,7 @@ function playbackClock() {
   };
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelReady = true, mobileRoom } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelState, modelReady = true, mobileRoom } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
@@ -153,7 +153,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
     AnonLive2D: {
       react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
       ...(modelWait ? { whenReactionComplete: modelWait } : {}),
-      getState: () => ({ ready: modelReady }),
+      getState: () => ({ ready: modelReady, ...modelState?.() }),
     },
     ...(mobileRoom ? { AnonMobileRoom: mobileRoom } : {}),
     fetch: async (url, options = {}) => {
@@ -684,8 +684,8 @@ async function testLongReplyContinuation() {
   assert.equal(ui.lastText(), text, "续接不改变正文或截断标点");
   assert.equal(ui.send.disabled, false);
   const continued = calls.filter((item) => item.continuation);
-  assert.equal(continued.length, 3, "同一轮最多3次续接，第四处长句读不再触发");
-  assert.deepEqual(continued.map((item) => item.at), [5500, 10000, 14500]);
+  assert.equal(continued.length, 4, "老播放器仍按4.5秒句读续接，但不能在第三次后一直待机");
+  assert.deepEqual(continued.map((item) => item.at), [5500, 10000, 14500, 19000]);
   for (const value of continued) {
     assert.equal(value.source, "chat");
     assert.equal(value.emotion, "smile");
@@ -694,7 +694,7 @@ async function testLongReplyContinuation() {
     assert.equal(value.signal, ui.requests.at(-1).options.signal);
   }
   await clock.advance(30000);
-  assert.equal(calls.filter((item) => item.continuation).length, 3, "回复结束后不能后台触发动作");
+  assert.equal(calls.filter((item) => item.continuation).length, 4, "回复结束后不能后台触发动作");
   ui.submit("继续聊");
   assert.equal(ui.requests.at(-1).messages[1].content, text, "续接不改变已完成的对话历史");
   ui.ids.anonChatStop.dispatch("click"); await tick();
@@ -758,6 +758,84 @@ async function testLongReplyContinuation() {
     assert.deepEqual(cancelled.requests.at(-1).messages, [{ role: "user", content: "新问题" }]);
     cancelled.ids.anonChatStop.dispatch("click"); await tick();
   }
+}
+
+async function testModelAwareContinuation() {
+  const neutral = { type: "reaction", emotion: "neutral", motion: "idle01", expression: "default", label: "平静待机" };
+  const sentence = `${"这".repeat(19)}。`;
+  const clock = playbackClock();
+  let motionStarted = null;
+  const calls = [];
+  const ui = await browserFixture({ reducedMotion: false, clock,
+    modelState: () => ({ reactionReady: motionStarted !== null && clock.now() - motionStarted >= 1600 }),
+    modelReact: async (value) => {
+      if (value.type === "reaction") {
+        motionStarted = clock.now();
+        calls.push({ ...value, at: motionStarted });
+      }
+      return { ok: true };
+    },
+  });
+  ui.submit("请平静地说一段完整的话");
+  const reply = sentence.repeat(32);
+  const request = ui.requests.at(-1);
+  request.writeChunk([neutral, { type: "delta", text: reply }, { type: "done" }]); request.close();
+  await settle(() => ui.lastText() === "这", "按真实进度续接时仍逐字输出");
+  await clock.advance(1599);
+  assert.equal(calls.length, 1, "2秒动作未达80%前不能因多个句读而提前续接");
+  await clock.advance(1);
+  assert.equal(calls.length, 2, "2秒动作达80%后的自然句读立即续接，不空等4.5秒");
+  assert.equal(calls[1].at - calls[0].at, 1600);
+  await clock.advance(11200);
+  assert.equal(ui.lastText(), reply);
+  assert.equal(ui.send.disabled, false);
+  const continued = calls.filter((value) => value.continuation);
+  assert.equal(continued.length, 8, "完整长回复的第四次之后也继续按实际动作进度回应");
+  for (const value of continued) {
+    assert.equal(value.emotion, "neutral", "中性正文续接不擅自改为开心语气");
+    assert.equal(value.motion, neutral.motion);
+    assert.equal(value.expression, neutral.expression);
+    assert.equal(value.source, "chat");
+    assert.equal(value.signal, request.options.signal);
+  }
+  await clock.advance(30000);
+  assert.equal(calls.length, 9, "播放已结束后没有后台续接计时器");
+
+  // 动作很短时仍保留1.2秒最小间隔；达到80%不代表可以逐标点重启。
+  const quickClock = playbackClock();
+  const quick = await browserFixture({ reducedMotion: false, clock: quickClock,
+    modelState: () => ({ reactionReady: true }),
+  });
+  quick.submit("短动作不要频繁重启");
+  quick.requests.at(-1).writeChunk([neutral, { type: "delta", text: sentence.repeat(10) }, { type: "done" }]); quick.requests.at(-1).close();
+  await settle(() => quick.lastText() === "这", "短动作回复应开始");
+  await quickClock.advance(1199);
+  assert.equal(quick.reactions.filter((value) => value.continuation).length, 0, "就绪状态也必须遵守1.2秒间隔");
+  await quickClock.advance(1);
+  assert.equal(quick.reactions.filter((value) => value.continuation).length, 1);
+  quick.ids.anonChatStop.dispatch("click");
+  await settle(() => !quick.send.disabled, "停止应释放播放队列");
+  const stoppedText = quick.lastText();
+  await quickClock.advance(10000);
+  assert.equal(quick.lastText(), stoppedText);
+  assert.equal(quick.reactions.filter((value) => value.continuation).length, 1, "停止之后不得有续接动作");
+
+  // 新播放器明确未就绪时不能走老版4500ms回退，避免暂停或长动作被打断。
+  const delayedClock = playbackClock();
+  let ready = false;
+  const delayed = await browserFixture({ reducedMotion: false, clock: delayedClock,
+    modelState: () => ({ reactionReady: ready }),
+  });
+  delayed.submit("上一动作还未到衔接点");
+  delayed.requests.at(-1).writeChunk([neutral, { type: "delta", text: sentence.repeat(25) }, { type: "done" }]); delayed.requests.at(-1).close();
+  await settle(() => delayed.lastText() === "这", "长动作回复应开始");
+  await delayedClock.advance(6000);
+  assert.equal(delayed.reactions.filter((value) => value.continuation).length, 0, "明确未达80%时超过4.5秒也不能续接");
+  ready = true;
+  await delayedClock.advance(400);
+  assert.equal(delayed.reactions.filter((value) => value.continuation).length, 1, "就绪后等下一个自然句读才续接");
+  delayed.ids.anonChatStop.dispatch("click");
+  await settle(() => !delayed.send.disabled, "结束延迟就绪场景");
 }
 
 async function testReadingAndComposition() {
@@ -924,8 +1002,9 @@ async function testMobileOverlayChat() {
   await testSegmentPlayback();
   await testActualMotionCompletion();
   await testLongReplyContinuation();
+  await testModelAwareContinuation();
   await testReadingAndComposition();
   await testCompactMobileScroll();
   await testMobileOverlayChat();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、按真实80%进度续接、取消隔离、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });
