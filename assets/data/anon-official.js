@@ -1,7 +1,9 @@
-// 官方资料与商品快照：2026-09-29。
+// 官方资料与商品快照：2026-09-29（渠道搜索词 2026-09-30 补充）。
 // 角色资料来自 BanG Dream! 官方角色页；商品可购状态由官方公开 product.js 核验。
 // 价格采用商品详情页的日元含税标价，不直接使用 Shopify 的税前 price 字段。
 // 商品图片为对应官方商品页的原图，仅用于商品介绍，购买请前往官方商店。
+// 官方商店目前不配送日本以外地区，因此每件商品另附国内平台搜索词，
+// 由访客在淘宝 / bilibili 会员购自行核对商家、版本与价格；本站不代为下单。
 window.ANON_OFFICIAL = {
   checkedAt: '2026-09-29',
   profile: {
@@ -36,6 +38,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/mygo-9th-acrylic.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/BDP_MyGO_9th_acst_2_ari.jpg?v=1781664730',
       url: 'https://bushiroad-store.com/products/2000302490279',
+      marketKeyword: 'MyGO 千早爱音 亚克力立牌',
       status: 'available',
       statusLabel: '在售',
       checkedAt: '2026-09-29',
@@ -51,6 +54,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/night-owl-acrylic.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/MyGO_AveMujica_GiGO_tsuika_acst_02_ari.jpg?v=1743401415',
       url: 'https://bushiroad-store.com/products/2000223242735',
+      marketKeyword: 'BanG Dream 千早爱音 亚克力立牌',
       status: 'available',
       statusLabel: '在售',
       checkedAt: '2026-09-29',
@@ -66,6 +70,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/palverse-pale.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/6_PVP_MyGO_Anon_BG.jpg?v=1749701617',
       url: 'https://bushiroad-store.com/products/2000238407938',
+      marketKeyword: '千早爱音 手办',
       status: 'available',
       statusLabel: '在售',
       checkedAt: '2026-09-29',
@@ -81,6 +86,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/mygo-6th-acrylic.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/BDP_MyGO_6thLIVE_acst_ari_02.jpg?v=1721291004',
       url: 'https://bushiroad-store.com/products/2000183763820',
+      marketKeyword: 'MyGO 千早爱音 立牌',
       status: 'available',
       statusLabel: '在售',
       checkedAt: '2026-09-29',
@@ -96,6 +102,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/night-owl-keyring.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/BDP_MygoAve_GiGO_ackey_sample_02_ari.jpg?v=1743400080',
       url: 'https://bushiroad-store.com/products/2000223242834',
+      marketKeyword: 'BanG Dream 千早爱音 钥匙扣',
       status: 'available',
       statusLabel: '在售',
       checkedAt: '2026-09-29',
@@ -111,6 +118,7 @@ window.ANON_OFFICIAL = {
       image: 'assets/img/goods/voyage-chumly.jpg',
       originalImage: 'https://cdn.shopify.com/s/files/1/0557/9761/2751/files/MyGO__Chumly-Mini_02.jpg?v=1780368307',
       url: 'https://bushiroad-store.com/products/2000296652912',
+      marketKeyword: 'MyGO 千早爱音 玩偶',
       status: 'preorder',
       statusLabel: '预售 · 预计 10 月 16 日发售',
       releaseDate: '2026-10-16',

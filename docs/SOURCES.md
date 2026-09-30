@@ -1,5 +1,50 @@
 # 内容来源与核验记录
 
+## 官方入口、音乐作品与商品渠道（2026-09-30 补充）
+
+本轮按需求扩充官方入口、音乐作品信息与跨境购买渠道，并删除正文中的前置来源说明，只保留页末“每一份喜欢，都有出处”的来源区。以下链接均为 2026-09-30 实际访问确认。
+
+### 官方入口
+
+| 入口 | 地址 | 说明 |
+| --- | --- | --- |
+| MyGO!!!!! 官方站 | https://bang-dream.com/mygo | 由官方站页面重定向到 `https://bang-dream.com/artist/mygo/` |
+| TV 动画官网 / 剧场版官网 | https://anime.bang-dream.com/mygo/ · https://mygo-movie.bang-dream.com/ | 剧场版前篇《春の陽だまり、迷い猫》2024-09-27、后篇《うたう、僕らになれるうた & FILM LIVE》2024-11-08 上映 |
+| Ave Mujica 动画官网 / 官方站 | https://anime.bang-dream.com/avemujica/ · https://bang-dream.com/artist/avemujica/ | 续篇动画 2025-01-02 至 2025-03-27 播出，全 13 话 |
+| MyGO!!!!! × Ave Mujica 官方 B 站 | https://space.bilibili.com/1459104794 | 账号名 `MyGO_AveMujica`，简介写明为「MyGO!!!!!」与「Ave Mujica」的官方账号；地址取自官方站社交链接 |
+| BanG Dream! 国服官方 B 站 | https://space.bilibili.com/3546844774796156 | 账号名 `BanGDream_CN`；地址取自官方站页脚社交图标 |
+| 官方配信入口 | https://bio.to/bio_mygoDG | 官方站「楽曲配信リンク」指向的流媒体汇总页 |
+| 手游官网 | https://bang-dream.bushimo.jp/ · https://game.bilibili.com/bangdream/ | 分别为日服与国服官网 |
+| X / YouTube / Instagram / TikTok | https://x.com/bang_dream_mygo · https://www.youtube.com/@bang_dream_mygo · https://www.instagram.com/bang_dream_official_/ · https://www.tiktok.com/@bang_dream_music | 沿用官方站社交区块给出的地址 |
+
+### 音乐作品
+
+- 曲目、发售日与封面来自官方站 [ディスコグラフィ](https://bang-dream.com/discographies/?artist=mygo)；每个发行的详情页列出收录曲与封面，页面数据与卡片一致。封面抓取脚本记录每个编号与图片地址，快照留在不入库的 `data/discography/raw/`。
+- 读法（当て字 曲名的读法）核验来源：
+  - [アニメイトタイムズ「MyGO!!!!!」楽曲名（読み方）まとめ](https://www.animatetimes.com/news/details.php?id=1761101185)：2026-03-31 更新，逐曲列出读法，涵盖本次全部单曲、专辑与主要收录曲。
+  - [ORICON NEWS：5th シングル「端程山」](https://www.oricon.co.jp/news/2322289/full/)：明确写出标题读法为「パノラマ」。
+  - [HMV 商品页（9th シングル「世点彩」）](https://www.hmv.co.jp/news/article/260807136/)：写作「世点彩（せぴあ）」，与赛事/媒体转述一致。
+  - 日文维基百科[《MyGO!!!!!のディスコグラフィ》](https://ja.wikipedia.org/wiki/MyGO!!!!!のディスコグラフィ)记录 1st 单曲「迷星叫（まよいうた）」，用于交叉核对「当て字 曲名」这一特色说法。
+- 站内采用的读法：迷星叫（まよいうた）、音一会（おといちえ）、壱雫空（ひとしずく）、砂寸奏（さすらい）、回層浮（かいそう）、端程山（ぱのらま）、聿日箋秋（いちじつせんしゅう）、往欄印（おうらい）、静降想（さいれんと）、世点彩（せぴあ）、迷跡波（めいせきは）、跡暖空（みちのく）、致並跡（ちへいせん）。
+- YouTube 入口指向官方频道 `MyGO!!!!!`（`UC80p_16pSSHA8YmtCVdX51w`）与官方「バンドリちゃんねる☆」发布的 MV、动画 OP 与试听视频，链接逐条用 YouTube oEmbed 接口确认可用。9th 单曲「世点彩」2026-11-11 才发售，站内没有可核验的 MV，因此给出官方检索入口。
+- B 站入口使用官方账号视频检索地址 `https://space.bilibili.com/1459104794/search/video?keyword=…`，只指向官方账号自身的投稿，不引用第三方搬运。
+
+### 商品渠道
+
+- 官方商店目前不配送日本以外地区，因此每件商品除官方页面外，另加淘宝与 bilibili 会员购的**检索入口**：`https://s.taobao.com/search?q=…` 与 `https://mall.bilibili.com/neul-next/index.html?page=flow_searchResult&keyword=…`。
+- 会员购检索地址由站点自身搜索行为取得（在 mall.bilibili.com 搜索后跳转到 `page=flow_searchResult&keyword=…`），并在浏览器中重新打开确认能显示搜索结果。检索词保存在 `assets/data/anon-official.js` 的 `marketKeyword` 字段。
+- 站内不记录任何第三方卖家的价格与库存，也不代购或参与结算；页面说明提示访客自行核对卖家、版本与价格。
+
+### 萌战应援海报
+
+- 海报为本站自制：版式、配色与文案均由本站撰写，画面使用站内已收录的官方立绘（`assets/img/standing/`），**不是赛事官方海报**，也没有复制任何赛事视觉素材。
+- 海报条目与荣誉表一一对应（年份、赛事、成绩），成绩文字沿用已有核验记录；出处链接沿用各荣誉条目的 `source`。
+- 页面文案明确标注「本站自制的战报海报……并非赛事官方海报」，避免与赛事公告混淆。
+
+### 删除前置来源说明
+
+按要求只保留页末来源区，本轮删除了以下页面内来源段落：角色资料的「资料核对」段、Live2D 素材来源段、成长线的剧情说明段、卡面图鉴的素材来源与版权提示块、商品快照说明与商品核验日期行、萌娘百科摘编署名段，以及灯箱内的图片来源说明。相关出处仍完整保留在页末来源区、本文件与数据文件注释中。
+
 ## 萌娘百科：角色设定与社区荣誉
 
 - 核验日期：2026-09-29。

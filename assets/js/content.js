@@ -15,6 +15,20 @@
     node.rel = 'noopener noreferrer';
     return node;
   };
+  // 国内平台没有与武士道商店一一对应的官方商品页，因此给出按商品名检索的入口，
+  // 由访客在平台内自行确认版本、卖家与价格；本站不代购、不结算。
+  const marketLinks = (product) => {
+    const keyword = product.marketKeyword || product.name;
+    const row = make('div', undefined, 'goods-market');
+    const taobao = link('淘宝搜同款', `https://s.taobao.com/search?q=${encodeURIComponent(keyword)}`);
+    taobao.className = 'goods-market-link';
+    taobao.title = `在淘宝搜索「${keyword}」`;
+    const mall = link('会员购搜同款', `https://mall.bilibili.com/neul-next/index.html?page=flow_searchResult&keyword=${encodeURIComponent(keyword)}`);
+    mall.className = 'goods-market-link';
+    mall.title = `在 bilibili 会员购搜索「${keyword}」`;
+    row.append(taobao, mall);
+    return row;
+  };
 
   const official = window.ANON_OFFICIAL;
   if (official) {
@@ -27,8 +41,6 @@
       item.append(make('dt', detail.label), make('dd', detail.value));
       $('officialDetails').append(item);
     });
-    $('goodsSnapshot').textContent = `核验于 ${official.checkedAt} · 日元含税价`;
-    $('goodsNotice').textContent = official.productNotice;
     const money = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
     const productNodes = official.products.map((product, order) => {
       const article = make('article', undefined, 'goods-card');
@@ -61,7 +73,7 @@
       const buy = link(product.status === 'preorder' ? '查看官方预售' : '前往官方商店', product.url);
       buy.className = 'goods-buy';
       foot.append(price, buy);
-      body.append(meta, title, foot);
+      body.append(meta, title, foot, marketLinks(product));
       article.append(imageLink, body);
       $('goodsGrid').append(article);
       return { article, product, order };
@@ -114,8 +126,6 @@
       statusButtons[0]?.focus();
     });
     filterGoods();
-  } else {
-    $('goodsNotice').textContent = '商品资料暂时未能加载，请前往官方爱音专区查看。';
   }
 
   const wiki = window.ANON_WIKI;
@@ -135,11 +145,25 @@
       item.append(make('span', honor.year, 'honor-year'), body, reference);
       $('honorsList').append(item);
     });
-    $('wikiAttribution').append(
-      document.createTextNode(`设定与社区荣誉摘编自萌娘百科《千早爱音》（修订版 ${wiki.revision}，${wiki.checkedAt} 核验），由本站归纳改写；相关摘编文本依 `),
-      link('CC BY-NC-SA 4.0', wiki.licenseUrl), document.createTextNode(' 共享。'),
-      link('原文', wiki.source), document.createTextNode(' · '), link('固定版本', wiki.revisionUrl), document.createTextNode(' · '), link('贡献者', wiki.historyUrl)
-    );
+    (wiki.posters || []).forEach((poster) => {
+      const figure = make('figure', undefined, 'moe-poster reveal');
+      if (poster.art) figure.style.setProperty('--poster-art', `url("${poster.art}")`);
+      const frame = make('div', undefined, 'moe-poster-frame');
+      const kicker = make('span', poster.year, 'moe-poster-year');
+      const event = make('strong', poster.event, 'moe-poster-event');
+      const art = make('div', undefined, 'moe-poster-art');
+      art.setAttribute('aria-hidden', 'true');
+      const badge = make('span', poster.result, 'moe-poster-badge');
+      const name = make('span', '千早 愛音', 'moe-poster-name');
+      frame.append(kicker, event, art, badge, name);
+      const caption = make('figcaption');
+      caption.append(make('span', poster.kicker, 'moe-poster-kicker'), make('p', poster.caption));
+      const reference = link(poster.sourceLabel, poster.source);
+      reference.className = 'moe-poster-source';
+      caption.append(reference);
+      figure.append(frame, caption);
+      document.getElementById('moePosters').append(figure);
+    });
   } else {
     $('wikiSummary').textContent = '百科摘编暂时未能加载，请前往萌娘百科阅读原文。';
   }

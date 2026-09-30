@@ -11,16 +11,21 @@
 | 模块 | 内容 |
 | --- | --- |
 | 官方资料 | BanG Dream! 官方角色页的身份、学校、生日、喜好与简介，附原始出处 |
-| 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售 |
-| 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可 |
+| 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售；每件另附淘宝与 bilibili 会员购检索入口 |
+| 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可；另附 7 张自制萌战应援海报 |
 | 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本；支持中日英搜索、星级组合筛选、排序，以及按筛选结果连续翻图与特训版本切换 |
 | Live2D | 原有 3 套 Bestdori 与 9 套 Our Notes，共 12 套；剧情款含私服、制服、居家服及眼镜版本，舞台款支持 9 个吉他演奏动作；提供模型缩放与还原 |
+| 音乐作品 | 9 张单曲与 3 张专辑的官方封面、官方读法，以及 YouTube MV／试听和 B 站官方号入口 |
+| 成长线 | 动画本篇之外补上手游实装、剧场版、Ave Mujica 动画与 MyGO×Ave Mujica 合同公演等节点 |
+| 官方入口 | MyGO!!!!! 官方站、剧场版与 Ave Mujica 官网、官方 B 站（MyGO×Ave Mujica、国服）、X、YouTube、Instagram、TikTok、配信入口与手游官网 |
 | 互动对话 | DeepSeek 流式回复按语气分段切换表情，动作就绪后渐进显示对应文字；保留密码锁、本地互动、停止及清空 |
 | 全站阅读 | 自托管免费 Noto Sans SC 700 粗体，统一正文、标题、导航、卡片、表单与聊天；浅色和夜间主题均加强文字对比 |
 | 浏览体验 | 首次跟随系统日夜主题，保存后的选择优先；提供阅读进度、返回顶部、键盘焦点、移动菜单及减少动态效果适配 |
-| 原有栏目 | 保留角色解读、成长线、音乐、官方入口、主题切换及本地留言板 |
+| 原有栏目 | 保留角色解读、主题切换及本地留言板 |
 
-商品数据为核验快照，价格、库存与配送范围以官方商店页面及结算结果为准。社区荣誉属于粉丝赛事或评审结果，不是 BanG Dream! 官方授予的角色头衔；卡面也不宣称覆盖所有最新实装。
+商品数据为核验快照，价格、库存与配送范围以官方商店页面及结算结果为准。官方商店不配送日本以外地区，淘宝与 bilibili 会员购入口是按商品名检索的链接，卖家、版本与价格需自行核对，本站不代购也不参与结算。社区荣誉属于粉丝赛事或评审结果，不是 BanG Dream! 官方授予的角色头衔；卡面也不宣称覆盖所有最新实装。
+
+萌战海报是本站自制的版式与文案，画面使用站内已收录的官方立绘，不是赛事官方海报，条数与荣誉表一一对应。音乐作品的读法取自官方公布与日本媒体整理的读法清单（见 [docs/SOURCES.md](docs/SOURCES.md)），封面直接引用官方 discography 的封面缩略图。页面正文只保留页末“资料来源与署名”一处来源说明，其余位置的旧来源段落已删除。
 
 商品可以按在售／预售状态与类型组合筛选，并按价格排序。卡面支持按名称、属性、类型和日期中的词语检索，多词以空格分隔；灯箱前后翻页与左右方向键遵循当前筛选和排序，Esc 关闭并恢复焦点。没有匹配结果时可一键清除筛选。留言示例单独标注，清空后可在当前页面撤销；刷新或新投递后撤销失效。浏览器存储失败会保留既有留言与输入内容并提示重试。
 
@@ -69,19 +74,22 @@ assets/js/                     原有交互、内容渲染、对话规则与 Liv
 assets/data/anon-cards.js      卡片与角色素材数据
 assets/data/anon-live2d.js     Live2D 服装、动作与表情清单
 assets/data/anon-official.js   官方角色与商品快照
-assets/data/anon-wiki.js       萌娘百科摘编、荣誉与许可信息
-assets/img/                    卡面、立绘与商品图片
+assets/data/anon-wiki.js       萌娘百科摘编、荣誉、萌战海报文案与许可信息
+assets/img/                    卡面、立绘、商品与音乐封面图片
 assets/live2d/                 十二套新旧模型及动作、表情、贴图、物理与来源清单
 assets/fonts/noto-sans-sc/     全站使用的免费粗体字体分段与 OFL 许可
 assets/vendor/                新版 Cubism Core 原文件及专有许可
 scripts/                       素材抓取、数据生成与离线检查脚本
 docs/SOURCES.md                内容来源、版本与核验说明
 data/bestdori/                 可重新抓取的原始数据和中间产物，不入库
+data/discography/              官方 discography 页面与封面缓存，不入库
 ```
 
 更新官方资料或商品时，核对官方原页、含税价格和可购状态，再修改 `assets/data/anon-official.js`、对应商品图片及 `checkedAt`。不要将未知库存标为在售，也不要直接把 Shopify 接口的税前内部金额用作展示价。保留商品原名、原图地址与官方购买链接。
 
-更新百科内容时，同步修改 `assets/data/anon-wiki.js` 和 [docs/SOURCES.md](docs/SOURCES.md)，保留页面修订版本、贡献者署名及许可链接；赛事赛季与消息发布日期应分别核对。
+更新百科内容时，同步修改 `assets/data/anon-wiki.js` 和 [docs/SOURCES.md](docs/SOURCES.md)，保留页面修订版本、贡献者署名及许可链接；赛事赛季与消息发布日期应分别核对。`wiki.honors` 与 `wiki.posters` 应保持一一对应，海报只改版式与文案，不宣称是赛事官方海报。
+
+更新音乐作品时，先核对官方 discography 的标题、发售日与封面，再修改 `index.html` 里的音乐卡片。读法以官方公布和日本媒体整理的读法清单为准，不要凭字面猜读；还没有 MV 的新作给出检索入口，不发散到未核验的视频链接。
 
 ### Bestdori 抓取与生成
 
@@ -92,11 +100,13 @@ python3 -m pip install Pillow
 python3 scripts/fetch_bestdori.py
 python3 scripts/build_site_data.py
 python3 scripts/fetch_live2d.py
+python3 scripts/fetch_discography_covers.py
 ```
 
 - `fetch_bestdori.py` 抓取角色资料、卡面与立绘，原始 JSON 和清洗结果写入 `data/bestdori/`，图片写入 `assets/img/`。
 - `build_site_data.py` 根据本地清洗结果生成 `assets/data/anon-cards.js`，此步骤可离线执行。
 - `fetch_live2d.py` 根据 Bestdori 的 `buildData.asset` 清单下载资源，组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。
+- `fetch_discography_covers.py` 读取 BanG Dream! 官方 `discographies` 列表页，抓取 MyGO!!!!! 单曲与专辑封面，生成 `assets/img/music/`（640px JPEG）与 `assets/img/music/thumbs/`（320px WebP）；加 `--offline` 可用 `data/discography/raw/` 缓存重新生成尺寸版本。
 - `node scripts/fetch_bdon_live2d.cjs` 合并 bdon.moe 剧情与演奏两个索引，按模型 ID 发现爱音全部不同款式；排除有标准版的同款 `_low` 副本，将真实 Unity 曲线、表情与物理转换为标准 Cubism 文件。索引与模型清单每次联网刷新，内容哈希资源复用缓存；加 `--offline` 可从 `/data/bdon/` 重建。两种模型抓取脚本会保留另一来源的服装选项与 bdon 去重清单。
 - `node scripts/fetch_chat_font.cjs` 重新获取固定版本 Noto Sans SC 粗体与许可，校验上游字体哈希。访客加载本地 `unicode-range` 字体分段，无需请求字体 CDN。
 
@@ -115,9 +125,10 @@ node scripts/test-chat-client.cjs
 node scripts/test-live2d-actions.cjs
 node scripts/test-live2d-viewer.cjs
 node scripts/test-bdon-import.cjs
+node scripts/test-content.cjs
 ```
 
-站点检查覆盖页面引用、本地文件、图片格式、数据字段与脚本语法；对话检查覆盖关键词回应与模型素材。AI 测试用模拟上游检查输入边界、流式解析、错误与取消等行为，不调用付费 API。浏览器布局、实际模型渲染、真实 API 联通、外链可达性和最新库存仍需另行验证。
+站点检查覆盖页面引用、本地文件、图片格式、数据字段与脚本语法；对话检查覆盖关键词回应与模型素材；内容检查用 DOM 替身执行 `content.js`，验证商品渠道链接、萌战海报与来源说明的删除结果。AI 测试用模拟上游检查输入边界、流式解析、错误与取消等行为，不调用付费 API。浏览器布局、实际模型渲染、真实 API 联通、外链可达性和最新库存仍需另行验证。
 
 Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0 全格式包**，以及固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a` 的 Cubism 2 Core 镜像。新增 `.moc3` 使用同源保存的官方 **Cubism Core 5.1.0**，等待其 WASM 初始化后再加载模型。运行时脚本使用 SRI 完整性校验，CDN 加载设置超时与备用入口，并保留重试按钮。网络、CDN 或 WebGL 故障时会显示备用内容与状态提示，文字回应仍可使用；这些措施不保证外部服务始终可用。
 
