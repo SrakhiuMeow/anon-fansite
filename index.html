@@ -6,14 +6,16 @@
 <title>千早爱音 | Chihaya Anon · 非官方应援站</title>
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
+<script src="assets/js/theme-init.js?v=20260930-7"></script>
 <link rel="icon" href="assets/favicon.svg" />
 <link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
-<link rel="stylesheet" href="assets/css/style.css?v=20260930-6" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260930-7" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
 
 <header class="site-header" id="siteHeader">
+  <span id="readingProgress" class="reading-progress" aria-hidden="true"></span>
   <div class="wrap header-inner">
     <a class="brand" href="#top">
       <span class="brand-mark" aria-hidden="true">愛</span>
@@ -47,7 +49,7 @@
 <main id="main">
 
   <!-- ============ HERO ============ -->
-  <section class="hero" id="top">
+  <section class="hero" id="top" tabindex="-1">
     <div class="hero-bg" aria-hidden="true">
       <span class="blob blob-1"></span>
       <span class="blob blob-2"></span>
@@ -149,7 +151,8 @@
               <div class="chat-access-actions"><button class="btn btn-ghost" id="anonChatAccessCancel" type="button">取消</button><button class="btn btn-primary" id="anonChatAccessSubmit" type="submit">解锁 AI 聊天</button></div>
             </form>
           </dialog>
-          <div class="chat-log" id="anonChatLog" role="log" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
+          <div class="chat-log" id="anonChatLog" role="log" tabindex="0" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
+          <div class="chat-latest-row"><button class="chip" id="anonChatLatest" type="button" aria-controls="anonChatLog" hidden>↓ 查看最新回复</button></div>
           <div class="chat-prompts" aria-label="试试这些话题">
             <button type="button" class="chip" data-chat-prompt="你好，爱音！">打个招呼</button>
             <button type="button" class="chip" data-chat-prompt="今天有点难过，可以鼓励我吗？">给我打气</button>
@@ -437,10 +440,10 @@
         <p class="section-sub">MyGO!!!!! 的单曲与专辑，附带一个经典谜题：这名字到底怎么读？</p>
       </header>
 
-      <div class="filters" role="tablist" aria-label="作品筛选">
-        <button class="chip is-active" data-filter="all" role="tab" aria-selected="true">全部</button>
-        <button class="chip" data-filter="single" role="tab" aria-selected="false">单曲</button>
-        <button class="chip" data-filter="album" role="tab" aria-selected="false">专辑</button>
+      <div class="filters" role="group" aria-label="作品筛选">
+        <button class="chip is-active" type="button" data-filter="all" aria-pressed="true">全部</button>
+        <button class="chip" type="button" data-filter="single" aria-pressed="false">单曲</button>
+        <button class="chip" type="button" data-filter="album" aria-pressed="false">专辑</button>
       </div>
 
       <div class="music-grid" id="musicGrid">
@@ -535,24 +538,29 @@
       <header class="section-head">
         <h2>卡面图鉴<span class="en">Cards</span></h2>
         <p class="section-sub">
-        本站收录 <b id="cardTotal">16</b> 张卡片，可按稀有度筛选。点开卡面，查看大图与「特训前 / 特训后」版本。
+        本站收录 <b id="cardTotal">16</b> 张卡片。搜名字、选稀有度，找到喜欢的那一张；点开可切换「特训前 / 特训后」。
         </p>
       </header>
 
-      <div class="filters" role="tablist" aria-label="稀有度筛选">
-        <button class="chip is-active" data-rarity="all" role="tab" aria-selected="true">全部</button>
-        <button class="chip" data-rarity="5" role="tab" aria-selected="false">★5</button>
-        <button class="chip" data-rarity="4" role="tab" aria-selected="false">★4</button>
-        <button class="chip" data-rarity="3" role="tab" aria-selected="false">★3</button>
-        <button class="chip" data-rarity="2" role="tab" aria-selected="false">★2</button>
-        <button class="chip" data-rarity="1" role="tab" aria-selected="false">★1</button>
-        <span class="filter-count" id="cardFilterCount"></span>
+      <div class="catalog-controls">
+        <label class="catalog-field catalog-field--search" for="cardSearch"><span>搜索卡面</span><input type="search" id="cardSearch" placeholder="中文、日文或英文卡名" maxlength="80" autocomplete="off" aria-controls="cardGrid" /></label>
+        <label class="catalog-field" for="cardSort"><span>排列方式</span><select id="cardSort" aria-controls="cardGrid"><option value="featured">精选优先</option><option value="newest">实装时间：从新到旧</option><option value="oldest">实装时间：从旧到新</option><option value="rarity">稀有度：从高到低</option></select></label>
+      </div>
+      <div class="filters" role="group" aria-label="稀有度筛选">
+        <button type="button" class="chip is-active" data-rarity="all" aria-pressed="true">全部</button>
+        <button type="button" class="chip" data-rarity="5" aria-pressed="false">★5</button>
+        <button type="button" class="chip" data-rarity="4" aria-pressed="false">★4</button>
+        <button type="button" class="chip" data-rarity="3" aria-pressed="false">★3</button>
+        <button type="button" class="chip" data-rarity="2" aria-pressed="false">★2</button>
+        <button type="button" class="chip" data-rarity="1" aria-pressed="false">★1</button>
+        <span class="filter-count" id="cardFilterCount" role="status" aria-live="polite" aria-atomic="true"></span>
       </div>
 
       <div class="card-grid" id="cardGrid"></div>
+      <div class="catalog-empty" id="cardEmpty" hidden><p>没有找到符合条件的卡面。试试换个名字，或取消筛选。</p><button class="btn btn-soft" id="cardReset" type="button">清除搜索与筛选</button></div>
 
       <noscript>
-        <p class="notice">卡面图鉴需要开启 JavaScript 才能显示。图片文件位于 <code>assets/img/cards/</code>。</p>
+        <p class="notice">卡面图鉴需要开启 JavaScript 才能显示。</p>
       </noscript>
 
       <div class="notice">
@@ -567,9 +575,17 @@
   <section class="section section-alt" id="goods">
     <div class="wrap">
       <header class="section-head"><span class="section-kicker">A LITTLE MORE ANON</span><h2>把喜欢，带进日常<span class="en">Official Goods</span></h2><p class="section-sub">立牌、挂件与玩偶，来自武士道官方商店的爱音周边。</p></header>
-      <div class="goods-toolbar"><div class="filters" role="group" aria-label="商品状态筛选"><button type="button" class="chip is-active" data-goods-filter="all" aria-pressed="true">全部</button><button type="button" class="chip" data-goods-filter="available" aria-pressed="false">在售</button><button type="button" class="chip" data-goods-filter="preorder" aria-pressed="false">预售</button></div><p id="goodsSnapshot" class="snapshot-note"></p></div>
+      <div class="goods-toolbar">
+        <div class="filters" role="group" aria-label="商品状态筛选"><button type="button" class="chip is-active" data-goods-filter="all" aria-pressed="true">全部</button><button type="button" class="chip" data-goods-filter="available" aria-pressed="false">在售</button><button type="button" class="chip" data-goods-filter="preorder" aria-pressed="false">预售</button></div>
+        <div class="catalog-controls">
+          <label class="catalog-field" for="goodsCategory"><span>商品类型</span><select id="goodsCategory"><option value="all">全部类型</option></select></label>
+          <label class="catalog-field" for="goodsSort"><span>排列方式</span><select id="goodsSort"><option value="featured">推荐顺序</option><option value="price-asc">价格从低到高</option><option value="price-desc">价格从高到低</option></select></label>
+        </div>
+        <p id="goodsCount" class="filter-count" role="status" aria-live="polite"></p>
+        <p id="goodsSnapshot" class="snapshot-note"></p>
+      </div>
       <div class="goods-grid" id="goodsGrid"></div>
-      <p id="goodsEmpty" class="notice" hidden>当前没有符合筛选条件的商品。</p>
+      <div id="goodsEmpty" class="catalog-empty notice" hidden><p>没有符合当前条件的周边，换个类型看看吧。</p><button id="goodsReset" class="chip" type="button">清除筛选</button></div>
       <p id="goodsNotice" class="source-note"></p>
       <a class="text-link" href="https://bushiroad-store.com/collections/anon" target="_blank" rel="noopener noreferrer">逛逛官方爱音专区</a>
     </div>
@@ -605,6 +621,7 @@
             <button class="link-btn" id="clearLetters" type="button">清空</button>
           </div>
           <ul class="letter-list" id="letterList"></ul>
+          <p class="letter-status" id="letterStatus" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
       </div>
     </div>
@@ -661,19 +678,20 @@
     <p class="copyright">BanG Dream! Project ／ <span>Anon Fan Site</span><br /><a href="#sources">资料来源与署名</a></p>
   </div>
 </footer>
+<button id="backToTop" class="back-to-top" type="button" aria-label="返回顶部" title="返回顶部" hidden><span aria-hidden="true">↑</span></button>
 
-<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="卡面预览">
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-labelledby="lightboxTitle" aria-describedby="lightboxNote">
   <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭">×</button>
   <div class="lightbox-content">
-    <img class="lightbox-img" id="lightboxImg" alt="" />
+    <div class="lightbox-image-wrap"><img class="lightbox-img" id="lightboxImg" alt="" /><p class="lightbox-image-status" id="lightboxImageStatus" role="status" hidden></p></div>
     <div class="lightbox-body">
       <div class="lightbox-head">
         <strong id="lightboxTitle"></strong>
         <span class="lightbox-meta" id="lightboxMeta"></span>
       </div>
-      <div class="lightbox-variants" id="lightboxVariants"></div>
+      <div class="lightbox-toolbar"><div class="lightbox-variants" id="lightboxVariants" role="group" aria-label="卡面版本"></div><div class="lightbox-pagination"><button class="btn btn-soft" id="lightboxPrev" type="button" aria-label="上一张卡面">← 上一张</button><span class="lightbox-position" id="lightboxPosition" role="status" aria-live="polite" aria-atomic="true"></span><button class="btn btn-soft" id="lightboxNext" type="button" aria-label="下一张卡面">下一张 →</button></div></div>
     </div>
-    <p class="lightbox-note">卡面版权归 BanG Dream! Project 所有 · 图片来源 Bestdori</p>
+    <p class="lightbox-note" id="lightboxNote">按 ← → 浏览当前筛选结果，Esc 关闭。<br />卡面版权归 BanG Dream! Project 所有 · 图片来源 Bestdori</p>
   </div>
 </div>
 
@@ -681,10 +699,11 @@
 <script src="assets/data/anon-live2d.js?v=20260930-6"></script>
 <script src="assets/data/anon-official.js?v=20260929-3"></script>
 <script src="assets/data/anon-wiki.js?v=20260929-3"></script>
-<script src="assets/js/main.js?v=20260929-3"></script>
-<script src="assets/js/content.js?v=20260929-3"></script>
+<script src="assets/js/main.js?v=20260930-7"></script>
+<script src="assets/js/content.js?v=20260930-7"></script>
+<script src="assets/js/site-ui.js?v=20260930-7"></script>
 <script src="assets/js/live2d-actions.js?v=20260930-6"></script>
-<script src="assets/js/live2d-viewer.js?v=20260930-6"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-6"></script>
+<script src="assets/js/live2d-viewer.js?v=20260930-7"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-7"></script>
 </body>
 </html>

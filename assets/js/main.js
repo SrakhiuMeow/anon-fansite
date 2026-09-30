@@ -29,16 +29,23 @@
   onScroll();
   window.addEventListener("scroll", onScroll, { passive: true });
 
-  navToggle?.addEventListener("click", () => {
-    const open = nav ? nav.classList.toggle("is-open") : false;
-    navToggle.setAttribute("aria-expanded", String(open));
-  });
+  const setMenuOpen = (open, restoreFocus = false) => {
+    nav?.classList.toggle("is-open", open);
+    navToggle?.setAttribute("aria-expanded", String(open));
+    navToggle?.setAttribute("aria-label", open ? "收起菜单" : "展开菜单");
+    if (restoreFocus) navToggle?.focus();
+  };
+  navToggle?.addEventListener("click", () => setMenuOpen(!nav?.classList.contains("is-open")));
   nav?.addEventListener("click", (e) => {
-    if (e.target instanceof HTMLAnchorElement) {
-      nav.classList.remove("is-open");
-      navToggle?.setAttribute("aria-expanded", "false");
-    }
+    if (e.target.closest("a")) setMenuOpen(false);
   });
+  document.addEventListener("pointerdown", (e) => {
+    if (nav?.classList.contains("is-open") && !header?.contains(e.target)) setMenuOpen(false);
+  });
+  document.addEventListener("focusin", (e) => {
+    if (nav?.classList.contains("is-open") && !header?.contains(e.target)) setMenuOpen(false);
+  });
+  window.matchMedia?.("(max-width: 1100px)").addEventListener?.("change", () => setMenuOpen(false));
 
   /* ---------- 2. 日夜主题（记住选择） ---------- */
   const themeToggle = $("#themeToggle");
@@ -46,8 +53,10 @@
 
   const applyTheme = (theme) => {
     document.documentElement.dataset.theme = theme;
+    $('meta[name="theme-color"]')?.setAttribute("content", theme === "night" ? "#121020" : "#fff7f9");
     if (themeToggle) {
       themeToggle.setAttribute("aria-pressed", String(theme === "night"));
+      themeToggle.setAttribute("aria-label", theme === "night" ? "切换到日间模式" : "切换到夜间模式");
       themeToggle.innerHTML =
         theme === "night"
           ? '<span aria-hidden="true">☀️</span><span class="sr-only">切换主题</span>'
@@ -57,7 +66,8 @@
 
   let savedTheme = null;
   try { savedTheme = localStorage.getItem(STORAGE_THEME); } catch { /* 隐私模式忽略 */ }
-  applyTheme(savedTheme === "night" ? "night" : "day");
+  applyTheme(savedTheme === "night" || savedTheme === "day" ? savedTheme :
+    (document.documentElement.dataset.theme === "night" ? "night" : "day"));
 
   themeToggle?.addEventListener("click", () => {
     const next = document.documentElement.dataset.theme === "night" ? "day" : "night";
@@ -93,6 +103,17 @@
   const grid = $("#cardGrid");
   const filterCount = $("#cardFilterCount");
   const rarityChips = $$(".chip[data-rarity]");
+  const cardSearch = $("#cardSearch");
+  const cardSort = $("#cardSort");
+  const cardEmpty = $("#cardEmpty");
+  const cardReset = $("#cardReset");
+  let selectedRarity = "all";
+  let visibleCards = [];
+  const normalizeSearch = (value) => String(value || "").normalize("NFKC").toLocaleLowerCase().trim();
+  const searchableCards = new Map(allCards.map((card) => [card.res,
+    normalizeSearch([card.nameCn, card.nameJa, card.nameEn, card.attributeCn, card.typeCn, card.date].join(" ")),
+  ]));
+  const cardNodes = new Map();
 
   const orderedCards = (() => {
     const featured = new Map(((data && data.featured) || []).map((res, i) => [res, i]));
@@ -139,35 +160,60 @@
   if (grid) {
     if (orderedCards.length) {
       const frag = document.createDocumentFragment();
-      orderedCards.forEach((card) => frag.appendChild(cardNode(card)));
+      orderedCards.forEach((card) => {
+        const node = cardNode(card);
+        cardNodes.set(card.res, node);
+        frag.appendChild(node);
+      });
       grid.appendChild(frag);
     } else {
       grid.innerHTML =
-        '<p class="notice">没有读到卡面数据。请先运行 scripts/fetch_bestdori.py 与 scripts/build_site_data.py。</p>';
+        '<p class="notice">卡面暂时没有加载成功，请刷新页面重试。</p>';
     }
   }
 
-  const updateFilterCount = () => {
-    if (!filterCount || !grid) return;
-    const shown = $$(".card", grid).filter((c) => !c.classList.contains("is-hidden")).length;
-    filterCount.textContent = `显示 ${shown} / ${allCards.length} 张`;
+  const updateCards = () => {
+    const terms = normalizeSearch(cardSearch?.value).split(/\s+/).filter(Boolean);
+    const sort = cardSort?.value || "featured";
+    const sorted = orderedCards.slice();
+    if (sort === "newest") sorted.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    if (sort === "oldest") sorted.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    if (sort === "rarity") sorted.sort((a, b) => b.rarity - a.rarity);
+    visibleCards = sorted.filter((card) => (selectedRarity === "all" || String(card.rarity) === selectedRarity) &&
+      terms.every((term) => searchableCards.get(card.res).includes(term)));
+    const visibleIds = new Set(visibleCards.map((card) => card.res));
+    sorted.forEach((card) => {
+      const node = cardNodes.get(card.res);
+      if (!node) return;
+      node.hidden = !visibleIds.has(card.res);
+      node.classList.toggle("is-hidden", node.hidden);
+      grid.appendChild(node);
+    });
+    rarityChips.forEach((chip) => {
+      const active = chip.dataset.rarity === selectedRarity;
+      chip.classList.toggle("is-active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    });
+    if (filterCount) filterCount.textContent = `显示 ${visibleCards.length} / ${allCards.length} 张`;
+    if (cardEmpty) cardEmpty.hidden = visibleCards.length > 0 || !allCards.length;
   };
 
   rarityChips.forEach((chip) => {
     chip.addEventListener("click", () => {
-      const want = chip.dataset.rarity;
-      rarityChips.forEach((c) => {
-        const active = c === chip;
-        c.classList.toggle("is-active", active);
-        c.setAttribute("aria-selected", String(active));
-      });
-      $$(".card", grid || document).forEach((card) => {
-        card.classList.toggle("is-hidden", want !== "all" && card.dataset.rarity !== want);
-      });
-      updateFilterCount();
+      selectedRarity = chip.dataset.rarity;
+      updateCards();
     });
   });
-  updateFilterCount();
+  cardSearch?.addEventListener("input", updateCards);
+  cardSort?.addEventListener("change", updateCards);
+  cardReset?.addEventListener("click", () => {
+    selectedRarity = "all";
+    if (cardSearch) cardSearch.value = "";
+    if (cardSort) cardSort.value = "featured";
+    updateCards();
+    cardSearch?.focus();
+  });
+  updateCards();
 
   /* ---------- 5. 滚动淡入（卡片渲染完成后执行） ---------- */
   const revealItems = $$(".reveal");
@@ -177,7 +223,10 @@
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
           const el = entry.target;
-          window.setTimeout(() => el.classList.add("is-in"), Number(el.dataset.delay || 0));
+          window.setTimeout(() => {
+            el.classList.remove("is-pending");
+            el.classList.add("is-in");
+          }, Number(el.dataset.delay || 0));
           io.unobserve(el);
         });
       },
@@ -185,6 +234,7 @@
     );
     revealItems.forEach((el, i) => {
       el.dataset.delay = String((i % 4) * 70);
+      el.classList.add("is-pending");
       io.observe(el);
     });
   } else {
@@ -197,20 +247,38 @@
     .map((a) => document.getElementById(a.getAttribute("href").slice(1)))
     .filter(Boolean);
 
-  if (sections.length && "IntersectionObserver" in window) {
-    const spy = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const id = entry.target.id;
-          navLinks.forEach((a) =>
-            a.classList.toggle("is-active", a.getAttribute("href") === `#${id}`)
-          );
-        });
-      },
-      { rootMargin: "-45% 0px -50% 0px" }
-    );
-    sections.forEach((s) => spy.observe(s));
+  if (sections.length) {
+    let activeSection;
+    let spyScheduled = false;
+    const updateActiveSection = () => {
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+      const headerBottom = header?.getBoundingClientRect().bottom || 0;
+      const readingLine = Math.min(viewportHeight - 1, Math.max(headerBottom + 24, Math.min(viewportHeight * 0.3, 240)));
+      const section = sections.find((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.top <= readingLine && bounds.bottom > readingLine;
+      });
+      const id = section?.id || "";
+      if (id === activeSection) return;
+      activeSection = id;
+      navLinks.forEach((link) => {
+        const active = link.getAttribute("href") === `#${id}`;
+        link.classList.toggle("is-active", active);
+        if (active) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      });
+    };
+    const scheduleSpy = () => {
+      if (spyScheduled) return;
+      spyScheduled = true;
+      const nextFrame = window.requestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
+      nextFrame(() => { spyScheduled = false; updateActiveSection(); });
+    };
+    // 每批滚动只读一次视口位置。离开导航栏目（如回到首屏）时同步清空旧高亮。
+    window.addEventListener("scroll", scheduleSpy, { passive: true });
+    window.addEventListener("resize", scheduleSpy);
+    window.addEventListener("load", scheduleSpy);
+    updateActiveSection();
   }
 
   /* ---------- 7. 生日倒计时（每年 9 月 8 日） ---------- */
@@ -233,7 +301,7 @@
       musicChips.forEach((c) => {
         const active = c === chip;
         c.classList.toggle("is-active", active);
-        c.setAttribute("aria-selected", String(active));
+        c.setAttribute("aria-pressed", String(active));
       });
       musicCards.forEach((card) => {
         card.classList.toggle("is-hidden", filter !== "all" && card.dataset.kind !== filter);
@@ -248,17 +316,42 @@
   const lightboxMeta = $("#lightboxMeta");
   const lightboxVariants = $("#lightboxVariants");
   const lightboxClose = $("#lightboxClose");
+  const lightboxPrev = $("#lightboxPrev");
+  const lightboxNext = $("#lightboxNext");
+  const lightboxPosition = $("#lightboxPosition");
+  const lightboxImageStatus = $("#lightboxImageStatus");
 
   let activeCard = null;
   let activeVariant = null;
   let lightboxOpener = null;
+  let previousOverflow = "";
+  let inertBackground = [];
+
+  const imageStatus = (message, error = false) => {
+    if (!lightboxImageStatus) return;
+    lightboxImageStatus.textContent = message;
+    lightboxImageStatus.hidden = !message;
+    lightboxImageStatus.classList.toggle("is-error", error);
+  };
+  lightboxImg?.addEventListener("load", () => imageStatus(""));
+  lightboxImg?.addEventListener("error", () => imageStatus("图片暂时没有加载成功，请试试其他卡面，或稍后重新打开。", true));
 
   const paintLightbox = () => {
     if (!activeCard || !lightboxImg) return;
-    const variant = activeCard.variants[activeVariant] || activeCard.variants[activeCard.default];
+    if (!activeCard.variants[activeVariant]) activeVariant = activeCard.default;
+    if (!activeCard.variants[activeVariant]) activeVariant = Object.keys(activeCard.variants)[0];
+    const variant = activeCard.variants[activeVariant];
 
+    imageStatus("正在加载大图…");
     lightboxImg.src = variant.file;
     lightboxImg.alt = `${activeCard.nameCn || activeCard.nameJa} 卡面大图`;
+    lightboxImg.width = variant.width || 1334;
+    lightboxImg.height = variant.height || 1002;
+    if (lightboxImg.complete && lightboxImg.naturalWidth) imageStatus("");
+    const position = visibleCards.findIndex((card) => card.res === activeCard.res);
+    if (lightboxPosition) lightboxPosition.textContent = `${position + 1} / ${visibleCards.length}`;
+    if (lightboxPrev) lightboxPrev.disabled = visibleCards.length < 2;
+    if (lightboxNext) lightboxNext.disabled = visibleCards.length < 2;
     if (lightboxTitle) {
       lightboxTitle.textContent = [...new Set([activeCard.nameCn, activeCard.nameJa].filter(Boolean))].join("｜");
     }
@@ -280,10 +373,13 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "chip" + (key === activeVariant ? " is-active" : "");
+        btn.dataset.variant = key;
+        btn.setAttribute("aria-pressed", String(key === activeVariant));
         btn.textContent = labels[key];
         btn.addEventListener("click", () => {
           activeVariant = key;
           paintLightbox();
+          lightboxVariants.querySelector(`[data-variant="${key}"]`)?.focus({ preventScroll: true });
         });
         lightboxVariants.appendChild(btn);
       });
@@ -300,7 +396,10 @@
     paintLightbox();
     if (lightbox) {
       lightbox.hidden = false;
+      previousOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
+      inertBackground = $$("body > header, body > main, body > footer").map((element) => [element, element.inert]);
+      inertBackground.forEach(([element]) => { element.inert = true; });
       lightboxClose?.focus();
     }
   };
@@ -308,8 +407,18 @@
   const closeLightbox = () => {
     if (!lightbox || lightbox.hidden) return;
     lightbox.hidden = true;
-    document.body.style.overflow = "";
-    lightboxOpener?.focus();
+    document.body.style.overflow = previousOverflow;
+    inertBackground.forEach(([element, wasInert]) => { element.inert = wasInert; });
+    inertBackground = [];
+    if (lightboxOpener?.isConnected && !lightboxOpener.hidden) lightboxOpener.focus({ preventScroll: true });
+    else cardSearch?.focus({ preventScroll: true });
+  };
+
+  const moveLightbox = (direction) => {
+    if (!activeCard || !lightbox || lightbox.hidden || visibleCards.length < 2) return;
+    const current = visibleCards.findIndex((card) => card.res === activeCard.res);
+    activeCard = visibleCards[(current + direction + visibleCards.length) % visibleCards.length];
+    paintLightbox();
   };
 
   if (grid) {
@@ -322,17 +431,26 @@
   }
 
   lightboxClose?.addEventListener("click", closeLightbox);
+  lightboxPrev?.addEventListener("click", () => moveLightbox(-1));
+  lightboxNext?.addEventListener("click", () => moveLightbox(1));
   lightbox?.addEventListener("click", (e) => {
     if (e.target === lightbox) closeLightbox();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeLightbox();
+    if (e.key === "Escape") {
+      if (lightbox && !lightbox.hidden) { e.preventDefault(); closeLightbox(); }
+      else if (nav?.classList.contains("is-open")) { e.preventDefault(); setMenuOpen(false, true); }
+    }
+    if (lightbox && !lightbox.hidden && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      moveLightbox(e.key === "ArrowLeft" ? -1 : 1);
+    }
     if (e.key === "Tab" && lightbox && !lightbox.hidden) {
       const controls = Array.from(lightbox.querySelectorAll("button:not([disabled]), a[href]"));
       const first = controls[0];
       const last = controls[controls.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      if (e.shiftKey && (document.activeElement === first || !lightbox.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !lightbox.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
     }
   });
 
@@ -344,17 +462,28 @@
   const countEl = $("#letterCount");
   const listEl = $("#letterList");
   const clearBtn = $("#clearLetters");
+  const letterStatus = $("#letterStatus");
+  let letterLoadWarning = "";
+  let clearedLetters = null;
+
+  const reportLetterStatus = (message, error = false) => {
+    if (!letterStatus) return;
+    letterStatus.textContent = message;
+    letterStatus.classList.toggle("is-error", error);
+  };
 
   const seedLetters = [
     {
       name: "迷子 001 号",
       body: "爱音ちゃん，你已经很努力了，被看见这件事你早就做到了。",
       at: Date.now() - 86400000 * 3,
+      example: true,
     },
     {
       name: "吉他部临时部员",
       body: "谢谢你把「想被夸奖」说得那么坦率，我也有点被鼓励到。",
       at: Date.now() - 86400000,
+      example: true,
     },
   ];
 
@@ -363,16 +492,26 @@
       const raw = localStorage.getItem(STORAGE_LETTERS);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed.filter((item) => item && typeof item.name === "string" && typeof item.body === "string" && Number.isFinite(item.at)).slice(-200);
+        if (!Array.isArray(parsed)) throw new Error("无效的留言格式");
+        return parsed.filter((item) => item && typeof item.name === "string" && typeof item.body === "string" && Number.isFinite(item.at) && !Number.isNaN(new Date(item.at).getTime()))
+          .slice(-200).map((item) => ({ ...item, example: item.example === true ||
+            (item.example == null && seedLetters.some((seed) => seed.name === item.name && seed.body === item.body)) }));
       }
-    } catch { /* 忽略 */ }
+    } catch { letterLoadWarning = "未能读取本地留言。下方为示例；请检查浏览器的存储设置。"; }
     return seedLetters;
   };
 
   let letters = load();
 
-  const persist = () => {
-    try { localStorage.setItem(STORAGE_LETTERS, JSON.stringify(letters)); } catch { /* 忽略 */ }
+  const persist = (nextLetters) => {
+    try {
+      localStorage.setItem(STORAGE_LETTERS, JSON.stringify(nextLetters));
+      letters = nextLetters;
+      return true;
+    } catch {
+      reportLetterStatus("未能保存：浏览器存储不可用或已满。现有留言和输入内容仍保留，请检查存储设置后重试。", true);
+      return false;
+    }
   };
 
   const fmtDate = (ts) => {
@@ -384,6 +523,10 @@
 
   const renderLetters = () => {
     if (!listEl) return;
+    if (clearBtn) {
+      clearBtn.textContent = clearedLetters ? "撤销清空" : "清空";
+      clearBtn.disabled = !letters.length && !clearedLetters;
+    }
     listEl.innerHTML = "";
     if (!letters.length) {
       const li = document.createElement("li");
@@ -403,7 +546,14 @@
         name.textContent = item.name;
         const time = document.createElement("time");
         time.textContent = fmtDate(item.at);
+        time.dateTime = new Date(item.at).toISOString();
         who.append(name, time);
+        if (item.example) {
+          const badge = document.createElement("span");
+          badge.className = "letter-example";
+          badge.textContent = "示例留言";
+          who.appendChild(badge);
+        }
         const p = document.createElement("p");
         p.textContent = item.body;
         li.append(who, p);
@@ -417,22 +567,33 @@
 
   form?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = (nameInput?.value || "").trim();
-    const body = (bodyInput?.value || "").trim();
+    const name = (nameInput?.value || "").trim().slice(0, 16);
+    const body = (bodyInput?.value || "").trim().slice(0, 120);
     if (!name || !body) return;
-    letters.push({ name, body, at: Date.now() });
-    letters = letters.slice(-200);
-    persist();
+    if (!persist([...letters, { name, body, at: Date.now(), example: false }].slice(-200))) return;
+    clearedLetters = null;
     renderLetters();
-    form.reset();
+    if (bodyInput) bodyInput.value = "";
     if (countEl) countEl.textContent = "0";
+    reportLetterStatus("已投进信箱，保存在当前浏览器。谢谢你的应援！");
+    bodyInput?.focus();
   });
 
   clearBtn?.addEventListener("click", () => {
-    letters = [];
-    persist();
+    if (clearedLetters) {
+      if (!persist(clearedLetters)) return;
+      clearedLetters = null;
+      reportLetterStatus("已恢复清空前的留言。");
+    } else {
+      if (!letters.length) return;
+      const previous = letters.slice();
+      if (!persist([])) return;
+      clearedLetters = previous;
+      reportLetterStatus("留言已清空。可点击「撤销清空」恢复；离开页面或投递新留言后将无法撤销。");
+    }
     renderLetters();
   });
 
   renderLetters();
+  if (letterLoadWarning) reportLetterStatus(letterLoadWarning, true);
 })();

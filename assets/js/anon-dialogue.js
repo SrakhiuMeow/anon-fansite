@@ -24,6 +24,33 @@
   const emotion = root.document.getElementById("anonChatEmotion");
   const send = form.querySelector('[type="submit"]');
   const prompts = [...root.document.querySelectorAll("[data-chat-prompt]")];
+  const latest = root.document.getElementById("anonChatLatest");
+  let followingLatest = true;
+  let unreadReply = false;
+  let composing = false;
+  const syncLatest = () => { if (latest) latest.hidden = followingLatest || !unreadReply; };
+  const showLatest = () => {
+    followingLatest = true;
+    unreadReply = false;
+    log.scrollTop = log.scrollHeight;
+    syncLatest();
+  };
+  const updateChatScroll = () => {
+    if (followingLatest) showLatest();
+    else { unreadReply = true; syncLatest(); }
+  };
+  log.addEventListener("scroll", () => {
+    followingLatest = log.scrollHeight - log.clientHeight - log.scrollTop <= 48;
+    if (followingLatest) unreadReply = false;
+    syncLatest();
+  }, { passive: true });
+  latest?.addEventListener("click", () => { showLatest(); log.focus({ preventScroll: true }); });
+  input.addEventListener("compositionstart", () => { composing = true; });
+  input.addEventListener("compositionend", () => { composing = false; });
+  input.addEventListener("keydown", (event) => {
+    // 中文输入法的确认键只确认候选字，不同时发送尚未完成的消息。
+    if (event.key === "Enter" && (composing || event.isComposing || event.keyCode === 229)) event.preventDefault();
+  });
   let history = [];
   let request = 0;
   let controller = null;
@@ -115,7 +142,7 @@
     item.append(label, content);
     log.appendChild(item);
     while (log.children.length > 40) log.firstElementChild.remove();
-    log.scrollTop = log.scrollHeight;
+    updateChatScroll();
     return content;
   };
   const abortable = (task, signal) => {
@@ -173,6 +200,7 @@
     }
     const version = ++request;
     const text = api.normalize(raw);
+    followingLatest = true;
     append("user", text);
     input.value = "";
     setBusy(true);
@@ -256,7 +284,7 @@
             answer += piece;
             if (!content) content = append("anon", "");
             content.textContent = answer;
-            log.scrollTop = log.scrollHeight;
+            updateChatScroll();
             setState("爱音正在回复…");
             if (!reducedMotion) {
               await pausePlayback(20, active.signal);
@@ -299,12 +327,13 @@
       if (version === request) { setBusy(false); controller = null; }
     }
   };
-  form.addEventListener("submit", (event) => { event.preventDefault(); void submit(input.value); });
+  form.addEventListener("submit", (event) => { event.preventDefault(); if (!composing) void submit(input.value); });
   append("anon", "欢迎来到我的应援小房间！试着打个招呼，或对我说「眨眼」吧。");
   prompts.forEach((button) => button.addEventListener("click", () => { void submit(button.dataset.chatPrompt); }));
   stop?.addEventListener("click", cancel);
   clear?.addEventListener("click", () => {
     ++request; cancel(); controller = null; history = []; log.replaceChildren(); setBusy(false);
+    followingLatest = true;
     append("anon", "从这里重新开始吧！今天想聊什么？");
     setState("已清空本页聊天记录与对话记忆。");
   });

@@ -50,6 +50,9 @@
   let followMouse = true;
   let zoomPercent = 100;
   let desiredReaction = { emotion: "neutral" };
+  let pendingMounts = 0;
+  const retiredTextures = new Set();
+  const warmups = new WeakMap();
   const variantHistory = new Map();
   const requestSelections = new WeakMap();
   let activeReaction = null;
@@ -97,6 +100,7 @@
     const running = !!model && !paused && inView && !document.hidden;
     // Live2D 默认使用共享 ticker；显式关闭并由 app ticker 更新，保证离屏真正停止。
     if (app) running ? app.start() : app.stop();
+    if (running) void warmReactions(model, current);
     if (pauseEl) {
       pauseEl.disabled = !model;
       pauseEl.textContent = paused ? "播放动画" : "暂停动画";
@@ -217,30 +221,54 @@
   };
 
   const warmReactions = async (target, costume) => {
-    const manager = target.internalModel.motionManager;
-    const warmed = new Set();
-    // 小批量预热常用资源，避免第一个回复在文字出现后才开始加载动作。
-    for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry"]) {
-      const choices = ["smile", "cheer", "wink"].includes(emotion) && actions.variants
-        ? actions.variants(costume, { emotion }).slice(0, 3)
-        : [actions.resolve(costume, { emotion })];
-      for (const choice of choices) {
-        if (target !== model) return;
-        if (!choice) continue;
-        const key = `${choice.group}:${choice.index}:${choice.expression || ""}`;
-        if (warmed.has(key)) continue;
-        warmed.add(key);
+    // 预热只服务正在观看的动画；省流量模式仅按实际操作加载资源。
+    if (!target || paused || !inView || document.hidden || window.navigator?.connection?.saveData) return;
+    let state = warmups.get(target);
+    if (!state) {
+      const choices = new Map();
+      for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry"]) {
+        const variants = ["smile", "cheer", "wink"].includes(emotion) && actions.variants
+          ? actions.variants(costume, { emotion }).slice(0, 3)
+          : [actions.resolve(costume, { emotion })];
+        for (const choice of variants) {
+          if (choice) choices.set(`${choice.group}:${choice.index}:${choice.expression || ""}`, choice);
+        }
+      }
+      state = { choices: [...choices.values()], index: 0, running: false };
+      warmups.set(target, state);
+    }
+    if (state.running) return;
+    state.running = true;
+    try {
+      const manager = target.internalModel.motionManager;
+      while (state.index < state.choices.length && target === model && !paused && inView && !document.hidden) {
+        const choice = state.choices[state.index++];
         const expressionIndex = choice.expression ? manager.expressionManager?.getExpressionIndex(choice.expression) : -1;
         await Promise.allSettled([
           choice.motion ? manager.loadMotion(choice.group, choice.index) : null,
           expressionIndex >= 0 ? manager.expressionManager.loadExpression(expressionIndex) : null,
         ]);
       }
+    } finally { state.running = false; }
+  };
+
+  const retireModel = (target) => {
+    // 播放器默认 destroy 不释放纹理；先退役，等并行换装结束再清理共享缓存。
+    for (const texture of target.textures || []) retiredTextures.add(texture);
+    target.destroy();
+  };
+  const releaseRetiredTextures = () => {
+    if (pendingMounts) return;
+    const retained = new Set((model?.textures || []).map((texture) => texture.baseTexture));
+    for (const texture of retiredTextures) {
+      if (texture.baseTexture && !retained.has(texture.baseTexture)) texture.destroy(true);
     }
+    retiredTextures.clear();
   };
 
   const mountModel = async (costume) => {
     const version = ++loadVersion;
+    ++pendingMounts;
     ++reactionVersion;
     requested = costume;
     loading = true;
@@ -255,12 +283,12 @@
         autoInteract: followMouse, autoUpdate: false, idleMotionGroup: "idle",
         motionPreload: window.PIXI.live2d.MotionPreloadStrategy.IDLE,
       });
-      if (version !== loadVersion) { next.destroy(); return false; }
+      if (version !== loadVersion) { retireModel(next); return false; }
       const previous = model;
       model = next;
       current = costume;
       app.stage.addChild(next);
-      if (previous) { app.stage.removeChild(previous); previous.destroy(); }
+      if (previous) { app.stage.removeChild(previous); retireModel(previous); }
       // 加载期间也能切换偏好，以完成加载时的最新开关状态为准。
       syncMouseTracking();
       // PIXI 只在 deltaTime 非零时初始化 Core 顶点；暂停换装也需要一个静态首帧。
@@ -270,7 +298,6 @@
       layoutTimer = setTimeout(() => { if (version === loadVersion) fitModel(); }, 150);
       setStatus(null);
       renderControls();
-      void warmReactions(next, costume);
       return true;
     } catch (error) {
       if (version === loadVersion) {
@@ -280,6 +307,8 @@
       }
       return false;
     } finally {
+      --pendingMounts;
+      releaseRetiredTextures();
       if (version === loadVersion) {
         loading = false;
         stage.setAttribute("aria-busy", "false");
@@ -453,12 +482,12 @@
     const observer = new IntersectionObserver((entries) => {
       const wasInView = inView;
       inView = entries.some((entry) => entry.isIntersecting);
-      if (inView && !model && !failed) void start();
+      if (inView && !document.hidden && !model && !failed) void start();
       syncPlayback();
       if (!wasInView && inView && model && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
     }, { threshold: 0 });
     observer.observe(stage);
-  } else { inView = true; void start(); }
+  } else { inView = true; if (!document.hidden) void start(); }
   syncMouseTracking();
   syncPlayback();
 })();

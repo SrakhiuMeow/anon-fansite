@@ -51,24 +51,33 @@ async function harness(options = {}) {
   });
   const models = [];
   const plays = [];
+  const resources = [];
+  const modelLoads = [];
+  const textures = new Map();
   const pendingModels = new Map();
   const buildModel = (id) => {
     const { motions, expressions } = costumes.find((costume) => costume.id === id);
     const waiting = new Map();
+    if (options.warmBarrier) waiting.set("motion:thinking01", options.warmBarrier);
     const expressionObjects = expressions.map((name) => ({ name }));
     const expressionManager = {
       expressions: expressionObjects,
       currentExpression: null,
       getExpressionIndex: (name) => expressions.indexOf(name),
-      loadExpression: (index) => waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]),
+      loadExpression: (index) => { resources.push("expression:" + expressions[index]); return waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]); },
     };
     const manager = {
       expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, finished: false,
       isFinished() { return this.finished; },
-      loadMotion: (group, index) => waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve({ group, index }),
+      loadMotion: (group, index) => { resources.push("motion:" + actions.stem(motions[index])); return waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve({ group, index }); },
     };
+    const textureId = options.sharedTextures ? "shared" : id;
+    if (!textures.has(textureId) || textures.get(textureId).destroyed) textures.set(textureId, {
+      baseTexture: {}, destroyed: false, destroy(baseTexture) { this.destroyed = true; this.baseDestroyed = baseTexture; },
+    });
     const model = {
       id, waiting, destroyed: false, scale: { value: 1, set(value) { this.value = value; } },
+      textures: [textures.get(textureId)],
       internalModel: { motionManager: manager, focusController: { focus() {} } },
       getLocalBounds: () => ({ x: 0, y: 0, width: 2000, height: 2500 }),
       registerInteraction() {}, unregisterInteraction() {}, update(delta) { if (delta > 0) this.initialized = true; },
@@ -88,7 +97,7 @@ async function harness(options = {}) {
   let intersection;
   let resize;
   let renderCount = 0;
-  const document = { hidden: false, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
+  const document = { hidden: !!options.hidden, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
   const window = {
     ANON_LIVE2D: { defaultCostume: "first", costumes }, AnonLive2DActions: actions,
     Live2D: {}, Live2DCubismCore: { Version: { csmGetVersion: () => 83951616 } },
@@ -97,12 +106,13 @@ async function harness(options = {}) {
         constructor() { this.ticker = { add() {} }; this.renderer = { resize() {}, plugins: { interaction: {} } }; this.stage = { addChild() {}, removeChild() {} }; }
         start() {} stop() {} render() { renderCount += 1; }
       },
-      live2d: { config: {}, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id) } },
+      live2d: { config: {}, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => { modelLoads.push(id); return pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id); } } },
     },
-    addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: () => ({ matches: false }),
+    navigator: { connection: { saveData: !!options.saveData } },
+    addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: () => ({ matches: !!options.paused }),
     IntersectionObserver: class {
       constructor(callback) { intersection = callback; }
-      observe() { intersection([{ isIntersecting: true }]); }
+      observe() { intersection([{ isIntersecting: options.visible !== false }]); }
     },
   };
   vm.runInNewContext(source, {
@@ -110,14 +120,85 @@ async function harness(options = {}) {
     localStorage: { getItem: () => null, setItem() {} },
     setTimeout: (callback) => { queueMicrotask(callback); return 1; }, clearTimeout() {},
   }, { filename: "live2d-viewer.js" });
-  await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
+  if (!options.hidden && options.visible !== false) await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, elements, pendingModels, buildModel, document, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
+  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
 (async () => {
+  {
+    const h = await harness({ visible: false });
+    assert.deepEqual(h.modelLoads, [], "首屏未进入模型区域时不请求模型");
+    h.intersect(true);
+    await settle(() => h.viewer.getState().ready, "滚动至模型后才加载");
+    assert.deepEqual(h.modelLoads, ["first"]);
+  }
+  {
+    const h = await harness({ hidden: true });
+    assert.deepEqual(h.modelLoads, [], "后台页即使命中视口也不请求模型");
+    h.document.hidden = false; h.visibility();
+    await settle(() => h.viewer.getState().ready, "返回前台后正常初始化");
+    assert.deepEqual(h.modelLoads, ["first"]);
+  }
+  {
+    const h = await harness({ paused: true });
+    assert.deepEqual(h.resources, [], "减少动态效果默认暂停时不额外预热动作");
+    h.elements.l2dPause.click();
+    await settle(() => h.resources.includes("motion:smile01"), "主动播放后预热常用动作");
+  }
+  {
+    const h = await harness({ saveData: true });
+    assert.ok(h.resources.every((name) => ["motion:idle01", "expression:default"].includes(name)), "省流量时只加载实际请求的默认姿态");
+    assert.equal((await h.viewer.react({ emotion: "smile" })).ok, true, "省流量不妨碍主动聊天动作");
+  }
+  for (const suspension of ["pause", "offscreen", "hidden"]) {
+    const barrier = deferred();
+    const h = await harness({ warmBarrier: barrier });
+    assert.ok(h.resources.includes("motion:thinking01"), "预热已经开始");
+    if (suspension === "pause") h.elements.l2dPause.click();
+    if (suspension === "offscreen") h.intersect(false);
+    if (suspension === "hidden") { h.document.hidden = true; h.visibility(); }
+    const before = h.resources.length;
+    barrier.resolve({}); await tick();
+    assert.equal(h.resources.length, before, `${suspension}后不继续预热下一批资源`);
+    if (suspension === "pause") h.elements.l2dPause.click();
+    if (suspension === "offscreen") h.intersect(true);
+    if (suspension === "hidden") { h.document.hidden = false; h.visibility(); }
+    await settle(() => h.resources.includes("motion:smile01"), `${suspension}恢复后接着预热`);
+    assert.equal(h.resources.filter((name) => name === "motion:thinking01").length, 1, "恢复沿用进度，不从头下载");
+  }
+  {
+    const h = await harness();
+    const old = h.models[0].textures[0];
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.viewer.getState().costume === "second", "换装完成");
+    assert.equal(old.destroyed, true, "换装后旧纹理必须释放");
+    assert.equal(old.baseDestroyed, true, "同时释放 GPU 基础纹理");
+    assert.equal(h.models[1].textures[0].destroyed, false, "当前模型纹理仍保留");
+  }
+  {
+    const h = await harness({ sharedTextures: true });
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.viewer.getState().costume === "second", "共享纹理换装完成");
+    assert.equal(h.models[0].textures[0], h.models[1].textures[0]);
+    assert.equal(h.models[1].textures[0].destroyed, false, "不能释放仍由当前模型共用的缓存纹理");
+  }
+  {
+    const h = await harness();
+    const second = deferred(); const first = deferred();
+    h.pendingModels.set("second", second); h.pendingModels.set("first", first);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
+    const stale = h.buildModel("second"); second.resolve(stale); await tick();
+    assert.equal(stale.destroyed, true, "迟到模型不挂载");
+    assert.equal(stale.textures[0].destroyed, false, "还有并行换装时暂缓清理共享缓存");
+    const latest = h.buildModel("first"); first.resolve(latest);
+    await settle(() => !h.viewer.getState().loading, "最后一次换装完成");
+    assert.equal(stale.textures[0].destroyed, true, "并行换装结束后清理过期纹理");
+    assert.equal(latest.textures[0].destroyed, false, "快速换回同服装不会破坏当前纹理");
+  }
   {
     const h = await harness();
     const delayed = block(h.models[0], "motion:shame01");
@@ -392,5 +473,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log("Live2D viewer 验证通过：19组播放/缩放/轮换回归，另验证真实12款×13语气×连续3轮全候选覆盖，共20组。");
+  console.log("Live2D viewer 验证通过：29组加载/资源释放/播放/缩放/轮换回归，另验证真实12款×13语气×连续3轮全候选覆盖，共30组。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

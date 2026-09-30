@@ -82,7 +82,7 @@ class Element {
     this.textContent = ""; this.value = ""; this.hidden = false; this.disabled = false;
   }
   addEventListener(type, handler) { this.listeners.set(type, handler); }
-  dispatch(type) { this.listeners.get(type)?.({ preventDefault() {} }); }
+  dispatch(type, detail = {}) { this.listeners.get(type)?.({ preventDefault() {}, ...detail }); }
   setAttribute(name, value) { this.attributes[name] = value; }
   append(...children) { children.forEach((child) => this.appendChild(child)); }
   appendChild(child) { child.parent = this; this.children.push(child); return child; }
@@ -120,7 +120,7 @@ function playbackClock() {
 async function browserFixture({ accessCodeRequired = false, mobile = false, reducedMotion = true, clock, modelReact, modelReady = true } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
-    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion",
+    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
     "anonChatAccessDialog", "anonChatAccessForm", "anonChatAccessError", "anonChatAccessSubmit", "anonChatAccessCancel", "anonChatUnlock", "anonChatLock",
   ].map((id) => [id, new Element()]));
   const send = new Element();
@@ -690,6 +690,41 @@ async function testLongReplyContinuation() {
   }
 }
 
+async function testReadingAndComposition() {
+  const ui = await browserFixture();
+  const { anonChatLog: log, anonChatLatest: latest, anonChatInput: input } = ui.ids;
+  log.scrollHeight = 1000; log.clientHeight = 240;
+  ui.submit('请慢慢回答');
+  log.scrollTop = 80;
+  log.dispatch('scroll');
+  ui.requests.at(-1).write({ type: 'delta', text: '第一段内容。' });
+  await settle(() => ui.lastText() === '第一段内容。', '应显示新增回复');
+  assert.equal(log.scrollTop, 80, '阅读旧消息时不得强制跳到底部');
+  assert.equal(latest.hidden, false, '离开底部后有新内容应提示');
+  latest.dispatch('click');
+  assert.equal(log.scrollTop, 1000);
+  assert.equal(latest.hidden, true);
+  log.scrollHeight = 1200;
+  ui.requests.at(-1).write({ type: 'delta', text: '第二段内容。' });
+  await settle(() => ui.lastText().includes('第二段'), '应继续接收正文');
+  assert.equal(log.scrollTop, 1200, '主动查看最新后应恢复跟随');
+  log.scrollTop = 20; log.dispatch('scroll');
+  ui.ids.anonChatClear.dispatch('click');
+  assert.equal(latest.hidden, true, '清空应重置未读提示');
+  await settle(() => !ui.send.disabled, '清空应停止请求');
+  input.dispatch('compositionstart');
+  let prevented = false;
+  input.dispatch('keydown', { key: 'Enter', isComposing: true, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, '候选字确认键不得隐式提交');
+  const before = ui.requests.length;
+  ui.submit('正在拼写');
+  assert.equal(ui.requests.length, before, '输入法组合未结束不得发送');
+  input.dispatch('compositionend');
+  ui.submit('完成输入');
+  assert.equal(ui.requests.length, before + 1);
+  await ui.complete('收到啦！');
+}
+
 (async () => {
   await testParser();
   await testClient();
@@ -697,5 +732,6 @@ async function testLongReplyContinuation() {
   await testEmotionFeedback();
   await testSegmentPlayback();
   await testLongReplyContinuation();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复句读续接与次数上限、取消隔离。");
+  await testReadingAndComposition();
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读与中文输入法防误发送。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

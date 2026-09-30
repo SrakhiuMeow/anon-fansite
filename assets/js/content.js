@@ -30,9 +30,11 @@
     $('goodsSnapshot').textContent = `核验于 ${official.checkedAt} · 日元含税价`;
     $('goodsNotice').textContent = official.productNotice;
     const money = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
-    official.products.forEach((product) => {
+    const productNodes = official.products.map((product, order) => {
       const article = make('article', undefined, 'goods-card');
       article.dataset.status = product.status;
+      article.dataset.category = product.category;
+      article.dataset.price = String(product.price);
       const imageLink = link('', product.url);
       imageLink.className = 'goods-image-link';
       imageLink.setAttribute('aria-label', `在官方商店查看：${product.name}`);
@@ -62,21 +64,56 @@
       body.append(meta, title, foot);
       article.append(imageLink, body);
       $('goodsGrid').append(article);
+      return { article, product, order };
     });
-    document.querySelectorAll('[data-goods-filter]').forEach((button) => {
+    const statusButtons = [...document.querySelectorAll('[data-goods-filter]')];
+    const category = $('goodsCategory');
+    const sort = $('goodsSort');
+    let statusFilter = 'all';
+    if (category) {
+      [...new Set(official.products.map((product) => product.category))].forEach((name) => {
+        const option = make('option', name);
+        option.value = name;
+        category.append(option);
+      });
+    }
+    const filterGoods = () => {
+      const ordered = productNodes.slice().sort((a, b) => {
+        if (sort?.value === 'price-asc') return a.product.price - b.product.price || a.order - b.order;
+        if (sort?.value === 'price-desc') return b.product.price - a.product.price || a.order - b.order;
+        return a.order - b.order;
+      });
+      let shown = 0;
+      ordered.forEach(({ article, product }) => {
+        article.hidden = (statusFilter !== 'all' && product.status !== statusFilter) ||
+          (!!category && category.value !== 'all' && product.category !== category.value);
+        if (!article.hidden) shown++;
+        $('goodsGrid').append(article);
+      });
+      statusButtons.forEach((button) => {
+        const active = button.dataset.goodsFilter === statusFilter;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      $('goodsEmpty').hidden = shown !== 0;
+      if ($('goodsCount')) $('goodsCount').textContent = `显示 ${shown} / ${productNodes.length} 件`;
+    };
+    statusButtons.forEach((button) => {
       button.addEventListener('click', () => {
-        document.querySelectorAll('[data-goods-filter]').forEach((item) => {
-          item.classList.toggle('is-active', item === button);
-          item.setAttribute('aria-pressed', String(item === button));
-        });
-        let shown = 0;
-        $('goodsGrid').querySelectorAll('.goods-card').forEach((card) => {
-          card.hidden = button.dataset.goodsFilter !== 'all' && button.dataset.goodsFilter !== card.dataset.status;
-          if (!card.hidden) shown++;
-        });
-        $('goodsEmpty').hidden = shown !== 0;
+        statusFilter = button.dataset.goodsFilter;
+        filterGoods();
       });
     });
+    category?.addEventListener('change', filterGoods);
+    sort?.addEventListener('change', filterGoods);
+    $('goodsReset')?.addEventListener('click', () => {
+      statusFilter = 'all';
+      if (category) category.value = 'all';
+      if (sort) sort.value = 'featured';
+      filterGoods();
+      statusButtons[0]?.focus();
+    });
+    filterGoods();
   } else {
     $('goodsNotice').textContent = '商品资料暂时未能加载，请前往官方爱音专区查看。';
   }
