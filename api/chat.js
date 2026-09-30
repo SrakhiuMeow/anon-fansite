@@ -1,7 +1,7 @@
 "use strict";
 
 // 无依赖的 Vercel Node Function。密钥只从服务端环境变量读取。
-const { createHash, timingSafeEqual } = require("node:crypto");
+const { createHash, scryptSync, timingSafeEqual } = require("node:crypto");
 const ENDPOINT = "https://api.deepseek.com/chat/completions";
 const WINDOW_MS = 60_000;
 const TIMEOUT_MS = 45_000;
@@ -11,6 +11,12 @@ const MAX_TEXT = 1000;
 const clients = new Map();
 let windowStart = 0;
 let windowCount = 0;
+// 站长指定口令的加盐摘要，仅用于服务端验证；明文不进入仓库和浏览器资源。
+const ACCESS_SALT = "5a1d08352afe32a34e25599adf36da0e";
+const ACCESS_HASH = Buffer.from("c09abd6e9f7ab7776ef570832bdb84b99d99d47a0f4574f70eafdc75f019a485", "hex");
+const accessFailures = new Map();
+let accessWindowStart = 0;
+let accessWindowCount = 0;
 
 const REACTIONS = Object.freeze({
   smile: ["smile01", "smile01", "微笑"],
@@ -153,16 +159,38 @@ function json(res, status, body) {
 }
 
 function hasAccess(req, expected) {
-  if (!expected) return true;
   const encoded = header(req, "x-chat-access-code");
   if (!encoded || encoded.length > 1800) return false;
   let supplied;
   try { supplied = decodeURIComponent(encoded); } catch { return false; }
   if (!supplied || supplied.length > 200) return false;
-  return timingSafeEqual(createHash("sha256").update(supplied).digest(), createHash("sha256").update(expected).digest());
+  return expected
+    ? timingSafeEqual(createHash("sha256").update(supplied).digest(), createHash("sha256").update(expected).digest())
+    : timingSafeEqual(scryptSync(supplied, ACCESS_SALT, 32), ACCESS_HASH);
 }
 
-function readMessages(req) {
+function clientKey(req) {
+  // Vercel 覆盖 x-forwarded-for；本地测试优先使用真实 socket 地址。
+  const ip = (process.env.VERCEL ? header(req, "x-forwarded-for").split(",")[0].trim() : req.socket?.remoteAddress) || "unknown";
+  return createHash("sha256").update(ip).digest("hex");
+}
+
+function verifyAccess(req, expected) {
+  const now = Date.now();
+  if (now - accessWindowStart >= WINDOW_MS) { accessWindowStart = now; accessWindowCount = 0; }
+  for (const [key, entry] of accessFailures) if (now - entry.start >= WINDOW_MS) accessFailures.delete(key);
+  const key = clientKey(req);
+  const entry = accessFailures.get(key) || { start: now, count: 0 };
+  // 在密码计算前拒绝连续猜测；仅热实例内生效，不代替持久防火墙限流。
+  if (entry.count >= 5 || accessWindowCount >= 100) return 429;
+  if (hasAccess(req, expected)) { accessFailures.delete(key); return 200; }
+  entry.count += 1;
+  accessWindowCount += 1;
+  accessFailures.set(key, entry);
+  return 401;
+}
+
+function readBody(req) {
   const declaredLength = Number(header(req, "content-length"));
   if (declaredLength > MAX_BODY_BYTES) throw new Error("body");
   // Vercel 会解析 JSON；畸形 JSON 访问 req.body 时也可能抛出，交给调用处处理。
@@ -172,6 +200,10 @@ function readMessages(req) {
     body = JSON.parse(body.toString());
   }
   if (!body || typeof body !== "object" || Array.isArray(body) || Buffer.byteLength(JSON.stringify(body)) > MAX_BODY_BYTES) throw new Error("body");
+  return body;
+}
+
+function readMessages(body) {
   if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 12) throw new Error("messages");
   let total = 0;
   const messages = body.messages.map((item) => {
@@ -187,9 +219,7 @@ function acquire(req) {
   const now = Date.now();
   if (now - windowStart >= WINDOW_MS) { windowStart = now; windowCount = 0; }
   for (const [key, entry] of clients) if (!entry.active && now - entry.start >= WINDOW_MS) clients.delete(key);
-  // Vercel 覆盖 x-forwarded-for；本地测试优先使用真实 socket 地址。
-  const ip = (process.env.VERCEL ? header(req, "x-forwarded-for").split(",")[0].trim() : req.socket?.remoteAddress) || "unknown";
-  const key = createHash("sha256").update(ip).digest("hex");
+  const key = clientKey(req);
   const entry = clients.get(key) || { start: now, count: 0, active: false };
   if (now - entry.start >= WINDOW_MS) { entry.start = now; entry.count = 0; }
   if (entry.active || entry.count >= 5 || windowCount >= 100) return null;
@@ -242,14 +272,24 @@ module.exports = async function chat(req, res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   const accessCode = process.env.CHAT_ACCESS_CODE?.trim() || "";
-  if (req.method === "GET") return json(res, 200, { enabled: Boolean(key), accessCodeRequired: Boolean(accessCode) });
+  if (req.method === "GET") return json(res, 200, { enabled: Boolean(key), accessCodeRequired: true });
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return json(res, 405, { error: "请求方式不支持。" }); }
   if (!sameOrigin(req)) return json(res, 403, { error: "请从本站发起对话。" });
   if (header(req, "content-type").split(";")[0].trim().toLowerCase() !== "application/json") return json(res, 415, { error: "请使用 JSON 发送对话。" });
   if (!key) return json(res, 503, { error: "AI 对话尚未配置，仍可使用本地互动。" });
-  if (!hasAccess(req, accessCode)) return json(res, 401, { error: "请输入正确的聊天口令。" });
+  const accessStatus = verifyAccess(req, accessCode);
+  if (accessStatus === 429) {
+    res.setHeader("Retry-After", "60");
+    return json(res, 429, { error: "密码尝试过于频繁，请一分钟后重试。" });
+  }
+  if (accessStatus !== 200) return json(res, 401, { error: "密码不正确，请重新输入。" });
+  let body;
+  try { body = readBody(req); } catch { return json(res, 400, { error: "请求格式有误或内容过长。" }); }
+  // 解锁只验证密码，不发送对话，也不调用 DeepSeek 或消耗模型额度。
+  if (body.action === "unlock") return json(res, 200, { unlocked: true });
+  if (body.action !== undefined) return json(res, 400, { error: "请求操作不支持。" });
   let messages;
-  try { messages = readMessages(req); } catch { return json(res, 400, { error: "对话格式有误或内容过长，请精简后重试。" }); }
+  try { messages = readMessages(body); } catch { return json(res, 400, { error: "对话格式有误或内容过长，请精简后重试。" }); }
   const model = process.env.DEEPSEEK_MODEL?.trim() || "deepseek-flash";
   if (!/^[a-zA-Z0-9._-]{1,80}$/.test(model)) return json(res, 503, { error: "AI 模型配置有误，请联系站长。" });
   const release = acquire(req);

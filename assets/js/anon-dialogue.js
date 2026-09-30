@@ -14,7 +14,13 @@
   const stop = root.document.getElementById("anonChatStop");
   const clear = root.document.getElementById("anonChatClear");
   const access = root.document.getElementById("anonChatAccessCode");
-  const accessField = root.document.getElementById("anonChatAccessField");
+  const accessDialog = root.document.getElementById("anonChatAccessDialog");
+  const accessForm = root.document.getElementById("anonChatAccessForm");
+  const accessError = root.document.getElementById("anonChatAccessError");
+  const accessSubmit = root.document.getElementById("anonChatAccessSubmit");
+  const accessCancel = root.document.getElementById("anonChatAccessCancel");
+  const unlock = root.document.getElementById("anonChatUnlock");
+  const lock = root.document.getElementById("anonChatLock");
   const emotion = root.document.getElementById("anonChatEmotion");
   const send = form.querySelector('[type="submit"]');
   const prompts = [...root.document.querySelectorAll("[data-chat-prompt]")];
@@ -24,6 +30,10 @@
   let busy = false;
   let modeChosen = false;
   let requiresCode = false;
+  // 口令只保留在当前页面闭包中，不写入浏览器存储或页面文本。
+  let accessCode = "";
+  let unlockRequest = 0;
+  let unlockController = null;
   let reactionRequest = 0;
   const setState = (text) => { if (state) state.textContent = text; };
   const setBusy = (value) => {
@@ -38,8 +48,63 @@
     if (disclosure) disclosure.textContent = ai
       ? "DeepSeek 驱动的非官方角色扮演。发送后，本条消息与最近几轮 AI 对话将经服务端交给 DeepSeek；本页不持久保存，刷新或清空即可重置。"
       : "本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。";
-    if (accessField) accessField.hidden = !ai || !requiresCode;
+    if (unlock) unlock.hidden = !ai || !requiresCode || !!accessCode;
+    if (lock) lock.hidden = !ai || !requiresCode || !accessCode;
   };
+  const resetUnlock = () => {
+    ++unlockRequest;
+    unlockController?.abort(); unlockController = null;
+    if (access) { access.value = ""; access.disabled = false; }
+    if (accessSubmit) { accessSubmit.disabled = false; accessSubmit.textContent = "解锁 AI 聊天"; }
+  };
+  const closeUnlock = () => { resetUnlock(); if (accessDialog?.open) accessDialog.close(); };
+  const openUnlock = (message = "") => {
+    if (mode?.value !== "deepseek" || !requiresCode || accessCode) return;
+    if (accessError) accessError.textContent = message;
+    if (!accessDialog?.open) accessDialog?.showModal();
+    access?.focus();
+  };
+  accessForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (unlockController || !accessDialog?.open || mode?.value !== "deepseek") return;
+    const password = access?.value || "";
+    if (!password) { accessError.textContent = "请输入聊天密码。"; access?.focus(); return; }
+    const version = ++unlockRequest;
+    const active = new AbortController(); unlockController = active;
+    access.disabled = true; accessSubmit.disabled = true; accessSubmit.textContent = "正在验证…";
+    accessError.textContent = "";
+    const timeout = setTimeout(() => active.abort("timeout"), 10000);
+    try {
+      const response = await root.fetch("/api/chat", {
+        method: "POST", signal: active.signal,
+        headers: { "Content-Type": "application/json", "X-Chat-Access-Code": encodeURIComponent(password) },
+        body: JSON.stringify({ action: "unlock" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (version !== unlockRequest || mode?.value !== "deepseek" || !accessDialog?.open) return;
+      if (active.signal.aborted) throw new Error("验证超时，请重试。");
+      if (!response.ok || result.unlocked !== true) {
+        throw new Error(response.status === 401 ? "密码不正确，请重新输入。" : response.status === 429 ? "尝试过于频繁，请稍后再试。" : "暂时无法验证密码，请稍后重试。");
+      }
+      accessCode = password;
+      closeUnlock(); syncMode();
+      setState("AI 聊天已解锁。本次页面有效，刷新或重新锁定后需要再次输入密码。");
+      input.focus();
+    } catch (error) {
+      if (version !== unlockRequest) return;
+      access.value = "";
+      accessError.textContent = active.signal.reason === "timeout" ? "验证超时，请重试。" : error.message;
+    } finally {
+      clearTimeout(timeout);
+      if (version === unlockRequest) {
+        unlockController = null; access.disabled = false; accessSubmit.disabled = false; accessSubmit.textContent = "解锁 AI 聊天"; access.focus();
+      }
+    }
+  });
+  accessCancel?.addEventListener("click", closeUnlock);
+  accessDialog?.addEventListener("cancel", (event) => { event.preventDefault(); closeUnlock(); });
+  accessDialog?.addEventListener("close", () => { if (!accessDialog.open) resetUnlock(); });
+  unlock?.addEventListener("click", () => openUnlock());
   const append = (role, text) => {
     const item = root.document.createElement("p");
     item.className = `chat-message chat-message--${role}`;
@@ -83,9 +148,9 @@
     const result = api.reply(raw);
     if (!result) { input.focus(); return; }
     const useAI = mode?.value === "deepseek";
-    if (useAI && requiresCode && !access?.value.trim()) {
-      setState("请先输入站长提供的聊天口令。");
-      access?.focus();
+    if (useAI && requiresCode && !accessCode) {
+      setState("AI 聊天已锁定，请先输入密码解锁。");
+      openUnlock();
       return;
     }
     const version = ++request;
@@ -129,11 +194,12 @@
       while (context.length && context.reduce((size, item) => size + item.content.length, text.length) > 6000) context.splice(0, 2);
       const response = await root.fetch("/api/chat", {
         method: "POST", signal: active.signal,
-        headers: { "Content-Type": "application/json", ...(requiresCode ? { "X-Chat-Access-Code": encodeURIComponent(access.value.trim()) } : {}) },
+        headers: { "Content-Type": "application/json", ...(requiresCode ? { "X-Chat-Access-Code": encodeURIComponent(accessCode) } : {}) },
         body: JSON.stringify({ messages: [...context, { role: "user", content: text }] }),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
+        if (response.status === 401) throw Object.assign(new Error("密码已失效，请重新解锁 AI 聊天。"), { accessDenied: true });
         throw new Error(error.error || "AI 服务暂时不可用");
       }
       if (!response.headers.get("content-type")?.includes("application/x-ndjson") || !response.body) throw new Error("AI 服务返回格式异常");
@@ -157,7 +223,10 @@
       setState("DeepSeek 回复完成 · 非官方同人演绎");
     } catch (error) {
       if (version !== request) return;
-      if (active.signal.aborted && active.signal.reason !== "timeout") {
+      if (error.accessDenied && !active.signal.aborted) {
+        accessCode = ""; requiresCode = true; history = []; cancel();
+        input.value = text; syncMode(); setState(error.message); openUnlock(error.message);
+      } else if (active.signal.aborted && active.signal.reason !== "timeout") {
         if (!answer) append("anon", "（已停止本次回复）");
         setState("已停止，本次内容不会加入后续对话记忆。");
       } else if (answer) {
@@ -181,9 +250,14 @@
     append("anon", "从这里重新开始吧！今天想聊什么？");
     setState("已清空本页聊天记录与对话记忆。");
   });
+  lock?.addEventListener("click", () => {
+    ++request; cancel(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
+    setState("AI 聊天已重新锁定，对话记忆已清空。本地互动仍可使用。");
+  });
   mode?.addEventListener("change", () => {
-    modeChosen = true; ++request; cancel(); controller = null; history = []; setBusy(false); syncMode();
+    modeChosen = true; ++request; cancel(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
     setState("已切换模式，对话记忆已重置。");
+    if (mode.value === "deepseek") openUnlock();
   });
   syncMode();
   // 仅检查服务状态，不上传对话；普通静态服务器没有此接口时仍可本地互动。

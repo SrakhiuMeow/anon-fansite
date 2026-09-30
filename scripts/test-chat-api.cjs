@@ -7,6 +7,7 @@ const { EventEmitter } = require("node:events");
 const path = require("node:path");
 const handlerPath = path.resolve(__dirname, "../api/chat.js");
 const originalFetch = global.fetch;
+const TEST_CODE = "only-for-tests";
 const originalEnv = { key: process.env.DEEPSEEK_API_KEY, model: process.env.DEEPSEEK_MODEL, code: process.env.CHAT_ACCESS_CODE, vercel: process.env.VERCEL };
 let checks = 0;
 let networkCalls = 0;
@@ -15,7 +16,7 @@ function freshHandler() { delete require.cache[handlerPath]; return require(hand
 function request(options = {}) {
   const req = new EventEmitter();
   req.method = options.method || "POST";
-  req.headers = { host: "anon.example", origin: "https://anon.example", "x-forwarded-proto": "https", "content-type": "application/json", ...options.headers };
+  req.headers = { host: "anon.example", origin: "https://anon.example", "x-forwarded-proto": "https", "content-type": "application/json", "x-chat-access-code": TEST_CODE, ...options.headers };
   req.body = options.body === undefined ? { messages: [{ role: "user", content: "你好，今天练琴怎么样？" }] } : options.body;
   req.socket = { remoteAddress: options.ip || "192.0.2.1" };
   return req;
@@ -63,7 +64,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
 (async () => {
   delete process.env.VERCEL;
   delete process.env.DEEPSEEK_MODEL;
-  delete process.env.CHAT_ACCESS_CODE;
+  process.env.CHAT_ACCESS_CODE = TEST_CODE;
   process.env.DEEPSEEK_API_KEY = "test-key-never-public";
   mockFetch();
 
@@ -75,7 +76,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     assert.equal(res.headers["cache-control"], "no-store");
     assert.equal(networkCalls, before);
     assert.ok(!res.body.includes(process.env.DEEPSEEK_API_KEY) && !res.body.includes(process.env.CHAT_ACCESS_CODE));
-    delete process.env.CHAT_ACCESS_CODE;
+    process.env.CHAT_ACCESS_CODE = TEST_CODE;
   });
 
   await test("未配置密钥返回 503，状态可供前端回退", async () => {
@@ -104,7 +105,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     for (const value of ["", "wrong", "x".repeat(201), "x".repeat(1801)]) assert.equal((await call(handler, { headers: { "x-chat-access-code": value } })).statusCode, 401);
     assert.equal(networkCalls, before);
     assert.equal((await call(handler, { headers: { "x-chat-access-code": "only-for-tests" } })).statusCode, 200);
-    delete process.env.CHAT_ACCESS_CODE;
+    process.env.CHAT_ACCESS_CODE = TEST_CODE;
   });
 
   await test("聊天口令支持编码后的中文与特殊字符，拒绝坏编码", async () => {
@@ -116,13 +117,71 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal((await call(handler, { headers: { "x-chat-access-code": value } })).statusCode, 401);
     }
     assert.equal(networkCalls, before);
-    const res = await call(handler, { headers: { "x-chat-access-code": encodeURIComponent(code) } });
+    const res = await call(freshHandler(), { headers: { "x-chat-access-code": encodeURIComponent(code) } });
     assert.equal(res.statusCode, 200);
     assert.equal(events(res).at(-1).type, "done");
     assert.ok(!res.body.includes(code) && !res.body.includes(encodeURIComponent(code)));
     process.env.CHAT_ACCESS_CODE = " ";
-    assert.equal(JSON.parse((await call(handler, { method: "GET" })).body).accessCodeRequired, false);
-    delete process.env.CHAT_ACCESS_CODE;
+    assert.equal(JSON.parse((await call(handler, { method: "GET" })).body).accessCodeRequired, true);
+    process.env.CHAT_ACCESS_CODE = TEST_CODE;
+  });
+
+  await test("未配置或空白覆盖口令仍强制锁定，缺失和错误密码不能绕过", async () => {
+    const before = networkCalls;
+    for (const override of [undefined, "", " "]) {
+      if (override === undefined) delete process.env.CHAT_ACCESS_CODE;
+      else process.env.CHAT_ACCESS_CODE = override;
+      const handler = freshHandler();
+      assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), { enabled: true, accessCodeRequired: true });
+      for (const code of ["", "wrong"]) {
+        for (const body of [{ action: "unlock" }, { messages: [{ role: "user", content: "你好" }] }]) {
+          assert.equal((await call(handler, { body, headers: { "x-chat-access-code": code } })).statusCode, 401);
+        }
+      }
+    }
+    assert.equal(networkCalls, before);
+    process.env.CHAT_ACCESS_CODE = TEST_CODE;
+  });
+
+  await test("正确密码只解锁不调用模型，后续聊天仍需密码且不传给模型", async () => {
+    const handler = freshHandler();
+    const before = networkCalls;
+    const res = await call(handler, { body: JSON.stringify({ action: "unlock" }) });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), { unlocked: true });
+    assert.equal(res.headers["cache-control"], "no-store");
+    assert.equal(networkCalls, before);
+    assert.equal((await call(handler, { body: { action: "unlock" }, headers: { "x-chat-access-code": "wrong" } })).statusCode, 401);
+    assert.equal((await call(handler, { headers: { "x-chat-access-code": "" } })).statusCode, 401);
+    assert.equal((await call(handler, { body: { action: "unknown" } })).statusCode, 400);
+    assert.equal((await call(handler, { body: { action: "unlock", junk: "x".repeat(33000) } })).statusCode, 400);
+    assert.equal(networkCalls, before);
+    mockFetch((url, options) => {
+      assert.ok(!JSON.stringify(options.headers).includes(TEST_CODE));
+      assert.ok(!options.body.includes(TEST_CODE));
+      return streamed(sse());
+    });
+    assert.equal((await call(handler)).statusCode, 200);
+    mockFetch();
+  });
+
+  await test("连续错误密码限流且窗口恢复，成功解锁不消耗聊天次数", async () => {
+    const handler = freshHandler();
+    const realNow = Date.now;
+    let now = realNow();
+    const before = networkCalls;
+    Date.now = () => now;
+    try {
+      for (let i = 0; i < 5; i++) assert.equal((await call(handler, { body: { action: "unlock" }, headers: { "x-chat-access-code": "wrong" } })).statusCode, 401);
+      const blocked = await call(handler, { body: { action: "unlock" } });
+      assert.equal(blocked.statusCode, 429);
+      assert.equal(blocked.headers["retry-after"], "60");
+      assert.equal((await call(handler, { body: { action: "unlock" }, ip: "192.0.2.2" })).statusCode, 200);
+      now += 60_001;
+      for (let i = 0; i < 6; i++) assert.equal((await call(handler, { body: { action: "unlock" } })).statusCode, 200);
+      assert.equal(networkCalls, before);
+      for (let i = 0; i < 5; i++) assert.equal((await call(handler)).statusCode, 200);
+    } finally { Date.now = realNow; }
   });
 
   await test("验证角色、消息条数、单条及总长度、末条和畸形 JSON", async () => {

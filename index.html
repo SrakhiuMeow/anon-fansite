@@ -7,7 +7,7 @@
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
 <link rel="icon" href="assets/favicon.svg" />
-<link rel="stylesheet" href="assets/css/style.css?v=20260930-1" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260930-3" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -129,9 +129,19 @@
 
         <div class="l2d-controls">
           <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge" id="anonChatEmotion" role="status">随对话变化</span></div>
-          <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip" id="anonChatClear" type="button">清空对话</button></div>
+          <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip" id="anonChatUnlock" type="button" hidden>解锁 AI 聊天</button><button class="chip" id="anonChatLock" type="button" hidden>重新锁定</button><button class="chip" id="anonChatClear" type="button">清空对话</button></div>
           <p class="chat-disclosure" id="chatDisclosure">本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。</p>
-          <div class="chat-access" id="anonChatAccessField" hidden><label for="anonChatAccessCode">聊天口令</label><input id="anonChatAccessCode" type="password" maxlength="200" autocomplete="off" placeholder="填写站长提供的口令" /><small>仅本页使用，刷新后需重新填写。</small></div>
+          <dialog class="chat-access-dialog" id="anonChatAccessDialog" aria-labelledby="anonChatAccessTitle" aria-describedby="anonChatAccessHint">
+            <form id="anonChatAccessForm">
+              <span class="eyebrow">ANON'S CHAT ROOM</span>
+              <h3 id="anonChatAccessTitle">解锁 AI 聊天</h3>
+              <p id="anonChatAccessHint">输入聊天密码，和爱音开始新的对话。仅本次页面有效；本地互动无需密码。</p>
+              <label for="anonChatAccessCode">聊天密码</label>
+              <input id="anonChatAccessCode" type="password" maxlength="200" autocomplete="off" placeholder="请输入站长提供的密码" aria-describedby="anonChatAccessError" required />
+              <p class="chat-access-error" id="anonChatAccessError" role="alert"></p>
+              <div class="chat-access-actions"><button class="btn btn-ghost" id="anonChatAccessCancel" type="button">取消</button><button class="btn btn-primary" id="anonChatAccessSubmit" type="submit">解锁 AI 聊天</button></div>
+            </form>
+          </dialog>
           <div class="chat-log" id="anonChatLog" role="log" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
           <div class="chat-prompts" aria-label="试试这些话题">
             <button type="button" class="chip" data-chat-prompt="你好，爱音！">打个招呼</button>
@@ -666,6 +676,6 @@
 <script src="assets/js/main.js?v=20260929-3"></script>
 <script src="assets/js/content.js?v=20260929-3"></script>
 <script src="assets/js/live2d-viewer.js?v=20260929-5"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-2"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-3"></script>
 </body>
 </html>

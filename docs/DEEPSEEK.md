@@ -13,9 +13,17 @@
 | --- | --- | --- |
 | `DEEPSEEK_API_KEY` | 是 | DeepSeek 控制台生成的 API Key，仅服务端读取 |
 | `DEEPSEEK_MODEL` | 否 | 默认 `deepseek-flash`；可按 DeepSeek 当前可用模型填写，接口关闭思考模式以降低等待时间 |
-| `CHAT_ACCESS_CODE` | 否 | 设置后，访客须填写站长提供的聊天口令才能调用 AI；口令只留在页面内存，刷新后重新输入 |
+| `CHAT_ACCESS_CODE` | 否 | 覆盖站长指定的默认聊天密码；未设置或为空时继续使用默认密码，不会关闭密码锁 |
 
 不要添加 `NEXT_PUBLIC_` 或 `VITE_` 前缀，不要把密钥放进 `index.html`、`assets/`、Git、留言板或对话框。`.env*` 已被 Git 与 Vercel 忽略。如需本地联调，使用 Vercel CLI 的 `vercel dev`，将本地密钥留在忽略的环境文件中。
+
+## AI 聊天密码锁
+
+AI 默认锁定。选择 AI 模式或点击“解锁 AI 聊天”会打开密码提示框；服务端验证成功后才允许发送 AI 对话。输入错误时留在提示框内显示原因，取消或按 Esc 可退出。刷新页面或切换模式需要重新解锁，也可主动重新锁定。本地互动不需要密码。
+
+站长指定的默认密码只以加盐 scrypt 摘要保存在 `api/chat.js`，明文不写入前端、文档或 Git。以后可通过 Vercel 的 `CHAT_ACCESS_CODE` 覆盖密码并重新部署。输入的密码仅保留在当前页面内存，不存入 localStorage、sessionStorage、Cookie 或聊天历史。
+
+解锁请求为 `POST /api/chat`、JSON `{ "action": "unlock" }`，密码通过 URI 编码后的 `X-Chat-Access-Code` 请求头传递。成功返回 `{ "unlocked": true }`，不调用 DeepSeek、不产生模型费用。每次真正的聊天请求仍须通过同样的服务端认证；解锁不会为后续无密码请求放行。密码也不会作为请求头或对话内容发送给 DeepSeek。错误密码返回 401，当前热实例内同 IP 一分钟连续失败 5 次后暂停验证，所有 IP 合计失败 100 次后也暂停至窗口恢复；达到限制返回 429。这不是跨实例的持久限流。
 
 ## 对话与动作
 
@@ -41,7 +49,7 @@ AI 模式会把本条输入和近期 AI 对话通过 Vercel 发送至 DeepSeek�
 
 API 按调用计费。服务端限制输入条数与长度、输出 token、超时及并发，并提供**单实例、尽力而为**的 IP / 总请求频率限制。Vercel 多实例与冷启动会重置这些计数，不能将它当作全局额度或严格费用上限。同源校验也不能阻止脚本模拟请求。
 
-公开启用前，建议设置 `CHAT_ACCESS_CODE`，并按项目套餐在 Vercel Firewall 针对 `/api/chat` 的 POST 请求配置持久限流，结合 DeepSeek 控制台的用量管理。不要仅依赖浏览器禁用按钮。删除服务端密钥并重新部署可关闭 AI，本地互动保持可用。
+密码锁已默认启用，可用 `CHAT_ACCESS_CODE` 更换口令。可按项目套餐在 Vercel Firewall 针对 `/api/chat` 的 POST 请求配置持久限流，结合 DeepSeek 控制台的用量管理。不要仅依赖浏览器禁用按钮。删除服务端密钥并重新部署可关闭 AI，本地互动保持可用。
 
 ## 验证
 

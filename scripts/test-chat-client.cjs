@@ -79,12 +79,15 @@ class Element {
   focus() { this.focused = true; }
   blur() {}
   scrollIntoView() {}
+  showModal() { this.open = true; }
+  close() { this.open = false; this.dispatch("close"); }
 }
 
 async function browserFixture({ accessCodeRequired = false, mobile = false, modelReact, modelReady = true } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
-    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatAccessField", "anonChatEmotion",
+    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion",
+    "anonChatAccessDialog", "anonChatAccessForm", "anonChatAccessError", "anonChatAccessSubmit", "anonChatAccessCancel", "anonChatUnlock", "anonChatLock",
   ].map((id) => [id, new Element()]));
   const send = new Element();
   const aiOption = new Element(); aiOption.disabled = true;
@@ -92,6 +95,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
   ids.anonChatMode.querySelector = () => aiOption;
   ids.anonChatForm.querySelector = () => send;
   const requests = [];
+  const unlocks = [];
   const reactions = [];
   const frames = [];
   let nextHttpError = null;
@@ -114,11 +118,18 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
       if (options.method !== "POST") return { ok: true, json: async () => ({ enabled: true, accessCodeRequired }) };
       // 使用真实 Headers，覆盖浏览器要求请求头值可转换为 ByteString 的边界。
       new Headers(options.headers);
-      const request = { options, messages: JSON.parse(options.body).messages };
+      const payload = JSON.parse(options.body);
+      if (payload.action === "unlock") {
+        const attempt = { options };
+        unlocks.push(attempt);
+        // 特意不响应 abort，以验证过期验证结果也不能误解锁。
+        return new Promise((resolve) => { attempt.resolve = (status = 200, body = { unlocked: true }) => resolve({ ok: status === 200, status, json: async () => body }); });
+      }
+      const request = { options, messages: payload.messages };
       requests.push(request);
       if (nextHttpError) {
         const error = nextHttpError; nextHttpError = null;
-        return { ok: false, json: async () => ({ error }) };
+        return { ok: false, status: error.status, json: async () => ({ error: error.message }) };
       }
       request.body = new ReadableStream({
         start(controller) {
@@ -135,11 +146,12 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
   }, { filename: "anon-dialogue.js" });
   await settle(() => !aiOption.disabled, "AI 配置应启用选项");
   return {
-    ids, requests, reactions, send,
+    ids, requests, unlocks, reactions, send,
     frame() { frames.splice(0).forEach((callback) => callback()); },
     submit(text) { ids.anonChatInput.value = text; ids.anonChatForm.dispatch("submit"); },
     select(value) { ids.anonChatMode.value = value; ids.anonChatMode.dispatch("change"); },
-    failNext(message) { nextHttpError = message; },
+    failNext(message, status = 503) { nextHttpError = { message, status }; },
+    unlock(password) { ids.anonChatAccessCode.value = password; ids.anonChatAccessForm.dispatch("submit"); },
     lastText() { return ids.anonChatLog.children.at(-1)?.children[1]?.textContent; },
     async complete(text) {
       const request = requests.at(-1);
@@ -246,17 +258,108 @@ async function testClient() {
     assert.match(mobile.ids.anonChatState.textContent, /已停止/);
   }
 
-  const gated = await browserFixture({ accessCodeRequired: true });
-  gated.submit("你好");
-  assert.equal(gated.requests.length, 0);
-  assert.equal(gated.ids.anonChatAccessField.hidden, false);
-  gated.ids.anonChatAccessCode.value = "站点测试口令🎸";
-  gated.submit("你好");
-  assert.equal(gated.requests[0].options.headers["X-Chat-Access-Code"], encodeURIComponent("站点测试口令🎸"));
-  assert.equal(decodeURIComponent(new Headers(gated.requests[0].options.headers).get("X-Chat-Access-Code")), "站点测试口令🎸");
-  assert.equal(gated.requests[0].options.body.includes("站点测试口令"), false);
-  assert.equal(gated.requests[0].options.headers.Authorization, undefined);
-  await gated.complete("欢迎来玩");
+}
+
+async function testPasswordLock() {
+  const ui = await browserFixture({ accessCodeRequired: true });
+  const ids = ui.ids;
+  assert.ok(!ids.anonChatAccessDialog.open, "载入页面不应弹窗");
+  assert.equal(ids.anonChatUnlock.hidden, false);
+  assert.equal(ids.anonChatLock.hidden, true);
+  ui.submit("你好");
+  assert.equal(ui.requests.length, 0, "锁定时不能调用模型");
+  assert.equal(ids.anonChatInput.value, "你好", "先解锁时保留待发送文字");
+  assert.equal(ids.anonChatAccessDialog.open, true);
+  ui.unlock("wrong");
+  assert.equal(ids.anonChatAccessSubmit.disabled, true);
+  ui.unlock("duplicate");
+  assert.equal(ui.unlocks.length, 1, "验证时禁止重复提交");
+  ui.unlocks[0].resolve(401, { error: "Unauthorized" });
+  await settle(() => !ids.anonChatAccessSubmit.disabled, "错密码后可重试");
+  assert.match(ids.anonChatAccessError.textContent, /密码不正确/);
+  assert.equal(ids.anonChatAccessDialog.open, true);
+  assert.equal(ids.anonChatAccessCode.value, "");
+  ui.unlock("test"); ui.unlocks.at(-1).resolve(200, { unlocked: false });
+  await settle(() => !ids.anonChatAccessSubmit.disabled, "缺少成功字段也应报错");
+  assert.equal(ids.anonChatUnlock.hidden, false);
+  assert.match(ids.anonChatAccessError.textContent, /无法验证/);
+  ui.unlock("test"); ui.unlocks.at(-1).resolve(429, {});
+  await settle(() => !ids.anonChatAccessSubmit.disabled, "限流后应恢复控件");
+  assert.match(ids.anonChatAccessError.textContent, /频繁/);
+
+  for (const cancelEvent of ["cancel", "button", "mode"]) {
+    ids.anonChatUnlock.dispatch("click");
+    ui.unlock("pending secret");
+    const pending = ui.unlocks.at(-1);
+    if (cancelEvent === "mode") ui.select("local");
+    else if (cancelEvent === "button") ids.anonChatAccessCancel.dispatch("click");
+    else ids.anonChatAccessDialog.dispatch("cancel");
+    assert.equal(pending.options.signal.aborted, true);
+    assert.equal(ids.anonChatAccessCode.value, "");
+    assert.equal(ids.anonChatAccessDialog.open, false);
+    pending.resolve(); await tick();
+    assert.equal(ids.anonChatLock.hidden, true, "取消后的迟到成功不得解锁");
+    if (cancelEvent === "mode") {
+      ui.submit("眨眼"); assert.match(ui.lastText(), /Wink/);
+      ui.select("deepseek");
+      assert.equal(ids.anonChatAccessDialog.open, true, "选择 AI 时提示输入密码");
+    }
+  }
+  ui.unlock("older attempt");
+  const olderAttempt = ui.unlocks.at(-1);
+  ids.anonChatAccessCancel.dispatch("click");
+  ids.anonChatUnlock.dispatch("click");
+  ui.unlock("newer attempt");
+  olderAttempt.resolve(); await tick();
+  assert.equal(ids.anonChatAccessDialog.open, true, "旧请求不得关闭新弹窗");
+  assert.equal(ids.anonChatAccessSubmit.disabled, true, "旧 finally 不得结束新验证状态");
+  assert.equal(ids.anonChatLock.hidden, true);
+  ui.unlocks.at(-1).resolve(401, {});
+  await settle(() => !ids.anonChatAccessSubmit.disabled, "新验证结果独立处理");
+  const password = "站点测试口令🎸";
+  ui.unlock(password); ui.unlocks.at(-1).resolve();
+  await settle(() => ids.anonChatLock.hidden === false, "正确密码应解锁");
+  assert.equal(ids.anonChatAccessDialog.open, false);
+  assert.equal(ids.anonChatAccessCode.value, "", "成功后输入框也不保留密码");
+  assert.equal(ids.anonChatUnlock.hidden, true);
+  assert.deepEqual(JSON.parse(ui.unlocks.at(-1).options.body), { action: "unlock" });
+  ui.submit("你好");
+  assert.equal(ui.requests[0].options.headers["X-Chat-Access-Code"], encodeURIComponent(password));
+  assert.equal(decodeURIComponent(new Headers(ui.requests[0].options.headers).get("X-Chat-Access-Code")), password);
+  assert.equal(ui.requests[0].options.body.includes("站点测试口令"), false);
+  assert.equal(ui.requests[0].options.headers.Authorization, undefined);
+  await ui.complete("欢迎来玩");
+
+  ui.failNext("密码不正确", 401); ui.submit("未授权时眨眼");
+  await settle(() => !ui.send.disabled, "401 应结束请求");
+  assert.equal(ui.lastText(), "未授权时眨眼", "未授权不能返回本地预设伪装成功");
+  assert.equal(ids.anonChatLock.hidden, true);
+  assert.equal(ids.anonChatAccessDialog.open, true);
+  assert.match(ids.anonChatAccessError.textContent, /重新解锁/);
+  const count = ui.requests.length;
+  ui.submit("仍在锁定"); assert.equal(ui.requests.length, count);
+  ui.unlock(password); ui.unlocks.at(-1).resolve();
+  await settle(() => !ids.anonChatLock.hidden, "应能重新解锁");
+  ui.submit("重新开始");
+  assert.deepEqual(ui.requests.at(-1).messages, [{ role: "user", content: "重新开始" }], "重新鉴权后清除旧对话上下文");
+  const streaming = ui.requests.at(-1);
+  ids.anonChatLock.dispatch("click");
+  await tick();
+  assert.equal(streaming.options.signal.aborted, true);
+  assert.equal(ids.anonChatUnlock.hidden, false);
+  assert.equal(ids.anonChatLock.hidden, true);
+  assert.equal(ids.anonChatAccessCode.value, "");
+  ui.submit("重新锁定之后"); assert.equal(ui.requests.length, count + 1);
+  ui.unlock(password); ui.unlocks.at(-1).resolve();
+  await settle(() => !ids.anonChatLock.hidden, "重锁后可重新解锁");
+  ui.select("local"); ui.submit("眨眼");
+  assert.match(ui.lastText(), /Wink/);
+  ui.select("deepseek");
+  assert.equal(ids.anonChatAccessDialog.open, true, "切换到本地模式后清除原解锁口令");
+  ui.submit("切回后"); assert.equal(ui.requests.length, count + 1);
+  const refreshed = await browserFixture({ accessCodeRequired: true });
+  refreshed.submit("刷新之后");
+  assert.equal(refreshed.requests.length, 0, "新页面不能继承解锁状态");
 }
 
 async function testEmotionFeedback() {
@@ -330,6 +433,7 @@ async function testEmotionFeedback() {
 (async () => {
   await testParser();
   await testClient();
+  await testPasswordLock();
   await testEmotionFeedback();
-  console.log("聊天前端验证通过：UTF-8/NDJSON、生命周期竞争、历史预算、故障降级、口令编码、情绪动作实际结果与回调竞争。");
+  console.log("聊天前端验证通过：UTF-8/NDJSON、生命周期竞争、历史预算、故障降级、密码弹窗与鉴权、取消和重新锁定、情绪动作实际结果与回调竞争。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

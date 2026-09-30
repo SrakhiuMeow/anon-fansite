@@ -721,10 +721,19 @@ button:disabled{cursor:wait;opacity:.55}
 .chat-heading h3{font-size:1.2rem}
 .chat-options{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.8rem;font-size:.8rem}
 .chat-options select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:.4rem;background:var(--bg);color:var(--ink)}
-.chat-options .chip{margin-left:auto;font-size:.8rem}
-.chat-access{margin-bottom:1rem;font-size:.8rem}
-.chat-access input{display:block;width:100%;box-sizing:border-box;margin:.4rem 0;padding:.6rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
-.chat-access small{color:var(--ink-soft)}
+.chat-options .chip{font-size:.8rem}
+.chat-options #anonChatClear{margin-left:auto}
+.chat-access-dialog{width:min(420px,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);overflow:auto;box-sizing:border-box;border:1px solid var(--line);border-radius:20px;padding:1.6rem;background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm)}
+.chat-access-dialog::backdrop{background:rgba(35,24,39,.55);backdrop-filter:blur(4px)}
+.chat-access-dialog h3{margin:.5rem 0;font-size:1.35rem}
+.chat-access-dialog p{font-size:.875rem;line-height:1.7;color:var(--ink-soft)}
+.chat-access-dialog label{display:block;margin-top:1.2rem;font-size:.875rem}
+.chat-access-dialog input{display:block;width:100%;box-sizing:border-box;margin:.4rem 0;padding:.75rem;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.chat-access-dialog input:focus-visible{outline:2px solid var(--coral-deep);outline-offset:2px}
+.chat-access-dialog .chat-access-error{min-height:1.5em;margin:.5rem 0 1rem;color:var(--coral-deep)}
+.chat-access-actions{display:flex;justify-content:flex-end;gap:.65rem;flex-wrap:wrap}
+.chat-access-actions .btn{padding:.65rem 1rem}
+.chat-access-actions .btn:disabled{opacity:.6;cursor:wait}
 .chat-status-row{display:flex;align-items:center;gap:.5rem;min-height:2rem}
 .chat-status-row .chat-state{flex:1}
 .chat-status-row .chip{font-size:.75rem;flex-shrink:0}
