@@ -102,11 +102,21 @@
 
 商品图片保留原图与原水印，存于 `assets/img/goods/`，数据中保留 `originalImage` 与 `originalName`。Shopify 接口原始 `price` 不直接作为展示价格；展示以商品页含税标价为准。价格、库存、配送范围均可能变化，网站明确显示快照日期及商店结算优先说明。没有购买或下单行为。
 
+### Bestdori 游戏拆包 Live2D（2026-09-30 扩充为全部服装）
+
+核验日期：2026-09-30。原先把角色接口里的季节服装当成全部内容，只收录了 3 套；本轮改为按资源索引把爱音在游戏里的 Live2D 服装收齐。
+
+- 服装清单：[角色接口](https://bestdori.com/api/characters/37.json) 的 `seasonCostumeListMap`（季节服装）+ [资源索引](https://bestdori.com/api/explorer/jp/assets/_info.json) 里所有 `037_` 开头的 `live2d/chara` 包。索引在核验日列出 18 个包：3 套季节服装、14 套卡面服装，以及只放通用动作的 `037_general`（没有 `buildData.asset`，按跳过记录进清单的 `bestdoriCatalog.skipped`，不计入服装）。国服索引 `api/explorer/cn/assets/_info.json` 的 `037_` 清单与日服一致。
+- 名称与日期：[服装接口](https://bestdori.com/api/costumes/all.5.json) 的 `assetBundleName` → `description`（取中文第 4 项，缺失时用日文原文）与最早 `publishedAt`，作为服装按钮提示里的卡名与实装日期；这些卡名与站内卡面图鉴一致。
+- 资源：[`buildData.asset`](https://bestdori.com/assets/jp/live2d/chara/037_live_default_rip/buildData.asset) 记录模型、物理、贴图、动作与表情的文件名与所属包；动作与第一张贴图来自共用包 `037_general`，脚本按 `bundleName` 从对应目录取文件。每套含 41–43 个动作、28 个独立表情，生成为标准 Cubism 2.1 `model.json`。
+- 站内清单：`assets/data/anon-live2d.js` 的 `costumes` 现为 17 套 Bestdori + 9 套 Our Notes；每套 Bestdori 卡面服装带 `kind`、`cardTitle`、`costumeId`、`appliedAt`，默认服装沿用 `037_casual-2023`。
+- 覆盖范围：截至核验日，索引里爱音的 Live2D 包已全部收录（除上述非服装包）；上游新增服装后重跑脚本会自动追加，没有按名称猜测或人工挑选。
+
 ### Bestdori 与 Live2D
 
 - [Bestdori 角色 37 API](https://bestdori.com/api/characters/37.json)：千早爱音、成员色与默认服装。Bestdori 是粉丝资料站，不是官方授权声明。
 - [Bestdori 卡片数据](https://bestdori.com/api/cards/all.5.json)：沿用原仓库已下载的 16 张卡片、27 个卡面版本与立绘，不声称收录全部最新卡片。
-- 3 套模型沿用仓库同源素材，本次核验默认服装资源：`https://bestdori.com/assets/jp/live2d/chara/037_casual-2023_rip/anon_casual-2023.moc`，通用动作：`https://bestdori.com/assets/jp/live2d/chara/037_general_rip/smile01.mtn`。实际返回有效文件。
+- 默认服装资源：`https://bestdori.com/assets/jp/live2d/chara/037_casual-2023_rip/anon_casual-2023.moc`，通用动作：`https://bestdori.com/assets/jp/live2d/chara/037_general_rip/smile01.mtn`。实际返回有效文件。
 - 模型为 Cubism 2.1：`.moc`、`.mtn`、`.exp.json`；从 `buildData.asset` 重建标准 model.json。上游没有浏览器跨域所需的 CORS 响应头，因此使用仓库本地素材，不让访客直接跨域加载。
 - 本次将 `idle` 分组限定为待机动作；全部 41 个可触发动作移入 `reaction`，避免随机自动播放哭泣或生气。
 
@@ -114,7 +124,7 @@
 
 ### bdon.moe / Our Notes 新增模型
 
-核验日期：2026-09-30（UTC）。入口为 [Moenotes Live2D 浏览器](https://bdon.moe/tools/live2d)。其公开[数据说明](https://github.com/StarMoe-org/moenotes/blob/main/docs/live2d-viewer.md)与[地址配置](https://github.com/StarMoe-org/moenotes/blob/main/src/config/assets.ts)明确列出模型索引和内容哈希资源位置。本次合并[剧情索引](https://storage.bdon.moe/moenotes/models.json)的 7 项爱音模型与[演奏站索引](https://assets.bdon.moe/chart-site/models.json)的 10 项，按 ID 合并为 10 项，再排除 1 项同款低清副本，收录以下 9 套。原有 3 套 Bestdori 模型继续保留，全站共 12 套。选项名称根据上游模型 ID 翻译，不冒充游戏内正式服装名。
+核验日期：2026-09-30（UTC）。入口为 [Moenotes Live2D 浏览器](https://bdon.moe/tools/live2d)。其公开[数据说明](https://github.com/StarMoe-org/moenotes/blob/main/docs/live2d-viewer.md)与[地址配置](https://github.com/StarMoe-org/moenotes/blob/main/src/config/assets.ts)明确列出模型索引和内容哈希资源位置。本次合并[剧情索引](https://storage.bdon.moe/moenotes/models.json)的 7 项爱音模型与[演奏站索引](https://assets.bdon.moe/chart-site/models.json)的 10 项，按 ID 合并为 10 项，再排除 1 项同款低清副本，收录以下 9 套。这些选项名来自上游模型 ID 的翻译，不冒充游戏内正式服装名；与 Bestdori 的 17 套游戏服装合计 26 套。
 
 | 站内选项 | 上游模型 ID | 动作 / 表情 | 本地文件体积 |
 | --- | --- | --- | --- |

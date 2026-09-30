@@ -585,6 +585,11 @@ p{overflow-wrap:anywhere}
 }
 .l2d-chips{display:flex;flex-wrap:wrap;gap:.4rem}
 .l2d-chips .chip{padding:.35rem .8rem;font-size:.78rem}
+.l2d-chip-group{
+  flex-basis:100%;margin:.2rem 0 0;font-size:.72rem;letter-spacing:.14em;
+  color:var(--ink-soft);
+}
+.l2d-chip-group:not(:first-child){margin-top:.55rem;padding-top:.45rem;border-top:1px dashed var(--line)}
 .l2d-hint{margin:.9rem 0 0;font-size:.74rem;color:var(--ink-soft)}
 
 @media (max-width:960px){

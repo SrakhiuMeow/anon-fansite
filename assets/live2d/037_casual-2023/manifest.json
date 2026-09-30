@@ -1,6 +1,10 @@
 {
   "bundle": "037_casual-2023",
   "label": "私服（春）",
+  "kind": "season",
+  "cardTitle": "",
+  "costumeId": null,
+  "appliedAt": "",
   "motions": [
     "angry01.mtn",
     "angry02.mtn",

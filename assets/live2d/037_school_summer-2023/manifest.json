@@ -1,6 +1,10 @@
 {
   "bundle": "037_school_summer-2023",
   "label": "制服（夏）",
+  "kind": "season",
+  "cardTitle": "",
+  "costumeId": null,
+  "appliedAt": "",
   "motions": [
     "angry01.mtn",
     "angry02.mtn",

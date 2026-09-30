@@ -18,6 +18,7 @@
   const zoomResetEl = byId("l2dZoomReset");
   const zoomValueEl = byId("l2dZoomValue");
   const expressionNoteEl = byId("l2dExpressionNote");
+  const costumeLabelEl = byId("l2dCostumeLabel");
   const ZOOM_MIN = 50;
   const ZOOM_MAX = 180;
   const defaultZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
@@ -188,25 +189,59 @@
     syncZoomControls();
     emitState();
   };
-  const buildChips = (host, items, onPick) => {
+  const buildChips = (host, items, onPick, { clear = true } = {}) => {
     if (!host) return;
-    host.replaceChildren();
-    for (const [value, label] of items) {
+    if (clear) host.replaceChildren();
+    for (const [value, label, hint] of items) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "chip";
       button.dataset.value = value;
       button.textContent = label;
+      if (hint) button.title = hint;
       button.setAttribute("aria-pressed", "false");
       button.addEventListener("click", () => { void onPick(value); });
       host.appendChild(button);
     }
   };
+  // 服装来自两个来源：游戏拆包（Bestdori）与剧情站（Our Notes），按来源分组更易找。
+  const costumeHint = (item) => [
+    item.kind === "card" && item.cardTitle ? `卡面「${item.cardTitle}」` : "",
+    item.appliedAt ? `实装 ${item.appliedAt}` : "",
+    item.id,
+  ].filter(Boolean).join(" · ");
+  const COSTUME_GROUPS = [
+    ["游戏服装", (item) => item.kind === "season"],
+    ["卡面服装", (item) => item.kind === "card"],
+    ["剧情与演奏", (item) => item.kind !== "season" && item.kind !== "card"],
+  ];
+  const renderCostumes = (onPick) => {
+    const host = hosts.costume;
+    if (!host) return;
+    host.replaceChildren();
+    const used = new Set();
+    const append = (items) => {
+      items.forEach((item) => used.add(item.id));
+      buildChips(host, items.map((item) => [item.id, item.label || item.id, costumeHint(item)]), onPick, { clear: false });
+    };
+    for (const [name, match] of COSTUME_GROUPS) {
+      const items = data.costumes.filter((item) => !used.has(item.id) && match(item));
+      if (!items.length) continue;
+      const heading = document.createElement("span");
+      heading.className = "l2d-chip-group";
+      heading.textContent = name;
+      host.appendChild(heading);
+      append(items);
+    }
+    const rest = data.costumes.filter((item) => !used.has(item.id));
+    if (rest.length) append(rest);
+  };
   const renderControls = () => {
-    buildChips(hosts.costume, data.costumes.map((item) => [item.id, item.label || item.id]), async (id) => {
+    renderCostumes(async (id) => {
       const costume = data.costumes.find((item) => item.id === id);
       if (costume && (costume.id !== current?.id || loading)) await mountModel(costume);
     });
+    if (costumeLabelEl) costumeLabelEl.textContent = `服装（${data.costumes.length} 套）`;
     markActive(hosts.costume, current.id);
     const performance = current.mode === "performance";
     const motionItems = performance

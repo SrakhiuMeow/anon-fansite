@@ -14,7 +14,7 @@
 | 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售；每件另附淘宝与 bilibili 会员购检索入口 |
 | 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可；另附 7 张自制萌战应援海报 |
 | 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本；支持中日英搜索、星级组合筛选、排序，以及按筛选结果连续翻图与特训版本切换 |
-| Live2D | 原有 3 套 Bestdori 与 9 套 Our Notes，共 12 套；剧情款含私服、制服、居家服及眼镜版本，舞台款支持 9 个吉他演奏动作；提供模型缩放与还原 |
+| Live2D | Bestdori 17 套（季节服装 3 + 卡面服装 14）与 Our Notes 9 套，共 26 套；服装按来源分组，剧情款含私服、制服、居家服及眼镜版本，舞台款支持 9 个吉他演奏动作；提供模型缩放与还原 |
 | 音乐作品 | 9 张单曲与 3 张专辑的官方封面、官方读法，以及 YouTube MV／试听和 B 站官方号入口 |
 | 成长线 | 动画本篇之外补上手游实装、剧场版、Ave Mujica 动画与 MyGO×Ave Mujica 合同公演等节点 |
 | 官方入口 | MyGO!!!!! 官方站、剧场版与 Ave Mujica 官网、官方 B 站（MyGO×Ave Mujica、国服）、X、YouTube、Instagram、TikTok、配信入口与手游官网 |
@@ -49,7 +49,7 @@ AI 人格主体采用站长提供的 `anon.txt` 全文，人物经历、关系�
 
 Live2D 控制区提供“跟随鼠标”开关，默认开启。关闭后恢复正向视线；开关偏好保存在当前浏览器，换装、重新加载与刷新后继续生效，不影响对话、动作和表情按钮。
 
-模型区可在 50%–180% 范围内按 10% 步进放大、缩小。切换到 bdon.moe / Our Notes 来源模型时默认 180%，Bestdori 来源模型默认 100%；“还原”回到当前模型的默认比例。窗口尺寸变化、暂停恢复及同一模型重新加载保留手动比例，切换到另一套模型时应用其默认比例，暂停时也可缩放。Our Notes 的 8 套剧情模型各有 66 个动作与 36 个表情；吉他演奏款有 9 个舞台动作，无独立表情，聊天按语气自动选用真实演奏、舞台及收尾动作，徽章显示实际动作名称，无需说出动作关键词。动作播完自然回到待机。同 ID 跨索引仅导入一次，同款低清副本不重复加入，眼镜与无眼镜款分别保留。
+模型区可在 50%–180% 范围内按 10% 步进放大、缩小。切换到 bdon.moe / Our Notes 来源模型时默认 180%，Bestdori 来源模型默认 100%；“还原”回到当前模型的默认比例。窗口尺寸变化、暂停恢复及同一模型重新加载保留手动比例，切换到另一套模型时应用其默认比例，暂停时也可缩放。Bestdori 的 17 套都是游戏内拆包模型，动作 41–43 个、独立表情 28 个，共用 `037_general` 的通用动作与第一张贴图；卡面服装的按钮提示会写明对应卡名、服装编号与实装日期。Our Notes 的 8 套剧情模型各有 66 个动作与 36 个表情；吉他演奏款有 9 个舞台动作，无独立表情，聊天按语气自动选用真实演奏、舞台及收尾动作，徽章显示实际动作名称，无需说出动作关键词。动作播完自然回到待机。同 ID 跨索引仅导入一次，同款低清副本不重复加入，眼镜与无眼镜款分别保留。
 
 模型区进入视口后才开始加载，后台标签页延后首次加载；暂停、离屏或切到后台时停止继续预热动作，恢复后接续。支持浏览器省流量设置时不额外预热。换装完成后释放已不用的旧贴图，快速切换时保留仍被当前模型共用的资源。
 
@@ -107,7 +107,7 @@ python3 scripts/fetch_discography_covers.py
 
 - `fetch_bestdori.py` 抓取角色资料、卡面与立绘，原始 JSON 和清洗结果写入 `data/bestdori/`，图片写入 `assets/img/`。
 - `build_site_data.py` 根据本地清洗结果生成 `assets/data/anon-cards.js`，此步骤可离线执行。
-- `fetch_live2d.py` 根据 Bestdori 的 `buildData.asset` 清单下载资源，组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。
+- `fetch_live2d.py` 先用角色接口（季节服装）与资源索引 `api/explorer/jp/assets/_info.json`（全部 `037_` 开头的 Live2D 包）列出服装，再用服装接口 `api/costumes/all.5.json` 取卡面名、服装编号与实装日期作为标签，最后按 `buildData.asset` 清单下载资源、组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。只放通用动作、没有 `buildData` 的包（如 `037_general`）记为跳过并写进清单的 `bestdoriCatalog.skipped`。
 - `fetch_discography_covers.py` 读取 BanG Dream! 官方 `discographies` 列表页，抓取 MyGO!!!!! 单曲与专辑封面，生成 `assets/img/music/`（640px JPEG）与 `assets/img/music/thumbs/`（320px WebP）；加 `--offline` 可用 `data/discography/raw/` 缓存重新生成尺寸版本。
 - `node scripts/fetch_bdon_live2d.cjs` 合并 bdon.moe 剧情与演奏两个索引，按模型 ID 发现爱音全部不同款式；排除有标准版的同款 `_low` 副本，将真实 Unity 曲线、表情与物理转换为标准 Cubism 文件。索引与模型清单每次联网刷新，内容哈希资源复用缓存；加 `--offline` 可从 `/data/bdon/` 重建。两种模型抓取脚本会保留另一来源的服装选项与 bdon 去重清单。
 - `node scripts/fetch_chat_font.cjs` 重新获取固定版本 Noto Sans SC 粗体与许可，校验上游字体哈希。访客加载本地 `unicode-range` 字体分段，无需请求字体 CDN。

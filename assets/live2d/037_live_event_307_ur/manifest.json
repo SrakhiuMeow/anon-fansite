@@ -1,0 +1,174 @@
+{
+  "bundle": "037_live_event_307_ur",
+  "label": "卡面服装 · 黄昏时分的密会",
+  "kind": "card",
+  "cardTitle": "黄昏时分的密会",
+  "costumeId": 2230,
+  "appliedAt": "2025-09-19",
+  "motions": [
+    "angry01.mtn",
+    "angry02.mtn",
+    "angry03.mtn",
+    "angry04.mtn",
+    "bye01.mtn",
+    "cry01.mtn",
+    "cry02.mtn",
+    "gacha01.mtn",
+    "idle01.mtn",
+    "kandou01.mtn",
+    "kandou02.mtn",
+    "kime01.mtn",
+    "kime02.mtn",
+    "nf01.mtn",
+    "nf02.mtn",
+    "nf03.mtn",
+    "nf04.mtn",
+    "nf05.mtn",
+    "nf_left01.mtn",
+    "nf_right01.mtn",
+    "nnf01.mtn",
+    "nnf02.mtn",
+    "nnf03.mtn",
+    "nnf04.mtn",
+    "nnf05.mtn",
+    "nnf_left01.mtn",
+    "nnf_right01.mtn",
+    "sad01.mtn",
+    "sad02.mtn",
+    "serious01.mtn",
+    "serious02.mtn",
+    "shame01.mtn",
+    "shame02.mtn",
+    "smile01.mtn",
+    "smile01_ingameV2.mtn",
+    "smile02.mtn",
+    "smile03.mtn",
+    "smile04.mtn",
+    "surprised01.mtn",
+    "thinking01.mtn",
+    "thinking02.mtn",
+    "thinking03.mtn",
+    "wink01.mtn"
+  ],
+  "expressions": [
+    {
+      "name": "angry01",
+      "file": "expressions/angry01.exp.json"
+    },
+    {
+      "name": "angry02",
+      "file": "expressions/angry02.exp.json"
+    },
+    {
+      "name": "angry03",
+      "file": "expressions/angry03.exp.json"
+    },
+    {
+      "name": "angry04",
+      "file": "expressions/angry04.exp.json"
+    },
+    {
+      "name": "bye01",
+      "file": "expressions/bye01.exp.json"
+    },
+    {
+      "name": "cry01",
+      "file": "expressions/cry01.exp.json"
+    },
+    {
+      "name": "cry02",
+      "file": "expressions/cry02.exp.json"
+    },
+    {
+      "name": "default",
+      "file": "expressions/default.exp.json"
+    },
+    {
+      "name": "idle01",
+      "file": "expressions/idle01.exp.json"
+    },
+    {
+      "name": "kandou01",
+      "file": "expressions/kandou01.exp.json"
+    },
+    {
+      "name": "kandou02",
+      "file": "expressions/kandou02.exp.json"
+    },
+    {
+      "name": "kime01",
+      "file": "expressions/kime01.exp.json"
+    },
+    {
+      "name": "kime02",
+      "file": "expressions/kime02.exp.json"
+    },
+    {
+      "name": "sad01",
+      "file": "expressions/sad01.exp.json"
+    },
+    {
+      "name": "sad02",
+      "file": "expressions/sad02.exp.json"
+    },
+    {
+      "name": "serious01",
+      "file": "expressions/serious01.exp.json"
+    },
+    {
+      "name": "serious02",
+      "file": "expressions/serious02.exp.json"
+    },
+    {
+      "name": "shame01",
+      "file": "expressions/shame01.exp.json"
+    },
+    {
+      "name": "shame02",
+      "file": "expressions/shame02.exp.json"
+    },
+    {
+      "name": "smile01",
+      "file": "expressions/smile01.exp.json"
+    },
+    {
+      "name": "smile02",
+      "file": "expressions/smile02.exp.json"
+    },
+    {
+      "name": "smile03",
+      "file": "expressions/smile03.exp.json"
+    },
+    {
+      "name": "smile04",
+      "file": "expressions/smile04.exp.json"
+    },
+    {
+      "name": "surprised01",
+      "file": "expressions/surprised01.exp.json"
+    },
+    {
+      "name": "thinking01",
+      "file": "expressions/thinking01.exp.json"
+    },
+    {
+      "name": "thinking02",
+      "file": "expressions/thinking02.exp.json"
+    },
+    {
+      "name": "thinking03",
+      "file": "expressions/thinking03.exp.json"
+    },
+    {
+      "name": "wink01",
+      "file": "expressions/wink01.exp.json"
+    }
+  ],
+  "model": "anon_event307.moc",
+  "physics": "anon_event307.physics.json",
+  "textures": [
+    "texture_00.png",
+    "texture_01.png"
+  ],
+  "modelJson": "assets/live2d/037_live_event_307_ur/model.json"
+}

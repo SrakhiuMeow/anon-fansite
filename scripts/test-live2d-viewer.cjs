@@ -131,6 +131,7 @@ async function harness(options = {}) {
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
 (async () => {
+  let costumeTotal = 0;
   {
     const h = await harness({ visible: false });
     assert.deepEqual(h.modelLoads, [], "首屏未进入模型区域时不请求模型");
@@ -535,7 +536,15 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
   {
     const data = {};
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../assets/data/anon-live2d.js"), "utf8"), { window: data });
-    assert.equal(data.ANON_LIVE2D.costumes.length, 12);
+    costumeTotal = data.ANON_LIVE2D.costumes.length;
+    // 数量随 Bestdori / Our Notes 的上游服装增加，只保证覆盖全部清单。
+    assert.ok(data.ANON_LIVE2D.costumes.length >= 12, "清单应包含全部已收录服装");
+    const bestdoriCostumes = data.ANON_LIVE2D.costumes.filter((costume) => costume.source === "https://bestdori.com");
+    const cardCostumes = bestdoriCostumes.filter((costume) => costume.kind === "card");
+    assert.ok(cardCostumes.length >= 14, "应包含 Bestdori 全部卡面服装");
+    for (const costume of cardCostumes) {
+      assert.ok(costume.cardTitle && costume.costumeId && costume.appliedAt, `${costume.id} 缺少卡面服装元数据`);
+    }
     for (const costume of data.ANON_LIVE2D.costumes) {
       const h = await harness({ costume });
       assert.equal(h.viewer.getState().zoomPercent, costume.source === "https://bdon.moe" ? 180 : 100, `${costume.id}初始加载采用来源默认比例`);
@@ -561,5 +570,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log("Live2D viewer 验证通过：加载/资源释放/播放/缩放/轮换及手机构图还原回归；另验证真实12款默认比例及13语气×连续3轮全候选覆盖。");
+  console.log(`Live2D viewer 验证通过：加载/资源释放/播放/缩放/轮换及手机构图还原回归；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });
