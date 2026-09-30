@@ -146,12 +146,19 @@
     });
     (wiki.posters || []).forEach((poster) => {
       const figure = make('figure', undefined, 'moe-poster reveal');
-      if (poster.art) figure.style.setProperty('--poster-art', `url("${poster.art}")`);
       const frame = make('div', undefined, 'moe-poster-frame');
       const kicker = make('span', poster.year, 'moe-poster-year');
       const event = make('strong', poster.event, 'moe-poster-event');
       const art = make('div', undefined, 'moe-poster-art');
-      art.setAttribute('aria-hidden', 'true');
+      if (poster.art) {
+        const image = make('img');
+        image.src = poster.art;
+        image.alt = '';
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        image.setAttribute('aria-hidden', 'true');
+        art.append(image);
+      }
       const badge = make('span', poster.result, 'moe-poster-badge');
       const name = make('span', '千早 愛音', 'moe-poster-name');
       frame.append(kicker, event, art, badge, name);

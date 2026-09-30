@@ -110,9 +110,10 @@ wiki.posters.forEach((poster, index) => {
   assert.ok(matched.result.includes(poster.result.slice(0, 2)), `海报《${poster.event}》的成绩与荣誉记录不一致`);
   assert.ok(fs.existsSync(path.join(root, poster.art)), `海报《${poster.event}》的立绘不存在`);
   const figure = posters[index];
-  assert.equal(figure.style.values["--poster-art"], `url("${poster.art}")`, `海报《${poster.event}》缺少立绘背景`);
   const frame = figure.querySelectorAll(".moe-poster-frame")[0];
   assert.ok(frame, `海报《${poster.event}》缺少版式容器`);
+  const art = frame.querySelectorAll(".moe-poster-art")[0];
+  assert.equal(art.children[0].src, poster.art, `海报《${poster.event}》的立绘地址不正确`);
   assert.equal(frame.querySelectorAll(".moe-poster-year")[0].textContent, poster.year);
   assert.ok(frame.querySelectorAll(".moe-poster-badge")[0].textContent.includes(poster.result), `海报《${poster.event}》成绩文字不一致`);
   const caption = figure.querySelectorAll("figcaption")[0];
