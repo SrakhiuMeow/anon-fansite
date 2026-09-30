@@ -10,7 +10,7 @@
 <link rel="icon" href="assets/favicon.svg" />
 <link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
 <link rel="stylesheet" href="assets/css/style.css?v=20260930-13" />
-<link rel="stylesheet" href="assets/css/mobile-room.css?v=20260930-11" />
+<link rel="stylesheet" href="assets/css/mobile-room.css?v=20260930-13" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -145,13 +145,15 @@
         <div class="mobile-room-dock mobile-room-only" id="mobileRoomDock" aria-label="全屏互动操作">
           <button type="button" class="mobile-room-action" id="mobileRoomChat" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 0 1 18 0Z"/><path d="M7 10h8m-8 4h5"/></svg><span>聊天</span></button>
           <button type="button" class="mobile-room-action" id="mobileRoomTools" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4a4 4 0 0 1-8 0Z"/></svg><span>换装</span></button>
+          <button type="button" class="mobile-room-action" id="mobileRoomExpressions" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 9h.01M16 9h.01M7.5 14a5 5 0 0 0 9 0"/></svg><span>表情</span></button>
+          <button type="button" class="mobile-room-action" id="mobileRoomMotions" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="m6 10 5-2 5 3 4-3m-9 0-1 7-5 5m5-5 5 1 2 5"/></svg><span>动作</span></button>
           <button type="button" class="mobile-room-action" id="mobileRoomPrev" aria-label="上一套模型"><span class="mobile-room-arrow" aria-hidden="true">↑</span><span>上一套</span></button>
           <button type="button" class="mobile-room-action" id="mobileRoomNext" aria-label="下一套模型"><span class="mobile-room-arrow" aria-hidden="true">↓</span><span>下一套</span></button>
         </div>
         <button type="button" class="mobile-room-prompt mobile-room-only" id="mobileRoomPrompt" aria-controls="mobileRoomControls"><span>和爱音说句话…</span><span aria-hidden="true">＋</span></button>
         <div class="l2d-controls" id="mobileRoomControls">
           <div class="mobile-panel-heading mobile-room-only" id="mobileRoomPanelHeading">
-            <div class="mobile-panel-tabs"><button type="button" id="mobileRoomChatTab" data-room-panel="chat" aria-pressed="false" aria-controls="roomChatPanel">聊聊天</button><button type="button" id="mobileRoomToolsTab" data-room-panel="tools" aria-pressed="false" aria-controls="roomToolsPanel">换装与操作</button></div>
+            <div class="mobile-panel-tabs"><button type="button" id="mobileRoomChatTab" data-room-panel="chat" aria-pressed="false" aria-controls="roomChatPanel">聊天</button><button type="button" id="mobileRoomToolsTab" data-room-panel="tools" aria-pressed="false" aria-controls="roomToolsPanel">换装</button><button type="button" id="mobileRoomExpressionsTab" data-room-panel="expressions" aria-pressed="false" aria-controls="roomToolsPanel">表情</button><button type="button" id="mobileRoomMotionsTab" data-room-panel="motions" aria-pressed="false" aria-controls="roomToolsPanel">动作</button></div>
             <button type="button" class="mobile-panel-close" id="mobileRoomClose" aria-label="收起面板到侧边" title="收起到侧边">收起 <span aria-hidden="true">›</span></button>
           </div>
           <div class="room-chat-panel" id="roomChatPanel">
@@ -171,8 +173,10 @@
               <div class="chat-access-actions"><button class="btn btn-ghost" id="anonChatAccessCancel" type="button">取消</button><button class="btn btn-primary" id="anonChatAccessSubmit" type="submit">解锁 AI 聊天</button></div>
             </form>
           </dialog>
-          <div class="chat-log" id="anonChatLog" role="log" tabindex="0" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
-          <div class="chat-latest-row"><button class="chip" id="anonChatLatest" type="button" aria-controls="anonChatLog" hidden>↓ 查看最新回复</button></div>
+          <div class="mobile-chat-history">
+            <div class="chat-log" id="anonChatLog" role="log" tabindex="0" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
+            <div class="chat-latest-row"><button class="chip" id="anonChatLatest" type="button" aria-controls="anonChatLog" hidden>↓ 查看最新回复</button></div>
+          </div>
           <div class="chat-prompts" aria-label="试试这些话题">
             <button type="button" class="chip" data-chat-prompt="你好，爱音！">打个招呼</button>
             <button type="button" class="chip" data-chat-prompt="今天有点难过，可以鼓励我吗？">给我打气</button>
@@ -187,20 +191,20 @@
           </div>
           <div class="room-tools-panel" id="roomToolsPanel">
           <div class="mobile-room-zoom-host mobile-room-only" id="mobileRoomZoomHost"><span class="l2d-label">模型大小</span></div>
-          <div class="room-tools"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip is-active" type="button" id="l2dFollowMouse" role="switch" aria-checked="true" aria-label="自动跟随鼠标">跟随鼠标：开</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
+          <div class="room-tools" id="mobileRoomPlayback"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip is-active" type="button" id="l2dFollowMouse" role="switch" aria-checked="true" aria-label="自动跟随鼠标">跟随鼠标：开</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
           <details class="model-settings" open><summary>换装与动作</summary>
-          <div class="l2d-group">
+          <div class="l2d-group" id="l2dCostumeGroup">
             <span class="l2d-label" id="l2dCostumeLabel">服装</span>
             <div class="l2d-chips" id="l2dCostumes"></div>
           </div>
-          <div class="l2d-group">
+          <div class="l2d-group" id="l2dMotionGroup">
             <span class="l2d-label">动作</span>
             <div class="l2d-chips" id="l2dMotions"></div>
           </div>
-          <div class="l2d-group">
+          <div class="l2d-group" id="l2dExpressionGroup">
             <span class="l2d-label">表情</span>
             <div class="l2d-chips" id="l2dExpressions"></div>
-            <p class="l2d-hint" id="l2dExpressionNote" hidden>此款没有独立表情文件；聊天会按语气自动选择演奏动作，无需输入动作关键词，也可在上方手选。</p>
+            <p class="l2d-hint" id="l2dExpressionNote" hidden>此款没有独立表情文件；聊天会按语气自动选择演奏动作，无需输入动作关键词，也可通过动作选项手动选择。</p>
           </div>
           <p class="l2d-hint" id="l2dHint"></p>
           </details>
@@ -919,7 +923,7 @@
 <script src="assets/js/site-ui.js?v=20260930-11"></script>
 <script src="assets/js/live2d-actions.js?v=20260930-6"></script>
 <script src="assets/js/live2d-viewer.js?v=20260930-12"></script>
-<script src="assets/js/mobile-room.js?v=20260930-11"></script>
+<script src="assets/js/mobile-room.js?v=20260930-13"></script>
 <script src="assets/js/anon-dialogue.js?v=20260930-11"></script>
 </body>
 </html>

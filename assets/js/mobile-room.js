@@ -14,14 +14,26 @@
   const input = byId("anonChatInput");
   const chatButton = byId("mobileRoomChat");
   const toolsButton = byId("mobileRoomTools");
+  const expressionsButton = byId("mobileRoomExpressions");
+  const motionsButton = byId("mobileRoomMotions");
   const chatTab = byId("mobileRoomChatTab");
   const toolsTab = byId("mobileRoomToolsTab");
+  const expressionsTab = byId("mobileRoomExpressionsTab");
+  const motionsTab = byId("mobileRoomMotionsTab");
+  const panelButtons = { chat: chatButton, tools: toolsButton, expressions: expressionsButton, motions: motionsButton };
+  const panelTabs = { chat: chatTab, tools: toolsTab, expressions: expressionsTab, motions: motionsTab };
+  const panelLabels = { chat: "与爱音聊天", tools: "模型换装与操作", expressions: "模型表情", motions: "模型动作" };
   const fullscreen = byId("mobileRoomFullscreen");
   const costumeHost = byId("l2dCostumes");
   const modelSettings = room.querySelector(".model-settings");
   const preferences = byId("chatPreferences");
   const zoom = room.querySelector(".l2d-zoom");
   const zoomHost = byId("mobileRoomZoomHost");
+  const playback = byId("mobileRoomPlayback");
+  const costumeGroup = byId("l2dCostumeGroup");
+  const motionGroup = byId("l2dMotionGroup");
+  const expressionGroup = byId("l2dExpressionGroup");
+  const modelHint = byId("l2dHint");
   const zoomMarker = document.createComment("桌面模型缩放控件位置");
   if (zoom) zoom.before(zoomMarker);
   const savedAccess = new Map();
@@ -62,28 +74,34 @@
     const choosing = panel === "tools";
     expose(controls, panel !== "closed");
     expose(chat, chatting);
-    expose(tools, choosing);
+    expose(tools, ["tools", "expressions", "motions"].includes(panel));
+    expose(zoomHost, choosing);
+    expose(playback, choosing);
+    expose(costumeGroup, choosing);
+    expose(motionGroup, panel === "motions");
+    expose(expressionGroup, panel === "expressions");
+    expose(modelHint, ["tools", "expressions", "motions"].includes(panel));
     expose(dock, panel === "closed");
     expose(prompt, panel === "closed");
-    chatButton?.setAttribute("aria-expanded", String(chatting));
-    toolsButton?.setAttribute("aria-expanded", String(choosing));
+    for (const [name, button] of Object.entries(panelButtons)) button?.setAttribute("aria-expanded", String(panel === name));
     prompt?.setAttribute("aria-expanded", String(chatting));
-    chatTab?.setAttribute("aria-pressed", String(chatting));
-    toolsTab?.setAttribute("aria-pressed", String(choosing));
-    controls.setAttribute("aria-label", chatting ? "与爱音聊天" : "模型换装与操作");
+    for (const [name, tab] of Object.entries(panelTabs)) tab?.setAttribute("aria-pressed", String(panel === name));
+    controls.setAttribute("aria-label", panelLabels[panel] || "爱音互动面板");
     scheduleViewport();
   };
   const setPanel = (next, moveFocus = false) => {
-    if (!mobile || !["closed", "chat", "tools"].includes(next)) return false;
+    if (!mobile || !["closed", ...Object.keys(panelButtons)].includes(next)) return false;
     // 密码框处于浏览器顶层时，不隐藏其祖先，也不抢走弹窗焦点。
     if (dialogOpen() && next !== "chat") return false;
     if (next === "closed") {
       if (panel !== "closed") previousPanel = panel;
       if (controls.contains(document.activeElement)) document.activeElement.blur();
     } else previousPanel = next;
+    const changed = panel !== next;
     panel = next;
     syncPanel();
-    if (moveFocus) focus(next === "closed" ? (previousPanel === "tools" ? toolsButton : chatButton) : (next === "tools" ? toolsTab : chatTab));
+    if (changed && tools && ["tools", "expressions", "motions"].includes(next)) tools.scrollTop = 0;
+    if (moveFocus) focus(next === "closed" ? panelButtons[previousPanel] : panelTabs[next]);
     return true;
   };
   const syncFullscreen = () => {
@@ -238,8 +256,8 @@
       if (detailsState?.controlsLabel == null) controls.removeAttribute("aria-label");
       else controls.setAttribute("aria-label", detailsState.controlsLabel);
       detailsState = null;
-      for (const element of [chatButton, toolsButton, prompt]) element?.setAttribute("aria-expanded", "false");
-      for (const element of [chatTab, toolsTab]) element?.setAttribute("aria-pressed", "false");
+      for (const element of [...Object.values(panelButtons), prompt]) element?.setAttribute("aria-expanded", "false");
+      for (const element of Object.values(panelTabs)) element?.setAttribute("aria-pressed", "false");
       for (const name of viewportProperties) room.style.removeProperty(name);
       if (viewportFrame) window.cancelAnimationFrame(viewportFrame);
       viewportFrame = 0;
@@ -249,6 +267,8 @@
   chatButton?.addEventListener("click", () => openPanel("chat"));
   prompt?.addEventListener("click", () => openPanel("chat"));
   toolsButton?.addEventListener("click", () => openPanel("tools"));
+  expressionsButton?.addEventListener("click", () => openPanel("expressions"));
+  motionsButton?.addEventListener("click", () => openPanel("motions"));
   byId("mobileRoomPanelHeading")?.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-room-panel]");
     if (tab) setPanel(tab.dataset.roomPanel, true);
