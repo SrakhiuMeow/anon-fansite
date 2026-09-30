@@ -62,6 +62,7 @@
   let unlockRequest = 0;
   let unlockController = null;
   let reactionRequest = 0;
+  let chatReactionTail = Promise.resolve();
   const setState = (text) => { if (state) state.textContent = text; };
   const setBusy = (value) => {
     busy = value;
@@ -165,8 +166,19 @@
     const version = ++reactionRequest;
     const turn = request;
     const label = result.label || "平静待机";
-    if (emotion) { emotion.textContent = `回应：${label}…`; emotion.title = "正在应用对应的 Live2D 表情与动作"; }
+    const gated = result.source === "chat" && typeof root.AnonLive2D?.whenReactionComplete === "function";
+    const previous = chatReactionTail;
+    let release;
+    if (gated) chatReactionTail = new Promise((resolve) => { release = resolve; });
     try {
+      if (gated) {
+        // 先等上一调用加载并启动，再等真实动作结束和表情淡变完成；不能仅等固定间隔。
+        await abortable(previous, signal);
+        if (signal?.aborted || version !== reactionRequest || turn !== request) return;
+        await abortable(root.AnonLive2D.whenReactionComplete(signal), signal);
+        if (signal?.aborted || version !== reactionRequest || turn !== request) return;
+      }
+      if (emotion) { emotion.textContent = `回应：${label}…`; emotion.title = "正在应用对应的 Live2D 表情与动作"; }
       const outcome = await abortable(root.AnonLive2D?.react(signal ? { ...result, signal } : result), signal);
       if (signal?.aborted || version !== reactionRequest || turn !== request) return;
       if (emotion) {
@@ -180,7 +192,7 @@
         emotion.textContent = `回应：${label} · 暂不可用`;
         emotion.title = "模型动作未能应用，请检查模型加载状态";
       }
-    }
+    } finally { release?.(); }
   };
   const cancel = () => {
     controller?.abort();
@@ -241,7 +253,8 @@
       return;
     }
     setState("爱音正在想怎么回答…");
-    react({ motion: "thinking01", expression: "thinking01", label: "思考", source: "chat" }, active.signal);
+    // 等待回答时只过渡到思考表情，不插入一段长动作挤占首句的播放时间。
+    react({ expression: "thinking01", label: "思考", source: "chat" }, active.signal);
     let content = null;
     let answer = "";
     let complete = false;
@@ -252,8 +265,8 @@
     let lastReactionAt = 0;
     let continuations = 0;
     const requireCurrent = () => { if (version !== request || active.signal.aborted) throw new Error("对话已取消"); };
-    // 45 秒服务端期限之外，为最多 1000 字的渐进显示留出时间。
-    const timeout = setTimeout(() => active.abort("timeout"), 75000);
+    // 服务端最多 45 秒；另为正文和完整动作衔接预留播放时间。
+    const timeout = setTimeout(() => active.abort("timeout"), 120000);
     try {
       const context = history.slice(-10);
       // 按服务端预算保留完整轮次；极长回答时可少于五轮。
@@ -275,7 +288,7 @@
           const reaction = { ...event, source: "chat" };
           const nextSegment = `${event.emotion || ""}|${event.motion}|${event.expression}`;
           if (nextSegment !== segment) {
-            // 同一网络块中的多段情绪也依序播放；只在切换情绪时保证停留。
+            // 最短阅读停留与真实动作完成门控并用，避免短句频繁闪变。
             const remaining = segment ? 700 - (Date.now() - segmentStarted) : 0;
             if (!reducedMotion && remaining > 0) await pausePlayback(remaining, active.signal);
             requireCurrent();
@@ -382,7 +395,8 @@
     [/害羞|脸红/, "突然这样说，我也会有点不好意思的嘛……", "shame01", "害羞"],
     [/惊讶|吃惊/, "诶？还有这种事！快讲给我听听。", "surprised01", "吃惊"],
     [/生气|愤怒/, "哼——这个生气的表情，有没有一点气势？", "angry01", "生气"],
-    [/哭一[个下]|哭泣|哭哭/, "这是哭泣表情演示。看完了，我们再换个开心的话题吧。", "cry01", "哭泣"],
+    [/哭一[个下]|哭泣|哭哭/, "这是哭泣的表情。", "cry01", "哭泣"],
+    [/难过的表情|悲伤的表情/, "像这样，有点难过的样子……", "sad01", "难过"],
     [/思考|想一想/, "嗯……给我一点点时间，办法总会有的。", "thinking01", "思考"],
     [/摆[个]?姿势|pose/i, "镜头准备好了？那就，记录下这一刻吧！", "kime01", "摆姿势"],
     [/默认|待机|重置表情/, "好啦，恢复平常的样子。接下来想聊什么？", "idle01", "待机"],
@@ -391,20 +405,26 @@
     const text = normalize(value);
     if (!text) return null;
     // 否定指令先于正向关键词，避免“不要哭 / 别生气”触发对应动作。
-    if (/(?:不要|别|不想|不许|不用|不能|不准).{0,4}(?:笑|眨眼|挥手|哭|生气|动作|表情)/u.test(text)) {
+    if (/(?:不要|别|不想|不许|不用|不能|不准|没有|没在).{0,4}(?:笑|眨眼|挥手|哭|生气|难过|动作|表情)/u.test(text)) {
       return response("好，听你的。我们放轻松，慢慢聊就好。", "idle01", "default", "平静待机");
     }
-    if (/不开心|不高兴|难过|失落|好累|疲[惫倦]|压力|焦虑|失败|鼓励|加油/u.test(text)) {
+    if (/鼓励|加油|打气/u.test(text)) {
       return response("今天已经很努力了吧。先给自己一点休息的时间，下一小步，我们再慢慢来。", "kandou01", "smile01", "为你打气");
     }
     if (/不喜欢|讨厌你|不可爱|不好看|不漂亮/u.test(text)) {
       return response("嗯，每个人喜欢的东西都不一样。要不换个话题，聊聊音乐？", "thinking01", "default", "认真倾听");
     }
+    if (/(?:我|他|她|朋友).{0,6}(?:生气|愤怒|哭了|哭泣)/u.test(text) && !/表情|演示|展示|做[个一]|给我看/u.test(text)) {
+      return response("先告诉我发生了什么吧。我会认真听，不急着下结论。", "serious01", "serious01", "认真倾听");
+    }
     for (const [pattern, answer, motion, label] of commands) {
       if (pattern.test(text)) return response(answer, motion, motion === "idle01" ? "default" : motion, label);
     }
+    if (/不开心|不高兴|难过|失落|好累|疲[惫倦]|压力|焦虑|失败/u.test(text)) {
+      return response("听起来这件事让你很不好受。要不要先说说发生了什么？我在听。", "serious01", "serious01", "认真倾听");
+    }
     if (/生日|birthday/i.test(text)) return response("我的生日是 9 月 8 日！你愿意记住这一天，我会很开心的。", "smile02", "smile01", "生日话题");
-    if (/吉他|练[琴习]|guitar|乐队|mygo/i.test(text)) return response("吉他还要继续练习呢。把难的地方拆成一小段，一遍一遍来——一起把喜欢的声音弹出来吧！", "serious01", "smile01", "吉他话题");
+    if (/吉他|练[琴习]|guitar|乐队|mygo/i.test(text)) return response("吉他还要继续练习呢。把难的地方拆成一小段，一遍一遍来——一起把喜欢的声音弹出来吧！", "serious01", "serious01", "吉他话题");
     if (/再见|拜拜|晚安|bye|good\s*night/i.test(text)) return response("今天能和你聊天真好。路上小心，下次再见啦！", "bye01", "smile01", "挥手告别");
     if (/可爱|好看|漂亮|喜欢你|最棒|夸夸|谢谢|thank/i.test(text)) return response("嘿嘿，被你这样说，今天的心情都变好了。谢谢你来这里陪我！", "shame01", "shame01", "害羞回应");
     if (/你好|您好|早[上安]|午[好安]|晚上好|嗨|hello|\bhi\b|初次见面/i.test(text)) return response("你好呀！我是爱音。今天想聊聊吉他，还是看看我的新表情？", "bye01", "smile01", "打个招呼");

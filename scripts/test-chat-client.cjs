@@ -119,7 +119,7 @@ function playbackClock() {
   };
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelReady = true, mobileRoom } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelReady = true, mobileRoom } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
@@ -152,6 +152,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
     requestAnimationFrame: (callback) => { frames.push(callback); },
     AnonLive2D: {
       react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
+      ...(modelWait ? { whenReactionComplete: modelWait } : {}),
       getState: () => ({ ready: modelReady }),
     },
     ...(mobileRoom ? { AnonMobileRoom: mobileRoom } : {}),
@@ -599,6 +600,67 @@ async function testSegmentPlayback() {
   }
 }
 
+async function testActualMotionCompletion() {
+  let releaseStart;
+  let releaseCompletion;
+  let playing = false;
+  const waits = [];
+  const ui = await browserFixture({
+    modelReact: (reaction) => {
+      playing = true;
+      if (reaction.label === "思考") return new Promise((resolve) => { releaseStart = resolve; });
+      return Promise.resolve({ ok: true });
+    },
+    modelWait: (signal) => {
+      waits.push(signal);
+      if (!playing) return Promise.resolve();
+      return new Promise((resolve) => { releaseCompletion = () => { playing = false; resolve(); }; });
+    },
+  });
+  const shy = { type: "reaction", emotion: "shy", motion: "shame01", expression: "shame01", label: "害羞" };
+  const sad = { type: "reaction", emotion: "sad", motion: "sad01", expression: "sad01", label: "难过" };
+  ui.submit("先害羞再难过");
+  await settle(() => !!releaseStart, "等待思考表情资源启动");
+  const stream = ui.requests.at(-1);
+  stream.writeChunk([shy, { type: "delta", text: "先。" }, sad, { type: "delta", text: "后。" }, { type: "done" }]); stream.close();
+  await tick();
+  assert.equal(ui.reactions.length, 1, "上一表情仍在加载时不启动下一动作");
+  assert.equal(ui.reactions[0].motion, undefined, "请求等待只切思考表情，不插入长动作");
+  releaseStart({ ok: true });
+  await settle(() => !!releaseCompletion, "加载完成后仍等表情过渡结束");
+  assert.equal(ui.reactions.length, 1);
+  releaseCompletion(); releaseCompletion = null;
+  await settle(() => ui.lastText() === "先。" && !!releaseCompletion, "首段播放后等待真实动作结束");
+  assert.equal(ui.reactions.at(-1).emotion, "shy", "网络一次发完也不能提前启动下一段");
+  assert.equal(ui.send.disabled, true);
+  releaseCompletion(); releaseCompletion = null;
+  await settle(() => !ui.send.disabled, "完成门控后继续正文");
+  assert.equal(ui.lastText(), "先。后。");
+  assert.equal(ui.reactions.at(-1).emotion, "sad");
+  assert.ok(waits.every((signal) => signal === stream.options.signal));
+
+  for (const action of ["stop", "clear", "mode", "lock"]) {
+    let unblock;
+    let active = false;
+    const cancelled = await browserFixture({
+      modelReact: async () => { active = true; return { ok: true }; },
+      modelWait: () => active ? new Promise((resolve) => { unblock = resolve; }) : Promise.resolve(),
+    });
+    cancelled.submit("取消等待");
+    await settle(() => active, "思考表情开始后再触发缓冲内容");
+    const old = cancelled.requests.at(-1);
+    old.writeChunk([sad, { type: "delta", text: "不应出现" }, { type: "done" }]); old.close();
+    await settle(() => !!unblock, "应等待上一动作实际结束");
+    if (action === "mode") cancelled.select("local");
+    else cancelled.ids[{ stop: "anonChatStop", clear: "anonChatClear", lock: "anonChatLock" }[action]].dispatch("click");
+    await settle(() => !cancelled.send.disabled, "取消不得卡在模型完成等待");
+    const after = cancelled.lastText();
+    unblock(); await tick();
+    assert.equal(cancelled.lastText(), after);
+    assert.equal(cancelled.reactions.some((reaction) => reaction.emotion === "sad"), false, `${action}后迟到的完成信号不能复活旧动作`);
+  }
+}
+
 async function testLongReplyContinuation() {
   const reaction = { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" };
   const paragraph = `${"这".repeat(224)}。`;
@@ -860,6 +922,7 @@ async function testMobileOverlayChat() {
   await testPasswordLock();
   await testEmotionFeedback();
   await testSegmentPlayback();
+  await testActualMotionCompletion();
   await testLongReplyContinuation();
   await testReadingAndComposition();
   await testCompactMobileScroll();

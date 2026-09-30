@@ -230,13 +230,16 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.match(protocol, /站长提供/);
       assert.match(protocol, /非官方AI角色互动/);
       assert.ok(protocol.includes("回复必须先输出一行 [[emotion]]"));
-      assert.ok(protocol.includes("smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、neutral"));
+      assert.ok(protocol.includes("smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、cry、pose、neutral"));
       assert.ok(protocol.includes("自然语气改变的句子或分句前再次输出 [[emotion]]"));
-      assert.ok(protocol.includes("日常默认smile，优先用smile、cheer、wink"));
-      assert.ok(protocol.includes("不每轮强制先serious"));
-      assert.ok(protocol.includes("不在沉重处境强行大笑"));
+      assert.ok(protocol.includes("两者同等重要，必须符合相同的语义和强度"));
+      assert.ok(protocol.includes("不设置积极、开心优先的选择倾向"));
+      assert.ok(protocol.includes("普通陈述、情绪不明显或无法确定时使用neutral"));
+      assert.ok(protocol.includes("理解否定、引用和转折"));
+      assert.ok(protocol.includes("也不自动转成smile或cheer"));
       assert.ok(protocol.includes("访客明确要求演示对应表情"));
-      assert.ok(protocol.includes("需要斟酌时保留thinking"));
+      assert.ok(protocol.includes("不要求悲伤、愤怒、害羞之后必须转为微笑"));
+      assert.ok(!protocol.includes("日常默认smile"));
       assert.ok(!protocol.includes("标签只输出一次"));
       for (const oldText of ["已核验角色事实：", "以下是本站对角色的同人演绎规则", "眼光不错嘛，这个发饰", "又被拒绝，真的会很丧欸", "那、那个转弦是有点卡啦"]) assert.ok(!protocol.includes(oldText));
       assert.equal(body.messages[1].role, "user");
@@ -253,13 +256,13 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     mockFetch();
   });
 
-  await test("未知或缺失情绪降级到友好微笑，异常标签仍过滤且不执行任意名称", async () => {
+  await test("未知或缺失情绪回退中性，异常标签仍过滤且不执行任意名称", async () => {
     for (const content of ["[[unknown]]\n你好", "[[__proto__]]\n你好", "[[constructor]]你好", "你好", "[[bad\n你好", `[[${"x".repeat(500)}]]你好`]) {
       mockFetch(() => streamed(sse(content)));
       const res = await call(freshHandler());
-      assert.equal(events(res)[0].emotion, "smile");
-      assert.equal(events(res)[0].motion, "smile01");
-      assert.equal(events(res)[0].expression, "smile01");
+      assert.equal(events(res)[0].emotion, "neutral");
+      assert.equal(events(res)[0].motion, "idle01");
+      assert.equal(events(res)[0].expression, "default");
       assert.equal(text(res), "你好");
     }
     mockFetch();
@@ -316,7 +319,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     mockFetch(() => streamed(sse(content)));
     const res = await call(freshHandler());
     assert.equal(text(res), "欸，谢谢你。[小声] 今天也要练琴。继续吧。嗯！");
-    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["shy", "smile"]);
+    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["shy", "smile", "neutral", "smile"]);
     assert.equal(events(res).at(-1).type, "done");
     for (const content of ["[[sm", "[[unknown]]", `[[${"x".repeat(2000)}`, "[[shy]] [[smile]]\n"]) {
       mockFetch(() => streamed(sse(content)));
@@ -327,8 +330,8 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     mockFetch();
   });
 
-  await test("积极倾向不重映射合法情绪，异常中途标签才恢复友好微笑", async () => {
-    for (const emotion of ["thinking", "serious", "sad", "angry", "neutral"]) {
+  await test("所有合法语义原样保留，异常中途标签回退中性", async () => {
+    for (const emotion of ["smile", "wink", "shy", "surprised", "thinking", "serious", "sad", "angry", "wave", "cheer", "cry", "pose", "neutral"]) {
       mockFetch(() => streamed(sse(`[[${emotion}]]这段有明确的表情。`)));
       const res = await call(freshHandler());
       assert.equal(events(res)[0].emotion, emotion, "保留模型明确选择的合法语义");
@@ -336,9 +339,29 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     }
     mockFetch(() => streamed(sse("[[angry]]这是生气的表情演示。[[unknown]]接下来一起轻松聊聊吧。[[thinking]]我想想看。")));
     const res = await call(freshHandler());
-    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["angry", "smile", "thinking"]);
+    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["angry", "neutral", "thinking"]);
     assert.equal(text(res), "这是生气的表情演示。接下来一起轻松聊聊吧。我想想看。");
     assert.equal(events(res).at(-1).type, "done");
+    mockFetch();
+  });
+
+  await test("悲伤、愤怒、否定和引用正文不会被关键词重写成微笑", async () => {
+    const segments = [
+      ["sad", "想到那次失败，我还是有点失落。"],
+      ["angry", "这样随便否定大家的努力，我可不能接受。"],
+      ["neutral", "我没有生气，只是想把这件事说清楚。"],
+      ["serious", "你说你很难过，我在听。不要哭也不是非得笑出来。"],
+      ["thinking", "本来很失落，不过现在我想先考虑下一步。"],
+      ["cry", "眼泪还是忍不住掉下来了。"],
+      ["pose", "镜头准备好了吗？我来摆个姿势。"],
+    ];
+    for (const [emotion, content] of segments) {
+      mockFetch(() => streamed(sse(`[[${emotion}]]${content}`)));
+      const res = await call(freshHandler());
+      assert.equal(text(res), content);
+      assert.deepEqual(events(res).filter(event => event.type === "reaction").map(event => event.emotion), [emotion]);
+      assert.equal(events(res).at(-1).type, "done");
+    }
     mockFetch();
   });
 

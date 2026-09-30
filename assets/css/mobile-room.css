@@ -33,14 +33,14 @@
   .mobile-room-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:.12rem;line-height:1.45;text-shadow:0 1px 8px var(--bg)}
   .mobile-room-title strong{font-size:17px;letter-spacing:.08em}
   .mobile-room-title span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .mobile-room-icon,.mobile-room-action,.mobile-panel-close,.mobile-panel-tabs button,.mobile-room-prompt{color:var(--ink);font-family:var(--font);font-weight:700;cursor:pointer;touch-action:manipulation}
+  .mobile-room-icon,.mobile-room-action,.mobile-panel-close,.mobile-panel-settings,.mobile-panel-tabs button,.mobile-room-prompt{color:var(--ink);font-family:var(--font);font-weight:700;cursor:pointer;touch-action:manipulation}
   .mobile-room-icon{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--room-glass-soft);backdrop-filter:blur(12px);font-size:28px;line-height:1}
   .mobile-room-browse{display:flex;flex-direction:column;gap:2px;border-radius:14px;font-size:10px}
   .mobile-room-browse svg{width:18px;height:18px}
   .mobile-room svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
   .mobile-room :is(button,summary):focus-visible{outline:2px solid var(--coral-deep);outline-offset:3px}
-  .mobile-room-dock{position:absolute;z-index:3;right:max(.6rem,env(safe-area-inset-right));top:50%;transform:translateY(-50%);flex-direction:column;gap:5px;max-height:calc(100% - 150px);overflow-y:auto;scrollbar-width:none}
-  .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25}
+  .mobile-room-dock{position:absolute;z-index:3;right:max(.6rem,env(safe-area-inset-right));top:max(calc(max(.7rem,env(safe-area-inset-top)) + 104px),calc(50% - 157px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));flex-direction:column;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:none}
+  .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25;pointer-events:auto}
   .mobile-room-action svg{width:20px;height:20px}
   .mobile-room-arrow{font-size:21px;line-height:20px}
   .mobile-room-prompt{position:absolute;z-index:3;left:max(1rem,env(safe-area-inset-left));right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));min-height:48px;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border:1px solid var(--line);border-radius:99px;background:var(--room-glass-soft);backdrop-filter:blur(14px);font-size:14px;text-align:left}
@@ -60,15 +60,19 @@
   .mobile-panel-tabs button[aria-pressed="true"]{color:var(--coral-deep);box-shadow:inset 0 -2px var(--coral-deep)}
   .mobile-panel-close{color:var(--ink-soft);display:flex;align-items:center;gap:.3rem}
   .mobile-panel-close span{font-size:24px;line-height:1}
+  .mobile-panel-actions{display:flex;align-items:center;flex-shrink:0}
+  .mobile-panel-settings{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent}
+  .mobile-panel-settings[aria-expanded="true"]{color:var(--coral-deep)}
+  .mobile-room:not([data-panel="chat"]) .mobile-panel-settings{display:none}
   .mobile-room .room-chat-panel{display:none;flex:1;min-height:0;overflow:hidden;flex-direction:column;padding:.2rem .55rem .4rem}
   .mobile-room[data-panel="chat"] .room-chat-panel{display:flex}
-  .mobile-room .chat-heading{flex:0 0 auto;min-height:18px;justify-content:flex-end}
+  .mobile-room .chat-heading{display:none}
   .mobile-room .chat-heading h3{display:none}
   .mobile-room .chat-heading .small-badge{font-size:11px;line-height:1.5;padding:0 .4rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:color-mix(in srgb,var(--bg-alt) 38%,transparent)}
-  .mobile-room .chat-preferences{display:block;flex:0 1 auto;min-height:33px;max-height:44%;overflow:auto;margin:0 0 .3rem;border-bottom:1px solid var(--line);font-size:12px}
-  .mobile-room .chat-preferences[open]{min-height:48px}
+  .mobile-room .chat-preferences{display:none;flex:0 1 auto;min-height:0;max-height:44%;overflow:auto;margin:0;border-bottom:1px solid var(--line);font-size:12px}
+  .mobile-room .chat-preferences[open]{display:block;min-height:48px;margin-bottom:.3rem}
   .mobile-room .chat-preferences::details-content{display:block}
-  .mobile-room .chat-preferences>summary{display:list-item;min-height:32px;padding:.4rem .1rem;color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1.5}
+  .mobile-room .chat-preferences>summary{display:none}
   .mobile-room .chat-options{margin:.25rem 0;gap:.35rem}
   .mobile-room .chat-options select{max-width:11rem;background:var(--room-glass-soft)}
   .mobile-room .l2d-controls .chat-options .chip{font-size:12px;min-height:44px}
@@ -94,16 +98,16 @@
   .mobile-room .room-tools-panel{display:none;flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:.55rem}
   .mobile-room:is([data-panel="tools"],[data-panel="expressions"],[data-panel="motions"]) .room-tools-panel{display:block}
   .mobile-room[data-panel="tools"] :is(#l2dMotionGroup,#l2dExpressionGroup),
-  .mobile-room[data-panel="expressions"] :is(#mobileRoomZoomHost,#mobileRoomPlayback,#l2dCostumeGroup,#l2dMotionGroup),
-  .mobile-room[data-panel="motions"] :is(#mobileRoomZoomHost,#mobileRoomPlayback,#l2dCostumeGroup,#l2dExpressionGroup){display:none}
-  .mobile-room .mobile-room-zoom-host{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin:0 0 .4rem}
-  .mobile-room .mobile-room-zoom-host>.l2d-label{margin:0;font-size:13px}
-  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:row;align-items:center;gap:.2rem;padding:.1rem;border-radius:99px;background:color-mix(in srgb,var(--bg) 20%,transparent);box-shadow:none}
+  .mobile-room[data-panel="expressions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dMotionGroup),
+  .mobile-room[data-panel="motions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dExpressionGroup){display:none}
+  .mobile-room .mobile-room-zoom-host{position:absolute;z-index:6;top:calc(max(.7rem,env(safe-area-inset-top)) + 54px);right:max(.6rem,env(safe-area-inset-right));display:flex;align-items:center;margin:0;max-width:calc(100% - 1.2rem)}
+  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:row;align-items:center;gap:0;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a}
   .mobile-room .l2d-zoom output{order:0;min-width:36px;text-align:center;font-size:12px}
   .mobile-room .l2d-zoom #l2dZoomOut{order:-1}
   .mobile-room .l2d-zoom #l2dZoomIn{order:1}
   .mobile-room .l2d-zoom #l2dZoomReset{order:2}
-  .mobile-room .l2d-zoom .chip{width:44px;height:44px}
+  .mobile-room .l2d-zoom .chip{width:44px;height:44px;border:0;background:transparent}
+  .mobile-room .l2d-zoom .chip:hover:not(:disabled){background:color-mix(in srgb,var(--coral-soft) 58%,transparent)}
   .mobile-room .room-tools{padding:.4rem 0;margin-bottom:.5rem;border-bottom:1px solid var(--line)}
   .mobile-room .room-tools .chip{font-size:12px;min-height:44px}
   .mobile-room .model-settings{margin:0}
@@ -124,8 +128,12 @@
   .mobile-room .chat-access-dialog input{padding:.55rem;background:var(--room-glass-soft)}
   .mobile-room .chat-access-actions .btn{font-size:13px;min-height:44px;padding:.4rem .75rem}
   .mobile-room :is(.mobile-room-icon,.mobile-room-action,.mobile-room-prompt){-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-  .mobile-room.is-keyboard-open .l2d-controls{height:calc(100% - 64px);max-height:calc(100% - 64px)}
+  .mobile-room.is-keyboard-open .l2d-controls{height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)));max-height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)))}
+  /* 键盘展开后借用顶部标题位置，缩放与输入框始终各自可点。 */
+  .mobile-room.is-keyboard-open .mobile-room-title{visibility:hidden}
+  .mobile-room.is-keyboard-open .mobile-room-zoom-host{top:max(.7rem,env(safe-area-inset-top));right:calc(max(.7rem,env(safe-area-inset-right)) + 52px)}
   .mobile-room.is-keyboard-open .chat-heading,.mobile-room.is-keyboard-open .chat-prompts{display:none}
   .mobile-room.is-keyboard-open .chat-preferences>summary{min-height:30px;padding:.3rem .1rem}
-  .mobile-room.is-keyboard-open .mobile-chat-history{min-height:40px}
+  .mobile-room.is-keyboard-open .mobile-chat-history{min-height:32px}
+  .mobile-room.is-keyboard-open .chat-latest-row{bottom:0}
 }

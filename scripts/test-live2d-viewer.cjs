@@ -58,19 +58,29 @@ async function harness(options = {}) {
   const modelLoads = [];
   const textures = new Map();
   const pendingModels = new Map();
+  class Cubism2ExpressionManager {
+    createExpression(definition) { return { definition }; }
+  }
   const buildModel = (id) => {
     const { motions, expressions } = costumes.find((costume) => costume.id === id);
     const waiting = new Map();
     if (options.warmBarrier) waiting.set("motion:thinking01", options.warmBarrier);
-    const expressionObjects = expressions.map((name) => ({ name }));
+    const expressionObjects = expressions.map((name) => options.cubism2Expressions
+      ? Object.assign(new Cubism2ExpressionManager().createExpression({ fade_in: 750, fade_out: 1100 }), { name }) : ({ name,
+      getFadeInTime: () => options.expressionFadeIn ?? 0.5,
+      getFadeOutTime: () => options.expressionFadeOut ?? 0.5,
+    }));
     const expressionManager = {
       expressions: expressionObjects,
       currentExpression: null,
       getExpressionIndex: (name) => expressions.indexOf(name),
       loadExpression: (index) => { resources.push("expression:" + expressions[index]); return waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]); },
     };
+    const managerEvents = new Map();
     const manager = {
       expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, finished: false,
+      on(name, callback) { managerEvents.set(name, callback); },
+      emit(name) { managerEvents.get(name)?.(); },
       isFinished() { return this.finished; },
       loadMotion: (group, index) => { resources.push("motion:" + actions.stem(motions[index])); return waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve({ group, index }); },
     };
@@ -79,16 +89,31 @@ async function harness(options = {}) {
       baseTexture: {}, destroyed: false, destroy(baseTexture) { this.destroyed = true; this.baseDestroyed = baseTexture; },
     });
     const model = {
-      id, waiting, destroyed: false, scale: { value: 1, set(value) { this.value = value; } },
+      id, waiting, destroyed: false, elapsedTime: 0, deltaTime: 0, scale: { value: 1, set(value) { this.value = value; } },
       textures: [textures.get(textureId)],
-      internalModel: { motionManager: manager, focusController: { focus() {} } },
+      internalModel: { motionManager: manager, focusController: { focus() {} },
+        handlers: {}, on(name, handler) { this.handlers[name] = handler; }, emit(name) { this.handlers[name]?.(); },
+      },
       getLocalBounds: () => ({ x: 0, y: 0, width: 2000, height: 2500 }),
-      registerInteraction() {}, unregisterInteraction() {}, update(delta) { if (delta > 0) this.initialized = true; },
+      registerInteraction() {}, unregisterInteraction() {}, update(delta) {
+        this.deltaTime += delta; this.elapsedTime += delta;
+      },
+      renderFrame() {
+        if (!this.deltaTime) return;
+        this.initialized = true;
+        if (manager.finished && manager.playing) {
+          manager.playing = false; manager.emit("motionFinish");
+          manager.state.currentGroup = undefined; manager.state.currentIndex = undefined;
+        }
+        this.internalModel.emit("beforeModelUpdate");
+        this.deltaTime = 0;
+      },
       destroy() { this.destroyed = true; },
       motion(group, index) {
         if (manager.state.currentGroup === group && manager.state.currentIndex === index && !manager.finished) return Promise.resolve(false);
         manager.state.currentGroup = group; manager.state.currentIndex = index;
         manager.finished = false;
+        manager.playing = true;
         plays.push({ id, type: "motion", name: motions[index] }); return Promise.resolve(true);
       },
       expression(name) { plays.push({ id, type: "expression", name }); expressionManager.currentExpression = expressionObjects[expressions.indexOf(name)]; return Promise.resolve(true); },
@@ -99,6 +124,9 @@ async function harness(options = {}) {
   let visibility;
   let intersection;
   let resize;
+  let advance;
+  let application;
+  const media = { matches: !!options.mobile, addEventListener(type, callback) { this.changed = callback; } };
   let renderCount = 0;
   const document = { hidden: !!options.hidden, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
   const window = {
@@ -106,13 +134,18 @@ async function harness(options = {}) {
     Live2D: {}, Live2DCubismCore: { Version: { csmGetVersion: () => 83951616 } },
     PIXI: {
       Application: class {
-        constructor() { this.ticker = { add() {} }; this.renderer = { resize() {}, plugins: { interaction: {} } }; this.stage = { addChild() {}, removeChild() {} }; }
-        start() {} stop() {} render() { renderCount += 1; }
+        constructor() {
+          application = this;
+          this.ticker = { deltaMS: 16, add(callback) { advance = (milliseconds = 16, render = true) => { this.deltaMS = milliseconds; callback(); if (render) application.render(); }; } };
+          this.renderer = { resize() {}, plugins: { interaction: {} } };
+          this.stage = { current: null, addChild(model) { this.current = model; }, removeChild(model) { if (this.current === model) this.current = null; } };
+        }
+        start() {} stop() {} render() { renderCount += 1; this.stage.current?.renderFrame(); }
       },
-      live2d: { config: {}, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => { modelLoads.push(id); return pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id); } } },
+      live2d: { config: { expressionFadingDuration: 500 }, Cubism2ExpressionManager, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => { modelLoads.push(id); return pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id); } } },
     },
     navigator: { connection: { saveData: !!options.saveData } },
-    addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: () => ({ matches: !!options.paused }),
+    addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: (query) => query.includes("max-width") ? media : ({ matches: !!options.paused }),
     IntersectionObserver: class {
       constructor(callback) { intersection = callback; }
       observe() { intersection([{ isIntersecting: options.visible !== false }]); }
@@ -126,7 +159,7 @@ async function harness(options = {}) {
   if (!options.hidden && options.visible !== false) await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
+  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
@@ -402,6 +435,148 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal(h.viewer.getState().costume, "first");
     assert.equal(h.viewer.getState().zoomPercent, 120, "迟到的 bdon 模型不能将当前比例改为180%");
   }
+  for (const bdonFirst of [false, true]) {
+    const h = await harness({ mobile: true, bdonFirst, bdonSecond: !bdonFirst });
+    assert.equal(h.viewer.getState().zoomPercent, 180, "手机首次打开所有来源均为180%");
+    h.elements.l2dZoomOut.click(); h.elements.l2dZoomOut.click();
+    assert.equal(h.viewer.getState().zoomPercent, 160);
+    const loading = deferred(); h.pendingModels.set("second", loading);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    h.elements.l2dZoomOut.click();
+    loading.resolve(h.buildModel("second"));
+    await settle(() => h.viewer.getState().costume === "second", "手机跨来源换装完成");
+    assert.equal(h.viewer.getState().zoomPercent, 150, "加载期间最新调节沿用到新模型");
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
+    await settle(() => h.viewer.getState().costume === "first", "手机换回原模型");
+    assert.equal(h.viewer.getState().zoomPercent, 150, "手机只有最近一次比例，不按每套服装备份");
+    h.mobile(false);
+    assert.equal(h.viewer.getState().zoomPercent, bdonFirst ? 180 : 100, "返回桌面采用桌面保存的来源默认");
+    h.elements.l2dZoomOut.click();
+    const desktopPercent = h.viewer.getState().zoomPercent;
+    h.mobile(true);
+    assert.equal(h.viewer.getState().zoomPercent, 150, "再次进入手机仍保留手机最近比例");
+    h.elements.l2dZoomReset.click();
+    assert.equal(h.viewer.getState().zoomPercent, 180, "手机还原统一为180%");
+    h.mobile(false);
+    assert.equal(h.viewer.getState().zoomPercent, desktopPercent, "手机调节和还原不会污染桌面手动比例");
+  }
+  {
+    const h = await harness({ mobile: true, bdonSecond: true });
+    h.elements.l2dZoomOut.click();
+    const second = deferred(); const first = deferred();
+    h.pendingModels.set("second", second); h.pendingModels.set("first", first);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
+    h.elements.l2dZoomOut.click();
+    first.resolve(h.buildModel("first"));
+    await settle(() => !h.viewer.getState().loading, "手机同款重新挂载完成");
+    second.resolve(h.buildModel("second")); await tick();
+    assert.equal(h.viewer.getState().zoomPercent, 160, "手机快速切换与迟到结果不覆盖最近缩放");
+  }
+  {
+    const h = await harness({ variants: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    let complete = false;
+    const next = h.viewer.whenReactionComplete().then(async (ready) => {
+      complete = ready;
+      return h.viewer.react({ emotion: "angry", source: "chat" });
+    });
+    h.advance(700); await tick();
+    assert.equal(complete, false, "经过700ms也不能把动作启动误作动作完成");
+    assert.ok(!h.plays.some((play) => play.name === "angry01.mtn"), "上一段未结束不得切入下一段动作");
+    h.advance(9000); await tick();
+    assert.equal(complete, false, "等待真实完成，不能用固定播放时长截断长动作");
+    h.models[0].internalModel.motionManager.finished = true;
+    let finalFrameComplete = false;
+    h.viewer.whenReactionComplete().then(() => { finalFrameComplete = true; });
+    await tick();
+    assert.equal(finalFrameComplete, false, "最后一帧队列结束仍要等管理器清理当前动作，防止同动作续接被拒绝");
+    h.advance(16);
+    assert.equal((await next).ok, true);
+    assert.equal(complete, true);
+    assert.ok(h.plays.some((play) => play.name === "angry01.mtn"));
+  }
+  {
+    const h = await harness({ expressionFadeIn: 0.2, expressionFadeOut: 1 });
+    await h.viewer.react({ expression: "thinking01", source: "chat" });
+    assert.ok(!h.plays.some((play) => play.type === "motion"), "思考准备只切表情，不启动长动作");
+    let complete = false;
+    const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1);
+    h.advance(200); await tick();
+    assert.equal(complete, false, "新表情淡入结束还需等待旧表情的淡出");
+    h.advance(800); await gate;
+    assert.equal(complete, true, "表情完成按有限过渡时长，不等持续表情的队列结束");
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    const motionGate = h.viewer.whenReactionComplete();
+    h.advance(1);
+    h.advance(1000);
+    const manager = h.models[0].internalModel.motionManager;
+    manager.emit("motionFinish");
+    assert.equal(await motionGate, true, "两代库共同的 motionFinish 事件能解除动作等待");
+  }
+  {
+    const h = await harness({ cubism2Expressions: true });
+    await h.viewer.react({ expression: "thinking01", source: "chat" });
+    let complete = false;
+    const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1);
+    h.advance(750); await tick();
+    assert.equal(complete, false, "Cubism2 从真实创建参数读取淡入和淡出，不假定统一500ms");
+    h.advance(350); await gate;
+    assert.equal(complete, true);
+    await h.viewer.react({ emotion: "neutral" });
+    const idleGate = h.viewer.whenReactionComplete();
+    h.advance(1);
+    h.advance(1100);
+    assert.equal(await idleGate, true, "持续 idle 只等表情过渡，不永久阻塞聊天");
+  }
+  {
+    const h = await harness();
+    await h.viewer.react({ expression: "thinking01", source: "chat" });
+    let complete = false;
+    const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1000, false); await tick();
+    assert.equal(complete, false, "ticker只累积delta、尚未实际render时不能消耗表情过渡");
+    h.render(); await tick();
+    assert.equal(complete, false, "首次render才建立表情fade起点，不能提前扣首帧delta");
+    h.advance(499); await tick();
+    assert.equal(complete, false);
+    h.advance(1, false); await tick();
+    assert.equal(complete, false, "最后一毫秒尚未渲染也不能先放行下一段");
+    h.render(); await gate;
+    assert.equal(complete, true, "仅在原生本帧完成表情求值后释放门控");
+    await h.viewer.react({ expression: "smile01", source: "chat" });
+    h.advance(1); h.advance(250);
+    await h.viewer.react({ expression: "smile01", source: "chat" });
+    const repeated = h.viewer.whenReactionComplete();
+    h.advance(250);
+    assert.equal(await repeated, true, "重复同表情沿用已有fade进度与渲染时间，不重设首帧");
+  }
+  {
+    const h = await harness();
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    const gate = h.viewer.whenReactionComplete();
+    h.advance(1);
+    h.advance(1000);
+    const manager = h.models[0].internalModel.motionManager;
+    manager.state.currentGroup = "idle"; manager.state.currentIndex = 0;
+    h.advance(16);
+    assert.equal(await gate, true, "自动回到 idle 也说明上一动作已完成");
+  }
+  for (const interruption of ["abort", "pause", "offscreen", "hidden", "costume", "manual"]) {
+    const h = await harness();
+    const controller = new AbortController();
+    await h.viewer.react({ emotion: "smile", source: "chat", signal: controller.signal });
+    const gate = h.viewer.whenReactionComplete(controller.signal);
+    if (interruption === "abort") controller.abort();
+    if (interruption === "pause") h.elements.l2dPause.click();
+    if (interruption === "offscreen") h.intersect(false);
+    if (interruption === "hidden") { h.document.hidden = true; h.visibility(); }
+    if (interruption === "costume") h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    if (interruption === "manual") await h.viewer.react({ expression: "angry01" });
+    assert.equal(await gate, false, `${interruption}无需新渲染帧即可释放等待，不把聊天挂死`);
+  }
   {
     const h = await harness({ performance: true });
     assert.equal(h.elements.l2dExpressionNote.hidden, false);
@@ -570,5 +745,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log(`Live2D viewer 验证通过：加载/资源释放/播放/缩放/轮换及手机构图还原回归；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
+  console.log(`Live2D viewer 验证通过：加载/资源释放/真实动作结束与两代表情过渡门控/取消与离屏释放/手机180%及跨模型缩放记忆/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

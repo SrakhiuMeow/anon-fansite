@@ -27,6 +27,7 @@
   const costumeHost = byId("l2dCostumes");
   const modelSettings = room.querySelector(".model-settings");
   const preferences = byId("chatPreferences");
+  const preferencesButton = byId("mobileRoomChatSettings");
   const zoom = room.querySelector(".l2d-zoom");
   const zoomHost = byId("mobileRoomZoomHost");
   const playback = byId("mobileRoomPlayback");
@@ -74,8 +75,10 @@
     const choosing = panel === "tools";
     expose(controls, panel !== "closed");
     expose(chat, chatting);
+    expose(preferencesButton, chatting);
     expose(tools, ["tools", "expressions", "motions"].includes(panel));
-    expose(zoomHost, choosing);
+    // 缩放是舞台上的常驻操作，不随聊天或换装浮层一起收起。
+    expose(zoomHost, true);
     expose(playback, choosing);
     expose(costumeGroup, choosing);
     expose(motionGroup, panel === "motions");
@@ -227,6 +230,7 @@
   const syncPreferences = () => {
     const summary = preferences?.querySelector("summary");
     if (summary) summary.textContent = `${byId("anonChatMode")?.value === "deepseek" ? "DeepSeek AI" : "本地互动"} · 设置与说明`;
+    preferencesButton?.setAttribute("aria-expanded", String(mobile && !!preferences?.open));
   };
   const setMobile = () => {
     if (mobile === media.matches) { scheduleViewport(); return; }
@@ -253,6 +257,7 @@
       if (zoom && zoomMarker.parentNode) zoomMarker.after(zoom);
       if (modelSettings && detailsState) modelSettings.open = detailsState.model;
       if (preferences && detailsState) preferences.open = detailsState.chat;
+      preferencesButton?.setAttribute("aria-expanded", "false");
       if (detailsState?.controlsLabel == null) controls.removeAttribute("aria-label");
       else controls.setAttribute("aria-label", detailsState.controlsLabel);
       detailsState = null;
@@ -274,6 +279,12 @@
     if (tab) setPanel(tab.dataset.roomPanel, true);
   });
   byId("mobileRoomClose")?.addEventListener("click", () => setPanel("closed", true));
+  preferencesButton?.addEventListener("click", () => {
+    if (!mobile || panel !== "chat" || !preferences) return;
+    preferences.open = !preferences.open;
+    syncPreferences();
+  });
+  preferences?.addEventListener("toggle", syncPreferences);
   byId("mobileRoomPrev")?.addEventListener("click", () => changeCostume(-1));
   byId("mobileRoomNext")?.addEventListener("click", () => changeCostume(1));
   fullscreen?.addEventListener("click", () => {

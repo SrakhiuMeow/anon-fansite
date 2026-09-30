@@ -51,24 +51,26 @@
     return { emotion, motion, expression, index: motion ? motionIndex(costume, motion) : -1, group: costume.motionGroup || "reaction" };
   }
 
-  // 候选只来自模型实际提供的同类动作。nf/nnf 等用途不明的动作不参与聊天。
+  // 候选只来自模型实际提供的同类动作；不以增加覆盖率为由混入点头、
+  // 张望或其他含义的表演。动作、表情分别通过语义筛选后再配对。
+  // nf/nnf 等用途不明的动作不参与聊天。
   const legacyFamilies = Object.freeze({
     smile: ["smile"], wink: ["wink"], shy: ["shame"], surprised: ["surprised"],
     thinking: ["thinking"], serious: ["serious"], sad: ["sad"], angry: ["angry"],
     wave: ["bye"], cheer: ["kandou"], cry: ["cry"], pose: ["kime"],
   });
   const storyMotionFamilies = Object.freeze({
-    smile: ["smile01", "smile02", "nod01", "nod02", "join01"],
+    smile: ["smile01", "smile02"],
     wink: ["wink01"], shy: ["thinking01"], surprised: ["surprised01", "surprised02"],
-    thinking: ["thinking01", "check01", "check02", "question01", "look01", "look02"],
-    serious: ["serious01", "nod01", "nod02", "check01", "check02"],
+    thinking: ["thinking01", "check01", "check02", "question01"],
+    serious: ["serious01"],
     sad: ["sad01"], angry: ["angry01"], wave: ["bye01"],
-    cheer: ["smile02", "join01", "nod02"], cry: ["cry01"], pose: ["kime01"],
+    cheer: ["smile02", "join01"], cry: ["cry01"], pose: ["kime01"],
   });
   const storyExpressionFamilies = Object.freeze({
     smile: ["smile"], wink: ["smile"], shy: ["shy"], surprised: ["surprised"],
     thinking: ["thinking"], serious: ["serious"], sad: ["sad"], angry: ["angry"],
-    wave: ["smile"], cheer: ["smile"], cry: ["cry"], pose: ["kime", "smile"],
+    wave: ["smile"], cheer: ["smile"], cry: ["cry"], pose: ["kime"],
   });
   // 舞台款的动作含自身面部曲线，但没有独立表情。轻奏用于平缓语气，
   // 活跃演奏用于积极语气；这些是舞台回应，不宣称是哭泣/生气专属表情。

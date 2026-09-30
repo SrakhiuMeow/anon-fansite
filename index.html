@@ -10,7 +10,7 @@
 <link rel="icon" href="assets/favicon.svg" />
 <link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
 <link rel="stylesheet" href="assets/css/style.css?v=20260930-13" />
-<link rel="stylesheet" href="assets/css/mobile-room.css?v=20260930-13" />
+<link rel="stylesheet" href="assets/css/mobile-room.css?v=20260930-14" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -142,6 +142,7 @@
           </div>
         </div>
 
+        <div class="mobile-room-zoom-host mobile-room-only" id="mobileRoomZoomHost" aria-label="模型大小调整"></div>
         <div class="mobile-room-dock mobile-room-only" id="mobileRoomDock" aria-label="全屏互动操作">
           <button type="button" class="mobile-room-action" id="mobileRoomChat" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 0 1 18 0Z"/><path d="M7 10h8m-8 4h5"/></svg><span>聊天</span></button>
           <button type="button" class="mobile-room-action" id="mobileRoomTools" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4a4 4 0 0 1-8 0Z"/></svg><span>换装</span></button>
@@ -154,7 +155,7 @@
         <div class="l2d-controls" id="mobileRoomControls">
           <div class="mobile-panel-heading mobile-room-only" id="mobileRoomPanelHeading">
             <div class="mobile-panel-tabs"><button type="button" id="mobileRoomChatTab" data-room-panel="chat" aria-pressed="false" aria-controls="roomChatPanel">聊天</button><button type="button" id="mobileRoomToolsTab" data-room-panel="tools" aria-pressed="false" aria-controls="roomToolsPanel">换装</button><button type="button" id="mobileRoomExpressionsTab" data-room-panel="expressions" aria-pressed="false" aria-controls="roomToolsPanel">表情</button><button type="button" id="mobileRoomMotionsTab" data-room-panel="motions" aria-pressed="false" aria-controls="roomToolsPanel">动作</button></div>
-            <button type="button" class="mobile-panel-close" id="mobileRoomClose" aria-label="收起面板到侧边" title="收起到侧边">收起 <span aria-hidden="true">›</span></button>
+            <div class="mobile-panel-actions"><button type="button" class="mobile-panel-settings" id="mobileRoomChatSettings" aria-label="聊天设置" title="聊天设置" aria-expanded="false" aria-controls="chatPreferences"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.6 2.1-2 .9-2-.5L2.5 9l1.5 1.5v3L2.5 15l1.9 3.5 2-.5 2 .9L9 21h6l.6-2.1 2-.9 2 .5 1.9-3.5-1.5-1.5v-3L21.5 9l-1.9-3.5-2 .5-2-.9L15 3Z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="mobile-panel-close" id="mobileRoomClose" aria-label="收起面板到侧边" title="收起到侧边">收起 <span aria-hidden="true">›</span></button></div>
           </div>
           <div class="room-chat-panel" id="roomChatPanel">
           <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge" id="anonChatEmotion" role="status">随对话变化</span></div>
@@ -190,7 +191,6 @@
           <div class="chat-status-row"><p id="anonChatState" class="chat-state" role="status"></p><button class="chip" id="anonChatStop" type="button" hidden>停止回复</button></div>
           </div>
           <div class="room-tools-panel" id="roomToolsPanel">
-          <div class="mobile-room-zoom-host mobile-room-only" id="mobileRoomZoomHost"><span class="l2d-label">模型大小</span></div>
           <div class="room-tools" id="mobileRoomPlayback"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip is-active" type="button" id="l2dFollowMouse" role="switch" aria-checked="true" aria-label="自动跟随鼠标">跟随鼠标：开</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
           <details class="model-settings" open><summary>换装与动作</summary>
           <div class="l2d-group" id="l2dCostumeGroup">
@@ -921,9 +921,9 @@
 <script src="assets/js/main.js?v=20260930-7"></script>
 <script src="assets/js/content.js?v=20260930-10"></script>
 <script src="assets/js/site-ui.js?v=20260930-11"></script>
-<script src="assets/js/live2d-actions.js?v=20260930-6"></script>
-<script src="assets/js/live2d-viewer.js?v=20260930-12"></script>
-<script src="assets/js/mobile-room.js?v=20260930-13"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-11"></script>
+<script src="assets/js/live2d-actions.js?v=20260930-14"></script>
+<script src="assets/js/live2d-viewer.js?v=20260930-14"></script>
+<script src="assets/js/mobile-room.js?v=20260930-14"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-14"></script>
 </body>
 </html>

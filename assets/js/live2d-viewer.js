@@ -21,7 +21,9 @@
   const costumeLabelEl = byId("l2dCostumeLabel");
   const ZOOM_MIN = 50;
   const ZOOM_MAX = 180;
-  const defaultZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
+  const mobileViewport = window.matchMedia?.("(max-width: 700px)");
+  const sourceZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
+  const defaultZoom = (costume) => mobileViewport?.matches ? 180 : sourceZoom(costume);
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
@@ -50,7 +52,9 @@
   let failed = false;
   let layoutTimer = null;
   let followMouse = true;
-  let zoomPercent = 100;
+  let zoomPercent = defaultZoom(requested);
+  let mobileZoom = 180;
+  let desktopZoom = { costume: requested.id, percent: sourceZoom(requested) };
   let desiredReaction = { emotion: "neutral" };
   let pendingMounts = 0;
   const retiredTextures = new Set();
@@ -58,6 +62,9 @@
   const variantHistory = new Map();
   const requestSelections = new WeakMap();
   let activeReaction = null;
+  const reactionWaiters = new Set();
+  const expressionFades = new WeakMap();
+  let tracksLegacyExpressionFades = false;
   try { followMouse = localStorage.getItem(FOLLOW_MOUSE_STORAGE) !== "false"; } catch { /* 隐私模式下仍可使用开关 */ }
 
   const setStatus = (text) => {
@@ -103,6 +110,44 @@
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  // 完成门控随渲染帧检查真实播放状态；离屏后没有额外计时器继续运行。
+  const reactionComplete = (reaction) => {
+    if (!reaction || reaction.target !== model) return true;
+    const manager = reaction.target.internalModel.motionManager;
+    const sameMotion = manager.state.currentGroup === reaction.choice.group && manager.state.currentIndex === reaction.choice.index;
+    // 两代管理器都在结束事件后清理 currentGroup；最后一帧队列已结束但
+    // playing 仍为 true 时等下一帧，否则同动作续接会被库判定为重复请求。
+    const motionDone = reaction.motionDone || !sameMotion || (manager.isFinished() && !manager.playing);
+    return motionDone && reaction.expressionRemaining <= 0;
+  };
+  const flushReactionWaiters = () => {
+    for (const waiter of [...reactionWaiters]) waiter.check();
+  };
+  const whenReactionComplete = (signal) => {
+    const reaction = activeReaction;
+    return new Promise((resolve) => {
+      const signals = [...new Set([signal, reaction?.signal].filter(Boolean))];
+      const finish = (completed) => {
+        reactionWaiters.delete(waiter);
+        for (const item of signals) item.removeEventListener("abort", waiter.check);
+        resolve(completed);
+      };
+      const waiter = { check: () => {
+        if (signals.some((item) => item.aborted) || paused || loading || !inView || document.hidden) return finish(false);
+        if (!reaction) return finish(true);
+        if (reaction.target !== model || reaction !== activeReaction) return finish(false);
+        if (reactionComplete(reaction)) finish(true);
+      } };
+      reactionWaiters.add(waiter);
+      for (const item of signals) item.addEventListener("abort", waiter.check, { once: true });
+      waiter.check();
+    });
+  };
+  const fadeDuration = (expression, direction) => {
+    const seconds = expression?.[direction === "in" ? "getFadeInTime" : "getFadeOutTime"]?.();
+    const milliseconds = Number.isFinite(seconds) ? seconds * 1000 : expressionFades.get(expression)?.[direction];
+    return Number.isFinite(milliseconds) && milliseconds >= 0 ? milliseconds : window.PIXI?.live2d?.config.expressionFadingDuration || 500;
+  };
   const syncPlayback = () => {
     const running = !!model && !paused && inView && !document.hidden;
     // Live2D 默认使用共享 ticker；显式关闭并由 app ticker 更新，保证离屏真正停止。
@@ -114,6 +159,7 @@
       pauseEl.setAttribute("aria-pressed", String(paused));
     }
     syncZoomControls();
+    flushReactionWaiters();
   };
   const showFailure = (text) => {
     failed = true;
@@ -161,6 +207,19 @@
     }
     // 聊天会同时指定动作与表情，避免动作开始时库自动清空已选表情。
     window.PIXI.live2d.config.preserveExpressionOnMotion = true;
+    // Cubism 2 Core 没有公开 fade-in getter，在创建表情时保留其真实时长。
+    // Cubism 4 直接读取 getFadeInTime / getFadeOutTime，单位由秒转为毫秒。
+    const expressionPrototype = window.PIXI.live2d.Cubism2ExpressionManager?.prototype;
+    if (expressionPrototype && !tracksLegacyExpressionFades) {
+      const createExpression = expressionPrototype.createExpression;
+      expressionPrototype.createExpression = function (definition, ...args) {
+        const expression = createExpression.call(this, definition, ...args);
+        const fallback = window.PIXI.live2d.config.expressionFadingDuration;
+        expressionFades.set(expression, { in: definition.fade_in > 0 ? definition.fade_in : fallback, out: definition.fade_out > 0 ? definition.fade_out : fallback });
+        return expression;
+      };
+      tracksLegacyExpressionFades = true;
+    }
   };
 
   const fitModel = () => {
@@ -185,6 +244,8 @@
   };
   const setZoom = (percent) => {
     zoomPercent = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, percent));
+    if (mobileViewport?.matches) mobileZoom = zoomPercent;
+    else desktopZoom = { costume: current?.id || requested.id, percent: zoomPercent };
     fitModel();
     syncZoomControls();
     emitState();
@@ -269,8 +330,8 @@
     let state = warmups.get(target);
     if (!state) {
       const choices = new Map();
-      for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry"]) {
-        const variants = ["smile", "cheer", "wink"].includes(emotion) && actions.variants
+      for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry", "cry", "pose"]) {
+        const variants = actions.variants
           ? actions.variants(costume, { emotion }).slice(0, 3)
           : [actions.resolve(costume, { emotion })];
         for (const choice of variants) {
@@ -315,6 +376,7 @@
     ++reactionVersion;
     requested = costume;
     loading = true;
+    flushReactionWaiters();
     failed = false;
     stage.setAttribute("aria-busy", "true");
     if (fallbackEl) fallbackEl.hidden = true;
@@ -331,14 +393,37 @@
       const changedCostume = current?.id !== costume.id;
       model = next;
       current = costume;
+      activeReaction = null;
+      const motionManager = next.internalModel.motionManager;
+      motionManager.on?.("motionFinish", () => {
+        if (activeReaction?.target === next && motionManager.state.currentGroup === activeReaction.choice.group && motionManager.state.currentIndex === activeReaction.choice.index) {
+          activeReaction.motionDone = true;
+          flushReactionWaiters();
+        }
+      });
+      // Live2DModel.update 仅累积 delta，Core 到实际 render 才求值。两代均在
+      // 表情更新后发此事件：首帧只建立 fade 起点，后续仅计入已渲染的进度。
+      next.internalModel.on("beforeModelUpdate", () => {
+        if (activeReaction?.target !== next) return;
+        const elapsed = next.elapsedTime;
+        if (activeReaction.expressionRenderedAt !== null) {
+          activeReaction.expressionRemaining = Math.max(0, activeReaction.expressionRemaining - Math.max(0, elapsed - activeReaction.expressionRenderedAt));
+        }
+        activeReaction.expressionRenderedAt = elapsed;
+        flushReactionWaiters();
+      });
       app.stage.addChild(next);
       if (previous) { app.stage.removeChild(previous); retireModel(previous); }
       // 加载期间也能切换偏好，以完成加载时的最新开关状态为准。
       syncMouseTracking();
       // PIXI 只在 deltaTime 非零时初始化 Core 顶点；暂停换装也需要一个静态首帧。
       next.update(1);
-      // 成功切换服装才采用该来源的默认比例；同款重载保留手动缩放。
-      if (changedCostume) zoomPercent = defaultZoom(costume);
+      // 手机沿用最近一次手动比例；桌面不同服装仍采用来源默认，同款重载保留。
+      if (mobileViewport?.matches) zoomPercent = mobileZoom;
+      else if (changedCostume) {
+        zoomPercent = sourceZoom(costume);
+        desktopZoom = { costume: costume.id, percent: zoomPercent };
+      }
       fitModel();
       clearTimeout(layoutTimer);
       layoutTimer = setTimeout(() => { if (version === loadVersion) fitModel(); }, 150);
@@ -378,7 +463,9 @@
             view: canvas, backgroundAlpha: 0, antialias: true, autoStart: false,
             resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
           });
-          app.ticker.add(() => { if (model) model.update(app.ticker.deltaMS); });
+          app.ticker.add(() => {
+            if (model) model.update(app.ticker.deltaMS);
+          });
         }
         return await mountModel(requested);
       } catch (error) {
@@ -430,9 +517,9 @@
       const index = (start + offset) % candidates.length;
       if (!eligible.has(index)) continue;
       const choice = candidates[index];
-      const score = (choice.motion !== history.motion ? 2 : 0) + (choice.expression !== history.expression ? 1 : 0);
+      const score = (choice.motion !== history.motion ? 1 : 0) + (choice.expression !== history.expression ? 1 : 0);
       if (score > bestScore) { ordinal = index; bestScore = score; }
-      if (score === 3) break;
+      if (score === 2) break;
     }
     return { choice: candidates[ordinal], ordinal, consume: true, resetCycle };
   };
@@ -474,6 +561,7 @@
       if ((motion && !loaded[0]) || (expression && !loaded[1])) return { ok: false, reason: "文字回复已送达；动作或表情资源暂不可用，请重试。" };
       // 库对“重复设置当前表情”返回 false，但该表情确实已生效，不应误报失败。
       const expressionIsCurrent = expressionIndex >= 0 && expressionManager.expressions[expressionIndex] === expressionManager.currentExpression;
+      const previousExpression = expressionManager?.currentExpression;
       const motionIsCurrent = motion && motionManager.state.currentGroup === group && motionManager.state.currentIndex === index && !motionManager.isFinished();
       const results = await Promise.all([
         motion && !motionIsCurrent ? target.motion(group, index, window.PIXI.live2d.MotionPriority.FORCE) : true,
@@ -481,7 +569,13 @@
       ]);
       if (signal?.aborted || version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
       if (results.some((result) => result === false)) return { ok: false, reason: "文字回复已送达；动作未能播放，请再试一次。" };
-      activeReaction = { target, choice, ordinal };
+      const expressionRemaining = expression && !expressionIsCurrent
+        ? Math.max(fadeDuration(loaded[1], "in"), previousExpression ? fadeDuration(previousExpression, "out") : 0)
+        : activeReaction?.target === target ? activeReaction.expressionRemaining : 0;
+      const expressionRenderedAt = expression && !expressionIsCurrent ? null
+        : activeReaction?.target === target ? activeReaction.expressionRenderedAt : null;
+      activeReaction = { target, choice, ordinal, signal, expressionRemaining, expressionRenderedAt, motionDone: !motion || motion === idleMotion };
+      flushReactionWaiters();
       rememberSelection(request, costume, choice, ordinal);
       if (request.source === "chat") {
         const key = `${costume.id}:${choice.emotion}`;
@@ -498,7 +592,14 @@
     }
   };
 
-  window.AnonLive2D = { react, retry: start, getState };
+  window.AnonLive2D = { react, whenReactionComplete, retry: start, getState };
+  mobileViewport?.addEventListener?.("change", () => {
+    zoomPercent = mobileViewport.matches ? mobileZoom
+      : desktopZoom.costume === (current?.id || requested.id) ? desktopZoom.percent : sourceZoom(current || requested);
+    fitModel();
+    syncZoomControls();
+    emitState();
+  });
   zoomOutEl?.addEventListener("click", () => setZoom(zoomPercent - 10));
   zoomInEl?.addEventListener("click", () => setZoom(zoomPercent + 10));
   zoomResetEl?.addEventListener("click", () => setZoom(defaultZoom(current || requested)));

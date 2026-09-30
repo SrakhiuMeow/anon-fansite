@@ -55,6 +55,17 @@ for (const costume of costumes) {
         assert.ok(new RegExp(`^(?:mtn_)?${emotion}0[1-9](?:_[CLR])?$`).test(variant.motion), "负面动作保持对应语义");
         assert.ok(new RegExp(`^(?:exp_)?${emotion}0[1-9]$`).test(variant.expression), "负面表情保持对应语义");
       }
+      if (costume.mode !== "performance" && ["thinking", "serious", "shy"].includes(emotion)) {
+        assert.ok(!/smile|wink|kandou|kime|join|bye|angry|cry|sad/.test(`${variant.motion} ${variant.expression}`), "斟酌、认真、害羞都不能因轮换而回到笑脸或相反语气");
+      }
+      if (costume.mode !== "performance" && costume.format === "cubism4") {
+        const motionFamilies = { smile: "smile", serious: "serious", shy: "thinking", pose: "kime" };
+        const expressionFamilies = { smile: "smile", serious: "serious", shy: "shy", pose: "kime" };
+        if (motionFamilies[emotion]) {
+          assert.match(variant.motion, new RegExp(`^mtn_${motionFamilies[emotion]}0[1-9]_[CLR]$`), "动作独立满足当前语义，不用相邻语义凑覆盖率");
+          assert.match(variant.expression, new RegExp(`^exp_${expressionFamilies[emotion]}0[1-9]$`), "表情独立满足当前语义，与动作同等参与筛选");
+        }
+      }
     }
     if (emotion === "neutral") assert.equal(variants.length, 1, "初始和清空的待机不能轮换");
   }
