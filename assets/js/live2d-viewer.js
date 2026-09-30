@@ -20,10 +20,11 @@
   const expressionNoteEl = byId("l2dExpressionNote");
   const costumeLabelEl = byId("l2dCostumeLabel");
   const ZOOM_MIN = 50;
-  const ZOOM_MAX = 180;
+  const ZOOM_MAX = 200;
+  const MOBILE_DEFAULT_ZOOM = 150;
   const mobileViewport = window.matchMedia?.("(max-width: 700px)");
   const sourceZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
-  const defaultZoom = (costume) => mobileViewport?.matches ? 180 : sourceZoom(costume);
+  const defaultZoom = (costume) => mobileViewport?.matches ? MOBILE_DEFAULT_ZOOM : sourceZoom(costume);
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
@@ -53,7 +54,7 @@
   let layoutTimer = null;
   let followMouse = true;
   let zoomPercent = defaultZoom(requested);
-  let mobileZoom = 180;
+  let mobileZoom = MOBILE_DEFAULT_ZOOM;
   let desktopZoom = { costume: requested.id, percent: sourceZoom(requested) };
   let desiredReaction = { emotion: "neutral" };
   let pendingMounts = 0;

@@ -10,6 +10,8 @@
   .l2d-layout.mobile-room{
     --room-glass:color-mix(in srgb,var(--card) 58%,transparent);
     --room-glass-soft:color-mix(in srgb,var(--card) 52%,transparent);
+    --room-zoom-top:calc(max(.7rem,env(safe-area-inset-top)) + 54px);
+    --room-panel-limit:calc(100% - var(--room-zoom-top) - 170px - max(.6rem,env(safe-area-inset-bottom)));
     position:relative;isolation:isolate;display:block;width:100%;height:100svh;min-height:360px;
     overflow:hidden;scroll-margin-top:0;background:var(--bg-alt);color:var(--ink);border-radius:0;
   }
@@ -39,7 +41,7 @@
   .mobile-room-browse svg{width:18px;height:18px}
   .mobile-room svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
   .mobile-room :is(button,summary):focus-visible{outline:2px solid var(--coral-deep);outline-offset:3px}
-  .mobile-room-dock{position:absolute;z-index:3;right:max(.6rem,env(safe-area-inset-right));top:max(calc(max(.7rem,env(safe-area-inset-top)) + 104px),calc(50% - 157px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));flex-direction:column;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:none}
+  .mobile-room-dock{position:absolute;z-index:3;right:max(.6rem,env(safe-area-inset-right));top:max(calc(var(--room-zoom-top) + 170px),calc(50% - 157px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));width:50px;flex-direction:column;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:none}
   .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25;pointer-events:auto}
   .mobile-room-action svg{width:20px;height:20px}
   .mobile-room-arrow{font-size:21px;line-height:20px}
@@ -48,12 +50,12 @@
   .mobile-room:not([data-panel="closed"]) :is(.mobile-room-dock,.mobile-room-prompt){display:none}
   .mobile-room .l2d-controls{
     position:absolute;z-index:5;inset:auto max(.6rem,env(safe-area-inset-right)) max(.6rem,env(safe-area-inset-bottom)) max(.6rem,env(safe-area-inset-left));
-    display:flex;flex-direction:column;gap:0;width:auto;height:min(350px,50%);max-height:calc(100% - max(76px,env(safe-area-inset-top)));min-height:0;
+    display:flex;flex-direction:column;gap:0;width:auto;height:min(350px,50%);max-height:var(--room-panel-limit);min-height:0;
     margin:0;padding:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;overscroll-behavior:contain;
     background:var(--room-glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 8px 28px #241b2d18;
   }
   .mobile-room[data-panel="closed"] .l2d-controls{display:none}
-  .mobile-room:is([data-panel="tools"],[data-panel="expressions"],[data-panel="motions"]) .l2d-controls{height:auto;max-height:min(350px,46%)}
+  .mobile-room:is([data-panel="tools"],[data-panel="expressions"],[data-panel="motions"]) .l2d-controls{height:auto;max-height:min(350px,46%,var(--room-panel-limit))}
   .mobile-panel-heading{flex:0 0 auto;min-height:44px;align-items:center;justify-content:space-between;gap:0;padding:0 .35rem;border-bottom:1px solid var(--line)}
   .mobile-panel-tabs{display:flex;gap:0;min-width:0}
   .mobile-panel-tabs button,.mobile-panel-close{min-width:44px;min-height:44px;padding:.25rem .45rem;border:0;background:transparent;font-size:12px;white-space:nowrap}
@@ -100,11 +102,11 @@
   .mobile-room[data-panel="tools"] :is(#l2dMotionGroup,#l2dExpressionGroup),
   .mobile-room[data-panel="expressions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dMotionGroup),
   .mobile-room[data-panel="motions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dExpressionGroup){display:none}
-  .mobile-room .mobile-room-zoom-host{position:absolute;z-index:6;top:calc(max(.7rem,env(safe-area-inset-top)) + 54px);right:max(.6rem,env(safe-area-inset-right));display:flex;align-items:center;margin:0;max-width:calc(100% - 1.2rem)}
-  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:row;align-items:center;gap:0;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a}
-  .mobile-room .l2d-zoom output{order:0;min-width:36px;text-align:center;font-size:12px}
-  .mobile-room .l2d-zoom #l2dZoomOut{order:-1}
-  .mobile-room .l2d-zoom #l2dZoomIn{order:1}
+  .mobile-room .mobile-room-zoom-host{position:absolute;z-index:6;top:var(--room-zoom-top);right:max(.6rem,env(safe-area-inset-right));display:flex;align-items:center;margin:0;width:50px}
+  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:column;align-items:center;gap:0;width:50px;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a}
+  .mobile-room .l2d-zoom output{order:0;min-width:36px;height:24px;line-height:24px;text-align:center;font-size:12px}
+  .mobile-room .l2d-zoom #l2dZoomOut{order:1}
+  .mobile-room .l2d-zoom #l2dZoomIn{order:-1}
   .mobile-room .l2d-zoom #l2dZoomReset{order:2}
   .mobile-room .l2d-zoom .chip{width:44px;height:44px;border:0;background:transparent}
   .mobile-room .l2d-zoom .chip:hover:not(:disabled){background:color-mix(in srgb,var(--coral-soft) 58%,transparent)}
@@ -128,10 +130,11 @@
   .mobile-room .chat-access-dialog input{padding:.55rem;background:var(--room-glass-soft)}
   .mobile-room .chat-access-actions .btn{font-size:13px;min-height:44px;padding:.4rem .75rem}
   .mobile-room :is(.mobile-room-icon,.mobile-room-action,.mobile-room-prompt){-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-  .mobile-room.is-keyboard-open .l2d-controls{height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)));max-height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)))}
-  /* 键盘展开后借用顶部标题位置，缩放与输入框始终各自可点。 */
-  .mobile-room.is-keyboard-open .mobile-room-title{visibility:hidden}
-  .mobile-room.is-keyboard-open .mobile-room-zoom-host{top:max(.7rem,env(safe-area-inset-top));right:calc(max(.7rem,env(safe-area-inset-right)) + 52px)}
+  /* 键盘展开后为右侧竖向缩放留出独立空间，避免盖住聊天操作。 */
+  .mobile-room.is-keyboard-open .l2d-controls{right:calc(max(.6rem,env(safe-area-inset-right)) + 58px);height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)));max-height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)))}
+  .mobile-room.is-keyboard-open .mobile-panel-tabs{flex:1}
+  .mobile-room.is-keyboard-open .mobile-panel-tabs button{flex:1;min-width:0;padding-inline:2px;font-size:11px}
+  .mobile-room.is-keyboard-open .mobile-panel-close{justify-content:center;width:44px;padding:0;font-size:0;gap:0}
   .mobile-room.is-keyboard-open .chat-heading,.mobile-room.is-keyboard-open .chat-prompts{display:none}
   .mobile-room.is-keyboard-open .chat-preferences>summary{min-height:30px;padding:.3rem .1rem}
   .mobile-room.is-keyboard-open .mobile-chat-history{min-height:32px}

@@ -325,7 +325,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.ok(Math.abs(model.y - baseTop) < 1e-9, "放大保留顶部，头部不会被推出画面");
     assert.ok(Math.abs(model.x + 1000 * model.scale.value - 300) < 1e-9, "缩放保持横向居中");
     for (let n = 0; n < 20; n++) h.elements.l2dZoomIn.click();
-    assert.equal(h.viewer.getState().zoomPercent, 180);
+    assert.equal(h.viewer.getState().zoomPercent, 200);
     assert.equal(h.elements.l2dZoomIn.disabled, true);
     for (let n = 0; n < 20; n++) h.elements.l2dZoomOut.click();
     assert.equal(h.viewer.getState().zoomPercent, 50);
@@ -384,7 +384,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     await settle(() => h.viewer.getState().costume === "second", "切换到 bdon 模型");
     assert.equal(h.viewer.getState().zoomPercent, 180);
     assert.equal(h.elements.l2dZoomValue.textContent, "180%");
-    assert.equal(h.elements.l2dZoomIn.disabled, true);
+    assert.equal(h.elements.l2dZoomIn.disabled, false, "bdon 默认180%仍可继续放大");
     assert.equal(h.elements.l2dZoomReset.disabled, true);
     assert.match(h.elements.l2dZoomReset.attributes["aria-label"], /180%/);
     assert.match(h.elements.l2dZoomReset.title, /180%/);
@@ -437,26 +437,30 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
   }
   for (const bdonFirst of [false, true]) {
     const h = await harness({ mobile: true, bdonFirst, bdonSecond: !bdonFirst });
-    assert.equal(h.viewer.getState().zoomPercent, 180, "手机首次打开所有来源均为180%");
+    assert.equal(h.viewer.getState().zoomPercent, 150, "手机首次打开所有来源均为150%");
+    assert.match(h.elements.l2dZoomReset.attributes["aria-label"], /150%/);
     h.elements.l2dZoomOut.click(); h.elements.l2dZoomOut.click();
-    assert.equal(h.viewer.getState().zoomPercent, 160);
+    assert.equal(h.viewer.getState().zoomPercent, 130);
     const loading = deferred(); h.pendingModels.set("second", loading);
     h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
     h.elements.l2dZoomOut.click();
     loading.resolve(h.buildModel("second"));
     await settle(() => h.viewer.getState().costume === "second", "手机跨来源换装完成");
-    assert.equal(h.viewer.getState().zoomPercent, 150, "加载期间最新调节沿用到新模型");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "加载期间最新调节沿用到新模型");
     h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
     await settle(() => h.viewer.getState().costume === "first", "手机换回原模型");
-    assert.equal(h.viewer.getState().zoomPercent, 150, "手机只有最近一次比例，不按每套服装备份");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "手机只有最近一次比例，不按每套服装备份");
     h.mobile(false);
     assert.equal(h.viewer.getState().zoomPercent, bdonFirst ? 180 : 100, "返回桌面采用桌面保存的来源默认");
     h.elements.l2dZoomOut.click();
     const desktopPercent = h.viewer.getState().zoomPercent;
     h.mobile(true);
-    assert.equal(h.viewer.getState().zoomPercent, 150, "再次进入手机仍保留手机最近比例");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "再次进入手机仍保留手机最近比例");
+    for (let n = 0; n < 20; n++) h.elements.l2dZoomIn.click();
+    assert.equal(h.viewer.getState().zoomPercent, 200, "手机最大比例为200%");
+    assert.equal(h.elements.l2dZoomIn.disabled, true);
     h.elements.l2dZoomReset.click();
-    assert.equal(h.viewer.getState().zoomPercent, 180, "手机还原统一为180%");
+    assert.equal(h.viewer.getState().zoomPercent, 150, "手机还原统一为150%");
     h.mobile(false);
     assert.equal(h.viewer.getState().zoomPercent, desktopPercent, "手机调节和还原不会污染桌面手动比例");
   }
@@ -471,7 +475,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     first.resolve(h.buildModel("first"));
     await settle(() => !h.viewer.getState().loading, "手机同款重新挂载完成");
     second.resolve(h.buildModel("second")); await tick();
-    assert.equal(h.viewer.getState().zoomPercent, 160, "手机快速切换与迟到结果不覆盖最近缩放");
+    assert.equal(h.viewer.getState().zoomPercent, 130, "手机快速切换与迟到结果不覆盖最近缩放");
   }
   {
     const h = await harness({ variants: true });
@@ -745,5 +749,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log(`Live2D viewer 验证通过：加载/资源释放/真实动作结束与两代表情过渡门控/取消与离屏释放/手机180%及跨模型缩放记忆/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
+  console.log(`Live2D viewer 验证通过：加载/资源释放/真实动作结束与两代表情过渡门控/取消与离屏释放/手机150%及跨模型缩放记忆/200%缩放上限/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });
