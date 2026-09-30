@@ -1,9 +1,6 @@
 /* 长页面阅读辅助；不保存阅读轨迹。 */
 (() => {
-  // 手机首次打开时收起长串模型选项；之后由访客自行展开，不随旋转屏幕重置。
   const mobileLayout = window.matchMedia?.('(max-width: 700px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)');
-  const modelSettings = document.querySelector('.model-settings');
-  if (modelSettings && mobileLayout?.matches) modelSettings.open = false;
   const progress = document.getElementById('readingProgress');
   const topButton = document.getElementById('backToTop');
   const top = document.getElementById('top');
@@ -16,7 +13,7 @@
     const roomBounds = mobileLayout?.matches ? room?.getBoundingClientRect() : null;
     // 手机聊天时让出右下角，避免浮钮覆盖发送、话题或模型操作。
     const roomVisible = roomBounds && roomBounds.top < window.innerHeight && roomBounds.bottom > 0;
-    if (topButton) topButton.hidden = window.scrollY < window.innerHeight ||
+    if (topButton) topButton.hidden = document.body.classList.contains('room-immersive') || window.scrollY < window.innerHeight ||
       !!roomVisible ||
       !!document.querySelector('dialog[open], .lightbox:not([hidden])');
   };
@@ -30,6 +27,7 @@
   if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(document.body);
   // 弹窗出现后移除背后的浮动入口，关闭后恢复。
   const observer = new MutationObserver(schedule);
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   document.querySelectorAll('dialog, .lightbox').forEach((node) => observer.observe(node, { attributes: true, attributeFilter: ['open', 'hidden'] }));
   topButton?.addEventListener('click', () => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

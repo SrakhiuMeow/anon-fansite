@@ -119,7 +119,7 @@ function playbackClock() {
   };
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelReady = true } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelReady = true, mobileRoom } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
@@ -154,6 +154,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
       react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
       getState: () => ({ ready: modelReady }),
     },
+    ...(mobileRoom ? { AnonMobileRoom: mobileRoom } : {}),
     fetch: async (url, options = {}) => {
       assert.equal(url, "/api/chat");
       if (options.method !== "POST") return { ok: true, json: async () => ({ enabled: true, accessCodeRequired }) };
@@ -784,6 +785,75 @@ async function testCompactMobileScroll() {
   }
 }
 
+async function testMobileOverlayChat() {
+  for (const layout of [{ mobile: true }, { landscapeMobile: true }]) {
+    for (const mode of ["local", "deepseek"]) {
+      let prepared = 0;
+      const ui = await browserFixture({ ...layout, shortViewport: true,
+        mobileRoom: { prepareChat() { prepared++; return true; } },
+      });
+      ui.controls.scrollTop = 75;
+      ui.controls.scrollHeight = 900; ui.controls.clientHeight = 240;
+      ui.controls.bounds = { top: 260, bottom: 500 };
+      ui.ids.anonChatLog.bounds = { top: 520, bottom: 680 };
+      ui.select(mode); ui.submit("眨眼");
+      assert.equal(prepared, 1, "发送时应由手机房间打开浮动聊天面板");
+      assert.equal(ui.controls.scrollTop, 75, "全屏浮层不重置旧controls的滚动位置");
+      assert.equal(ui.ids.anonRoom.scrollCalls, undefined, "全屏聊天不得滚动外部页面");
+      if (mode === "deepseek") {
+        assert.equal(ui.requests.length, 1, "全屏聊天不必等待旧双rAF定位即可请求AI");
+        ui.submit("忙碌时不要重复打开");
+        assert.equal(prepared, 1, "忙碌时不重复打开浮层");
+        await ui.complete("来个 Wink！");
+      } else assert.match(ui.lastText(), /Wink/, "本地回复正常完成");
+      ui.frame(); ui.frame(); await tick();
+      assert.equal(ui.controls.scrollTop, 75, "随后动画帧也不能执行旧滚动逻辑");
+      assert.equal(ui.ids.anonChatLog.scrollCalls, undefined, "消息列表不得触发外部scrollIntoView");
+      if (mode === "deepseek") assert.equal(ui.lastText(), "来个 Wink！");
+      assert.equal(ui.send.disabled, false);
+    }
+  }
+
+  let prepared = 0;
+  const locked = await browserFixture({ mobile: true, accessCodeRequired: true,
+    mobileRoom: { prepareChat() { prepared++; return true; } },
+  });
+  locked.controls.scrollTop = 85;
+  const initialMessages = locked.ids.anonChatLog.children.length;
+  locked.submit("需要先解锁");
+  assert.equal(locked.ids.anonChatAccessDialog.open, true);
+  assert.equal(locked.ids.anonChatAccessCode.focused, true);
+  assert.equal(prepared, 0, "鉴权弹窗打开时不得调用会收起键盘的浮层hook");
+  assert.equal(locked.ids.anonRoom.scrollCalls, undefined);
+  assert.equal(locked.controls.scrollTop, 85);
+  assert.equal(locked.requests.length, 0);
+  assert.equal(locked.ids.anonChatLog.children.length, initialMessages, "未解锁的内容不应加入记录");
+  locked.unlock("DWBH"); locked.unlocks[0].resolve();
+  await settle(() => !locked.ids.anonChatAccessDialog.open, "正确密码解锁");
+  locked.submit("解锁后继续");
+  assert.equal(prepared, 1);
+  await locked.complete("继续聊吧！");
+  assert.equal(locked.lastText(), "继续聊吧！");
+
+  for (const mobile of [true, false]) {
+    let declined = 0;
+    const ui = await browserFixture({ mobile,
+      mobileRoom: { prepareChat() { declined++; return false; } },
+    });
+    ui.select("local"); ui.submit("你好");
+    assert.equal(declined, 1);
+    if (mobile) {
+      assert.equal(ui.ids.anonRoom.scrollCalls.length, 1, "未接管时保留旧手机定位");
+      assert.equal(ui.send.disabled, true);
+      ui.frame(); ui.frame();
+      await settle(() => !ui.send.disabled, "旧手机流程仍可完成");
+    } else {
+      assert.equal(ui.ids.anonRoom.scrollCalls, undefined, "桌面布局不增加页面滚动");
+      assert.equal(ui.send.disabled, false, "桌面本地回复仍同步完成");
+    }
+  }
+}
+
 (async () => {
   await testParser();
   await testClient();
@@ -793,5 +863,6 @@ async function testCompactMobileScroll() {
   await testLongReplyContinuation();
   await testReadingAndComposition();
   await testCompactMobileScroll();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读、中文输入法防误发送与短屏聊天内部定位。");
+  await testMobileOverlayChat();
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

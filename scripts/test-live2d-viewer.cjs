@@ -21,7 +21,8 @@ class Element {
   constructor() {
     this.children = []; this.dataset = {}; this.attributes = {}; this.handlers = {};
     this.clientWidth = 600; this.clientHeight = 700;
-    this.classList = { toggle() {} };
+    const classes = new Set();
+    this.classList = { contains: (name) => classes.has(name), add: (name) => classes.add(name), remove: (name) => classes.delete(name), toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); } };
   }
   setAttribute(key, value) { this.attributes[key] = value; }
   addEventListener(type, handler) { this.handlers[type] = handler; }
@@ -32,7 +33,7 @@ class Element {
   querySelector() { return null; }
 }
 async function harness(options = {}) {
-  const names = ["l2dStage", "l2dCanvas", "l2dStatus", "l2dFallback", "l2dHint", "l2dRetry", "l2dPause", "l2dFollowMouse", "l2dCostumes", "l2dMotions", "l2dExpressions", "l2dExpressionNote", "l2dZoomIn", "l2dZoomOut", "l2dZoomReset", "l2dZoomValue"];
+  const names = ["anonRoom", "l2dStage", "l2dCanvas", "l2dStatus", "l2dFallback", "l2dHint", "l2dRetry", "l2dPause", "l2dFollowMouse", "l2dCostumes", "l2dMotions", "l2dExpressions", "l2dExpressionNote", "l2dZoomIn", "l2dZoomOut", "l2dZoomReset", "l2dZoomValue"];
   const elements = Object.fromEntries(names.map((name) => [name, new Element()]));
   const defaults = Object.values(actions.defaults);
   const motions = [...new Set(defaults.map((item) => item.motion))].map((name) => name + ".mtn");
@@ -318,6 +319,31 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
   }
   {
     const h = await harness({ bdonSecond: true });
+    const model = h.models[0];
+    h.resize(390, 844);
+    const desktop = { scale: model.scale.value, x: model.x, y: model.y };
+    h.elements.anonRoom.classList.add("mobile-room");
+    h.resize(390, 844);
+    assert.equal(model.scale.value, desktop.scale, "手机构图不改变100%的缩放含义");
+    assert.equal(model.x, desktop.x, "手机仍水平居中");
+    assert.ok(model.y < desktop.y, "手机人物上移，为下方浮层留出脸部空间");
+    const phoneTop = model.y;
+    h.elements.l2dZoomIn.click();
+    assert.equal(model.y, phoneTop, "手机手动放大保持顶部锚点");
+    h.elements.l2dZoomReset.click();
+    h.elements.anonRoom.classList.remove("mobile-room");
+    h.resize(390, 844);
+    assert.deepEqual({ scale: model.scale.value, x: model.x, y: model.y }, desktop, "离开手机布局完整还原桌面构图");
+    h.elements.anonRoom.classList.add("mobile-room");
+    h.resize(320, 568);
+    const currentTop = model.y;
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.viewer.getState().costume === "second", "手机切换bdon模型");
+    assert.equal(h.viewer.getState().zoomPercent, 180);
+    assert.equal(h.models[1].y, currentTop, "bdon180%采用相同手机顶部锚点");
+  }
+  {
+    const h = await harness({ bdonSecond: true });
     h.elements.l2dZoomIn.click(); h.elements.l2dZoomIn.click();
     const top = h.models[0].y;
     h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
@@ -535,5 +561,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log("Live2D viewer 验证通过：33组加载/资源释放/播放/缩放/轮换回归，另验证真实12款默认比例及13语气×连续3轮全候选覆盖，共34组。");
+  console.log("Live2D viewer 验证通过：加载/资源释放/播放/缩放/轮换及手机构图还原回归；另验证真实12款默认比例及13语气×连续3轮全候选覆盖。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

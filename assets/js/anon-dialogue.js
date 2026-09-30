@@ -206,9 +206,10 @@
     setBusy(true);
     const active = new AbortController();
     controller = active;
-    // 手机将画面带回模型与最新回复，收起软键盘；两个面板不会互相遮挡。
+    // 手机全屏房间接管浮层与键盘；旧版内嵌布局继续使用原来的定位逻辑。
+    const mobileRoomPrepared = root.AnonMobileRoom?.prepareChat?.() === true;
     const mobileChatLayout = "(max-width: 700px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)";
-    if (root.matchMedia?.(mobileChatLayout).matches) {
+    if (!mobileRoomPrepared && root.matchMedia?.(mobileChatLayout).matches) {
       input.blur();
       const controls = root.document.querySelector(".l2d-controls");
       if (controls) controls.scrollTop = 0;

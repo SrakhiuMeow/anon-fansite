@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="day">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>千早爱音 | Chihaya Anon · 非官方应援站</title>
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
@@ -10,6 +10,7 @@
 <link rel="icon" href="assets/favicon.svg" />
 <link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
 <link rel="stylesheet" href="assets/css/style.css?v=20260930-12" />
+<link rel="stylesheet" href="assets/css/mobile-room.css?v=20260930-11" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -120,8 +121,13 @@
       </header>
 
       <div class="l2d-layout" id="anonRoom">
+        <div class="mobile-room-top mobile-room-only">
+          <button type="button" class="mobile-room-icon mobile-room-browse" id="mobileRoomBack" aria-label="浏览网站资料与卡面" title="浏览网站"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"/></svg><span>网站</span></button>
+          <div class="mobile-room-title"><strong>千早爱音</strong><span id="mobileRoomCostume">ANON'S ROOM</span></div>
+          <button type="button" class="mobile-room-icon" id="mobileRoomFullscreen" aria-label="进入全屏互动" aria-pressed="false" title="进入全屏互动"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+        </div>
         <div class="l2d-stage" id="l2dStage">
-          <canvas id="l2dCanvas" role="img" aria-label="千早爱音 Live2D 模型，可使用右侧按钮切换服装、动作和表情"></canvas>
+          <canvas id="l2dCanvas" role="img" aria-label="千早爱音 Live2D 模型，可使用操作面板切换服装、动作和表情"></canvas>
           <span class="room-label" aria-hidden="true">ANON'S ROOM / 01</span>
           <div class="l2d-zoom" role="group" aria-label="模型缩放，范围百分之五十至百分之一百八十">
             <button class="chip" type="button" id="l2dZoomIn" aria-label="放大模型" aria-controls="l2dCanvas" disabled>＋</button>
@@ -136,10 +142,24 @@
           </div>
         </div>
 
-        <div class="l2d-controls">
+        <div class="mobile-room-dock mobile-room-only" id="mobileRoomDock" aria-label="全屏互动操作">
+          <button type="button" class="mobile-room-action" id="mobileRoomChat" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 0 1 18 0Z"/><path d="M7 10h8m-8 4h5"/></svg><span>聊天</span></button>
+          <button type="button" class="mobile-room-action" id="mobileRoomTools" aria-expanded="false" aria-controls="mobileRoomControls"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4a4 4 0 0 1-8 0Z"/></svg><span>换装</span></button>
+          <button type="button" class="mobile-room-action" id="mobileRoomPrev" aria-label="上一套模型"><span class="mobile-room-arrow" aria-hidden="true">↑</span><span>上一套</span></button>
+          <button type="button" class="mobile-room-action" id="mobileRoomNext" aria-label="下一套模型"><span class="mobile-room-arrow" aria-hidden="true">↓</span><span>下一套</span></button>
+        </div>
+        <button type="button" class="mobile-room-prompt mobile-room-only" id="mobileRoomPrompt" aria-controls="mobileRoomControls"><span>和爱音说句话…</span><span aria-hidden="true">＋</span></button>
+        <div class="l2d-controls" id="mobileRoomControls">
+          <div class="mobile-panel-heading mobile-room-only" id="mobileRoomPanelHeading">
+            <div class="mobile-panel-tabs"><button type="button" id="mobileRoomChatTab" data-room-panel="chat" aria-pressed="false" aria-controls="roomChatPanel">聊聊天</button><button type="button" id="mobileRoomToolsTab" data-room-panel="tools" aria-pressed="false" aria-controls="roomToolsPanel">换装与操作</button></div>
+            <button type="button" class="mobile-panel-close" id="mobileRoomClose" aria-label="收起面板到侧边" title="收起到侧边">收起 <span aria-hidden="true">›</span></button>
+          </div>
+          <div class="room-chat-panel" id="roomChatPanel">
           <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge" id="anonChatEmotion" role="status">随对话变化</span></div>
+          <details class="chat-preferences" id="chatPreferences" open><summary class="mobile-room-only">对话设置与说明</summary>
           <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip" id="anonChatUnlock" type="button" aria-label="解锁 AI 聊天" hidden><span class="full-label">解锁 AI 聊天</span><span class="compact-label" aria-hidden="true">解锁 AI</span></button><button class="chip" id="anonChatLock" type="button" aria-label="重新锁定 AI 聊天" hidden><span class="full-label">重新锁定</span><span class="compact-label" aria-hidden="true">锁定 AI</span></button><button class="chip" id="anonChatClear" type="button" aria-label="清空对话"><span class="full-label">清空对话</span><span class="compact-label" aria-hidden="true">清空</span></button></div>
           <p class="chat-disclosure" id="chatDisclosure">本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。</p>
+          </details>
           <dialog class="chat-access-dialog" id="anonChatAccessDialog" aria-labelledby="anonChatAccessTitle" aria-describedby="anonChatAccessHint">
             <form id="anonChatAccessForm">
               <span class="eyebrow">ANON'S CHAT ROOM</span>
@@ -164,6 +184,9 @@
             <div class="chat-compose"><input id="anonChatInput" name="message" maxlength="200" autocomplete="off" placeholder="例如：眨眨眼、生日快乐…" aria-describedby="chatDisclosure" required /><button class="btn btn-primary" type="submit">发送</button></div>
           </form>
           <div class="chat-status-row"><p id="anonChatState" class="chat-state" role="status"></p><button class="chip" id="anonChatStop" type="button" hidden>停止回复</button></div>
+          </div>
+          <div class="room-tools-panel" id="roomToolsPanel">
+          <div class="mobile-room-zoom-host mobile-room-only" id="mobileRoomZoomHost"><span class="l2d-label">模型大小</span></div>
           <div class="room-tools"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip is-active" type="button" id="l2dFollowMouse" role="switch" aria-checked="true" aria-label="自动跟随鼠标">跟随鼠标：开</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
           <details class="model-settings" open><summary>换装与动作</summary>
           <div class="l2d-group">
@@ -181,6 +204,7 @@
           </div>
           <p class="l2d-hint" id="l2dHint"></p>
           </details>
+          </div>
         </div>
       </div>
 
@@ -892,9 +916,10 @@
 <script src="assets/data/anon-wiki.js?v=20260930-1"></script>
 <script src="assets/js/main.js?v=20260930-7"></script>
 <script src="assets/js/content.js?v=20260930-10"></script>
-<script src="assets/js/site-ui.js?v=20260930-9"></script>
+<script src="assets/js/site-ui.js?v=20260930-11"></script>
 <script src="assets/js/live2d-actions.js?v=20260930-6"></script>
-<script src="assets/js/live2d-viewer.js?v=20260930-8"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-9"></script>
+<script src="assets/js/live2d-viewer.js?v=20260930-11"></script>
+<script src="assets/js/mobile-room.js?v=20260930-11"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-11"></script>
 </body>
 </html>

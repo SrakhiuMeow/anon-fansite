@@ -171,10 +171,12 @@
     const bounds = model.getLocalBounds();
     const nativeW = bounds.width || model.internalModel.width || 2000;
     const nativeH = bounds.height || model.internalModel.height || 2500;
+    const mobileRoom = !!byId("anonRoom")?.classList.contains("mobile-room");
     const baseScale = Math.min((width * 0.86) / nativeW, (height * 0.9) / nativeH);
     const scale = baseScale * zoomPercent / 100;
     // 固定默认站位顶部和水平中心；放大时保留头部，上半身不会被脚底锚点推出画面。
-    const top = (height - nativeH * baseScale) / 2;
+    // 手机竖屏把脸部移到浮层上方；桌面仍用原有构图与缩放比例。
+    const top = (height - nativeH * baseScale) / 2 - (mobileRoom ? Math.max(0, height * 0.2 - 30) : 0);
     model.scale.set(scale);
     model.x = width / 2 - (bounds.x + nativeW / 2) * scale;
     model.y = top - bounds.y * scale;
