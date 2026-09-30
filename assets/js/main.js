@@ -251,6 +251,7 @@
 
   let activeCard = null;
   let activeVariant = null;
+  let lightboxOpener = null;
 
   const paintLightbox = () => {
     if (!activeCard || !lightboxImg) return;
@@ -259,7 +260,7 @@
     lightboxImg.src = variant.file;
     lightboxImg.alt = `${activeCard.nameCn || activeCard.nameJa} 卡面大图`;
     if (lightboxTitle) {
-      lightboxTitle.textContent = `${activeCard.nameCn || activeCard.nameJa}｜${activeCard.nameJa}`;
+      lightboxTitle.textContent = [...new Set([activeCard.nameCn, activeCard.nameJa].filter(Boolean))].join("｜");
     }
     if (lightboxMeta) {
       lightboxMeta.textContent = [
@@ -293,19 +294,22 @@
   };
 
   const openLightbox = (card) => {
+    lightboxOpener = document.activeElement;
     activeCard = card;
     activeVariant = card.default;
     paintLightbox();
     if (lightbox) {
       lightbox.hidden = false;
       document.body.style.overflow = "hidden";
+      lightboxClose?.focus();
     }
   };
 
   const closeLightbox = () => {
-    if (!lightbox) return;
+    if (!lightbox || lightbox.hidden) return;
     lightbox.hidden = true;
     document.body.style.overflow = "";
+    lightboxOpener?.focus();
   };
 
   if (grid) {
@@ -323,6 +327,13 @@
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeLightbox();
+    if (e.key === "Tab" && lightbox && !lightbox.hidden) {
+      const controls = Array.from(lightbox.querySelectorAll("button:not([disabled]), a[href]"));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    }
   });
 
   /* ---------- 10. 留言板（localStorage） ---------- */
@@ -350,7 +361,10 @@
   const load = () => {
     try {
       const raw = localStorage.getItem(STORAGE_LETTERS);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((item) => item && typeof item.name === "string" && typeof item.body === "string" && Number.isFinite(item.at)).slice(-200);
+      }
     } catch { /* 忽略 */ }
     return seedLetters;
   };
@@ -407,6 +421,7 @@
     const body = (bodyInput?.value || "").trim();
     if (!name || !body) return;
     letters.push({ name, body, at: Date.now() });
+    letters = letters.slice(-200);
     persist();
     renderLetters();
     form.reset();

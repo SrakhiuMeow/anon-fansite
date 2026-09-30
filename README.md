@@ -1,195 +1,108 @@
-# 千早爱音 应援站 · 规划与 Demo
+# 千早爱音应援站
 
-一个为「千早爱音（ちはや あのん / Chihaya Anon）」制作的应援网站，角色资料、卡面与立绘素材取自 [Bestdori](https://bestdori.com)。
+千早爱音（千早 愛音 / Anon Chihaya）的非官方粉丝网站，汇集官方角色资料、官方商品、卡面图鉴、Live2D 互动与萌娘百科摘编。
 
-> Demo 入口：index.html（纯静态，无需安装依赖，双击即可打开）
+- 线上地址：[anon.srakhiumeow.top](https://anon.srakhiumeow.top)
+- 仓库：[SrakhiuMeow/anon-fansite](https://github.com/SrakhiuMeow/anon-fansite)
+- 来源、核验范围与许可：[docs/SOURCES.md](docs/SOURCES.md)
 
----
+## 当前功能
 
-## 1. 一句话定位
-
-**「给一个想被所有人看见的女孩子，做一个也被所有人看见的网站。」**
-
-不做百科式的资料堆砌，而是有观点、有情绪的角色应援站：资料可溯源、解读有立场、视觉有性格。
-
-## 2. 目标与受众
-
-| 项 | 说明 |
+| 模块 | 内容 |
 | --- | --- |
-| 主要受众 | MyGO!!!!! / BanG Dream! 的粉丝；中文圈动画观众 |
-| 次要受众 | 刚认识爱音、想快速了解她的人 |
-| 核心目标 | 3 分钟内让人「记住爱音是谁、她为什么有意思」 |
-| 成功信号 | 有人愿意转发性格解读、有人愿意在留言板写字、有人翻完 16 张卡面 |
+| 官方资料 | BanG Dream! 官方角色页的身份、学校、生日、喜好与简介，附原始出处 |
+| 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售 |
+| 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可 |
+| 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本，支持筛选、灯箱和版本切换 |
+| Live2D | 私服（春）、制服（冬）、制服（夏）3 套服装；每套收录 41 个动作、28 个表情，提供常用动作与表情按钮 |
+| 互动对话 | 根据输入关键词生成本站原创同人回应，并触发对应模型动作与表情 |
+| 原有栏目 | 保留角色解读、成长线、音乐、官方入口、主题切换及本地留言板 |
 
-## 3. 信息架构
+商品数据为核验快照，价格、库存与配送范围以官方商店页面及结算结果为准。社区荣誉属于粉丝赛事或评审结果，不是 BanG Dream! 官方授予的角色头衔；卡面也不宣称覆盖所有最新实装。
 
-| 栏目 | 内容 | 数据来源 |
-| --- | --- | --- |
-| Hero | 官方透明立绘 + 姓名 + 四个关键数字 | Bestdori 立绘 |
-| 角色资料 Profile | 生日 / 身高 / 担当 / 成员色 / 学校 / 声优 / 所属 / 卡面数 | 官方角色页 + Bestdori |
-| 官方介绍 About | 官网原文 + 中文翻译 + 解读 | 动画官网 |
-| 性格关键词 Traits | 6 张卡：承认欲求、社交力、ミーハー、成绩、不服输、在意目光 | 官方设定 + 解读 |
-| 成长线 Story | 剧情节点 + 现实活动时间线 | 动画 + 公开资料 |
-| 音乐 Discography | 9 张单曲 + 3 张专辑，可按类型筛选 | 公开资料 |
-| 卡面图鉴 Cards | 16 张官方卡面，按稀有度筛选、点击看大图、切换特训前/后 | Bestdori |
-| 留言板 Letters | 本地留言（localStorage），不上传 | — |
-| 官方入口 Links | 官网 / 动画官网 / X / YouTube | — |
+对话由浏览器内的关键词规则处理，**不是生成式 AI，也不是官方台词**。聊天内容不上传、不持久保存。留言板和主题偏好保存在当前浏览器的 `localStorage`，不会同步至其他设备。
 
-后续可扩展：歌单试听页、成员关系图、Live 年表、生日企划专题、中日双语切换。
+## 本地运行
 
-## 4. 内容策略
+网站使用纯静态 HTML、CSS 和原生 JavaScript，无需 npm 安装或构建。在仓库根目录启动 HTTP 服务：
 
-1. **资料必须可溯源**：生日 9/8、身高 160cm、声优立石凛、羽丘女子学园高一——来自官方角色页；角色 ID 37、成员色 #FF8899、卡面与实装日期——来自 Bestdori。
-2. **官方原文 + 中文翻译并列**：既可信，也方便中文读者。
-3. **区分「官方设定」和「个人解读」**：性格卡带标签，避免把脑补当官方。
-4. **剧情与现实分线**：成长线里「剧情 ①②③④」与真实年份节点分开标注。
-5. **卡面即内容**：16 张卡面本身就是最好的素材，配上实装日期与稀有度就是一条天然的时间线。
+```sh
+python3 -m http.server 5173
+```
 
-## 5. 设计方向
+打开 [http://localhost:5173](http://localhost:5173)。Windows 可按本机 Python 安装情况将 `python3` 换成 `py` 或 `python`。
 
-- **色彩**：主色用官方成员色 #FF8899（珊瑚粉），辅助色水色 #7fd8e8（乐队主题色），渐变贯穿全站。
-- **气质**：明亮、轻快、带一点偶像感，但用深色文字与克制留白压住甜度。
-- **动效**：滚动淡入、均衡器、漂浮音符、立绘呼吸感、卡面悬浮放大；全部遵守 prefers-reduced-motion。
-- **主题**：白天 / 深夜两套配色，选择会被记住。
-- **字体**：不依赖网络字体，系统圆体优先，中日文混排不塌。
+Live2D 需要通过 HTTP/HTTPS 读取模型，不能依赖双击 `index.html` 的 `file://` 方式运行。模型和图片随仓库部署；Live2D 运行时从 CDN 加载，因此该模块仍需要网络和支持 WebGL 的浏览器。
 
-## 6. 技术方案
+## 目录与内容维护
 
-**纯静态三件套（HTML + CSS + 原生 JS）**，零依赖、零构建。卡面由一份 JS 数据文件驱动渲染，因此用 file:// 双击打开也能正常工作。
+```text
+index.html                     单页入口
+assets/css/                    页面与互动模块样式
+assets/js/                     原有交互、内容渲染、对话规则与 Live2D 播放器
+assets/data/anon-cards.js      卡片与角色素材数据
+assets/data/anon-live2d.js     Live2D 服装、动作与表情清单
+assets/data/anon-official.js   官方角色与商品快照
+assets/data/anon-wiki.js       萌娘百科摘编、荣誉与许可信息
+assets/img/                    卡面、立绘与商品图片
+assets/live2d/                 三套 Cubism 2.1 模型及动作、表情、贴图
+scripts/                       素材抓取、数据生成与离线检查脚本
+docs/SOURCES.md                内容来源、版本与核验说明
+data/bestdori/                 可重新抓取的原始数据和中间产物，不入库
+```
 
-    anon/
-    ├── index.html                  单页站点
-    ├── assets/
-    │   ├── css/style.css           样式与主题变量
-    │   ├── js/main.js              交互：主题 / 筛选 / 灯箱 / 留言
-    │   ├── data/anon-cards.js      站点读取的卡面数据（自动生成）
-    │   ├── img/cards/              卡面原图 + thumbs/ 缩略图
-    │   ├── img/standing/           透明底全身立绘
-    │   └── favicon.svg
-    ├── data/bestdori/
-    │   ├── anon-chihaya.json       清洗后的角色 + 卡片数据（可编辑）
-    │   └── raw/                    Bestdori API 原始 JSON 留档
-    ├── scripts/
-    │   ├── fetch_bestdori.py       从 Bestdori 下载资料与图片
-    │   └── build_site_data.py      生成 assets/data/anon-cards.js
-    └── README.md
+更新官方资料或商品时，核对官方原页、含税价格和可购状态，再修改 `assets/data/anon-official.js`、对应商品图片及 `checkedAt`。不要将未知库存标为在售，也不要直接把 Shopify 接口的税前内部金额用作展示价。保留商品原名、原图地址与官方购买链接。
 
-什么时候该升级：
+更新百科内容时，同步修改 `assets/data/anon-wiki.js` 和 [docs/SOURCES.md](docs/SOURCES.md)，保留页面修订版本、贡献者署名及许可链接；赛事赛季与消息发布日期应分别核对。
 
-| 需求 | 建议方案 |
-| --- | --- |
-| 内容变多、多人协作写稿 | Astro / Next.js + Markdown 内容集合 |
-| 作品与卡面可检索归档 | 现有 JSON 数据层 + 静态生成（雏形已具备） |
-| 真正可用的留言板 | Vercel/Cloudflare Functions + 数据库，或嵌 Giscus |
-| 多语言 | 抽出文案字典，按 ?lang= 或子路径切换 |
+### Bestdori 抓取与生成
 
-## 7. Bestdori 数据与素材
+原有三个 Python 脚本仍可使用。运行抓取需要 Python 3；如需生成卡面 WebP 缩略图，安装 Pillow：
 
-已抓取内容（角色 ID 37，乐队 MyGO!!!!!）：
+```sh
+python3 -m pip install Pillow
+python3 scripts/fetch_bestdori.py
+python3 scripts/build_site_data.py
+python3 scripts/fetch_live2d.py
+```
 
-| 项目 | 数量 | 位置 |
-| --- | --- | --- |
-| 卡面原图（特训前 / 特训后） | 27 张 | assets/img/cards/ |
-| 卡面缩略图（webp 640px） | 27 张 | assets/img/cards/thumbs/ |
-| 透明底全身立绘 | 16 张 | assets/img/standing/ |
-| 卡片元数据（稀有度 / 属性 / 实装日期 / 卡名） | 16 张 | data/bestdori/anon-chihaya.json |
-| 原始 API JSON（角色 / 卡片 / 乐队） | 3 份 | data/bestdori/raw/ |
+- `fetch_bestdori.py` 抓取角色资料、卡面与立绘，原始 JSON 和清洗结果写入 `data/bestdori/`，图片写入 `assets/img/`。
+- `build_site_data.py` 根据本地清洗结果生成 `assets/data/anon-cards.js`，此步骤可离线执行。
+- `fetch_live2d.py` 根据 Bestdori 的 `buildData.asset` 清单下载资源，组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。
 
-稀有度分布：★5 × 6、★4 × 1、★3 × 5、★2 × 3、★1 × 1。
+两个抓取脚本默认跳过已存在文件，加 `--force` 可重新下载；资源会按日服、国服目录尝试，缺失素材不会被当作有效图片。重新抓取后的数量取决于上游实际数据，提交前应重新检查。Live2D 的 `idle` 分组仅放待机动作，41 个可触发动作放在 `reaction` 分组，避免待机时随机播放哭泣或生气。
 
-刷新素材（已存在的文件会跳过，加 --force 可重下）：
+## 检查与运行时
 
-    python3 scripts/fetch_bestdori.py     # 需要联网
-    python3 scripts/build_site_data.py    # 离线，重新生成站点数据
+部署前在仓库根目录运行以下无依赖 Node.js 检查：
 
-补充说明：bili_res037001（bilibili 联动卡）位于 CN 服资源目录，脚本会自动回退查找；
-res037s01、res900037 在 Bestdori 上没有对应卡面文件，已自动跳过。
+```sh
+node scripts/check-site.cjs
+node scripts/test-dialogue.cjs
+```
 
-### Live2D 模型（已接入）
+前者检查页面引用、本地文件、图片格式、数据字段与脚本语法；后者检查关键词回应以及动作、表情与三套模型资源的对应关系。两者均为离线检查，浏览器布局、实际模型渲染、外链可达性和最新库存仍需另行验证。
 
-Bestdori 上的 Live2D 是**游戏拆包资源**，不是网页常见的格式：每个服装一套，清单文件 `buildData.asset`（Unity TextAsset，内容是 JSON）里记录模型、物理、贴图、动作、表情各自的真实文件名。脚本按清单抓齐后重新组装成标准 Cubism 2.1 的 `model.json`。
+Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0**，以及固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a` 的 Cubism 2 Core 镜像。CDN 脚本使用 SRI 完整性校验，加载器设置超时、备用 CDN 入口和页面重试按钮。网络、CDN 或 WebGL 故障时会显示备用内容与状态提示，文字回应仍可使用；这些措施不保证外部服务始终可用。
 
-| 项目 | 数量 | 说明 |
-| --- | --- | --- |
-| 服装 | 3 套 | 私服（春）、制服（冬）、制服（夏） |
-| 动作 | 每套 41 个 | `*.mtn.bytes` → 去掉 `.bytes` 即标准 `.mtn` |
-| 表情 | 每套 28 个 | `*.exp.json` |
-| 体积 | 约 6.6 MB | 存放在 `assets/live2d/<服装>/` |
+## 部署与忽略规则
 
-刷新模型：`python3 scripts/fetch_live2d.py`（需要联网，产物清单写入 `assets/data/anon-live2d.js`）。
+仓库已连接 Vercel，推送到 `main` 后自动部署至 [https://anon.srakhiumeow.top](https://anon.srakhiumeow.top)。`vercel.json` 使用静态部署配置，构建命令为空，输出目录为仓库根目录。部署完成后刷新页面查看更新；若旧资源仍被缓存，可强制刷新。
 
-网页端用 pixi.js + pixi-live2d-display（Cubism 2 版）+ Live2D Cubism 2 Core 渲染，三者都从 CDN 加载。
+```sh
+git add -A
+git commit -m "说明这次改了什么及原因"
+git push origin main
+```
 
-几个必须知道的坑：
+`.vercelignore` 排除根目录原始数据、抓取与检查脚本、文档及本地工具目录。站点所需的 `index.html` 和 `assets/` 必须入库并参与部署。
 
-- **Cubism 2 是 2013 年前后的老格式**，官方 CDN 上已经没有对应核心，现在用的是社区镜像 `cdn.jsdelivr.net/gh/dylanNew/live2d`。要长期上线，建议换自建 CDN 并确认 Live2D 的授权条款。
-- **直接双击打开 index.html 时播放器无法工作**——浏览器会拦截 `file://` 下的模型文件读取，请用本地服务或线上地址。
-- Bestdori 的清单没有保留动作分组（idle / tap 等），脚本统一放进 `idle` 组，由站点按索引调用。
-- Cubism 2 的 `getLocalBounds()` 在第一帧之后才给出真实几何，因此播放器会先摆一次、再量一次重新取景。
-- 作者样式会盖过浏览器默认的 `[hidden]{display:none}`：`.l2d-fallback` 这类元素必须显式写 `[hidden]{display:none}`，否则备用图会一直盖在画布上。
+**`.gitignore` 与 `.vercelignore` 中的原始数据规则必须写成 `/data/`。** 不带根目录锚定的 `data/` 会误排除 `assets/data/`，导致线上卡面、商品或其他数据无法加载。现有生成数据随仓库保存，运行网站不需要先执行抓取脚本。
 
-### 3D 模型（目前不可行）
+## 来源与许可
 
-结论：**能下载，但不能直接用**。
+本站与 BanG Dream!、Bushiroad、Bestdori 或萌娘百科没有官方关联。角色图片、商品图片、卡面、Live2D 素材及商标分别归其权利人所有；Bestdori 是粉丝资料整理站，不代表素材授权。请保留页面来源与权利声明。
 
-- Bestdori 的工具里只有 Live2D 查看器（另有资源浏览器 AssetExplorer、剧情查看器、音乐播放器等），**没有 3D 模型查看器**。
-- 游戏里的 3D / SD 模型是 Unity 资源包（AssetBundle），`sdAssetBundleName`（爱音为 `00037`）只是索引名，模型本身不是 glTF/VRM 这类网页可渲染格式。
-- 要放进网页，需要额外做一条转换流水线：UnityPy 解包 → 提取网格/材质/骨骼/贴图 → 转成 glTF → 用 three.js 渲染。工程量比 Live2D 大一个量级，而且转换质量、动画（动作、表情、口型）都需要单独验证。
+萌娘百科摘编文本注明“萌娘百科贡献者；本站归纳改写”，按核验日的 **CC BY-NC-SA 4.0** 提供，并附原条目、编辑历史和许可链接。该许可不覆盖角色图片、模型或商标。
 
-如果确实要做，建议单独立项，先跑通「一个模型 + 一个待机动作」的最小闭环，再考虑批量。
-
-## 8. 版权与合规（重要）
-
-- 卡面、立绘、音乐、Logo 版权归 **BanG Dream! Project / Bushiroad** 所有，本站仅作个人学习与自用演示。
-- 图片通过 Bestdori 获取（Bestdori 是粉丝资料站，非官方），**公开上线前请自行确认授权范围**。
-- 若要公开：建议改用自己绘制的应援图 + 文字介绍，阅读 Bushiroad 的二次创作指引，保留页脚的非官方声明，不要提供音乐下载。
-- 页脚与卡面区已内置来源与版权说明，请勿删除。
-
-## 9. 本地预览
-
-直接双击 index.html；或起一个本地服务：
-
-    cd /home/srakhiumeow/anon
-    python3 -m http.server 5173
-
-浏览器打开 http://localhost:5173
-
-## 10. 版本管理
-
-项目用 Git 管理，**`data/` 目录不入库**（已在 `.gitignore` 中排除）——那里是通过 Bestdori 抓取的原始数据与中间产物，体积较大且可随时重新生成。
-
-站点实际读取的 `assets/data/anon-cards.js` 是入库的，所以即使没有 `data/`，克隆下来也能直接打开页面；需要重新抓取时再执行 `scripts/` 下的两个脚本即可。
-
-远端仓库：**https://github.com/SrakhiuMeow/anon-fansite**（私有，SSH 地址 `git@github.com:SrakhiuMeow/anon-fansite.git`）
-
-新增或修改内容后：
-
-    git add -A
-    git commit -m "说明这次改了什么"
-    git push
-
-## 11. 部署（Vercel）
-
-线上地址：**https://anon-chihaya-fansite.vercel.app**（Vercel 项目名 `anon-chihaya-fansite`）
-
-仓库已连接 Vercel，**推送到 `main` 分支会自动部署到生产环境**，不用再手动跑命令。手动触发（例如改完还没提交）时也可以用：
-
-    vercel deploy --prod --yes
-
-换一台机器时先关联项目：
-
-    vercel link --project anon-chihaya-fansite
-
-部署范围由 `.vercelignore` 控制：只发布站点本身（`index.html`、`assets/`），`data/`、`scripts/`、文档与仓库文件都不上传。
-
-有一个容易踩的坑：规则必须写成 `/data/` 这样的根目录锚定写法。写成 `data/` 会匹配任意层级的 data 目录，把 `assets/data/anon-cards.js` 一起排除掉，线上卡面图鉴就会加载不出来。**`.vercelignore` 和 `.gitignore` 两处都要注意**——Git 方式的部署会同时参考 `.gitignore`。
-
-## 12. 后续路线图
-
-**Phase 1 · 内容打磨**：补全曲名读法、给成长线加动画话数标注、卡面再按属性/年份分层筛选。
-
-**Phase 2 · 素材扩充**：接入 Bestdori 的歌曲与 Live 数据、补充 3D 模型缩略图、为每张卡面写中文评注。
-
-**Phase 3 · 功能扩展**：生日倒计时专题页（9/8 自动换视觉）、本地收藏喜欢的卡面、中日切换。
-
-**Phase 4 · 上线**：绑定域名、静态托管 + HTTPS、接入统计，并在分享平台做一次首发。
+PixiJS 和 pixi-live2d-display 使用 MIT 许可；Live2D Cubism 2 Core 使用其专有许可，不能与前两者统一标为 MIT。具体来源、官方商品链接、百科版本和运行时许可入口见 [docs/SOURCES.md](docs/SOURCES.md)。

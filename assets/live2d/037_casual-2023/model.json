@@ -9,6 +9,13 @@
   "motions": {
     "idle": [
       {
+        "file": "motions/idle01.mtn",
+        "fade_in": 500,
+        "fade_out": 500
+      }
+    ],
+    "reaction": [
+      {
         "file": "motions/angry01.mtn",
         "fade_in": 500,
         "fade_out": 500

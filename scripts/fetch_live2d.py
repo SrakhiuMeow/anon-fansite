@@ -207,8 +207,12 @@ def build_costume(costume: dict, force: bool) -> dict | None:
         "model": manifest.get("model", ""),
         "textures": manifest["textures"],
         "physics": manifest.get("physics", ""),
-        # Bestdori 的清单没有保留动作分组，统一放进 idle 组，由站点按索引调用
-        "motions": {"idle": [{"file": f"motions/{m}", "fade_in": 500, "fade_out": 500} for m in motions]},
+        # Cubism 2 会自动随机播放 idle 组；这里只放待机，情绪动作单独按索引调用。
+        "motions": {
+            "idle": [{"file": "motions/idle01.mtn", "fade_in": 500, "fade_out": 500}]
+            if "idle01.mtn" in motions else [],
+            "reaction": [{"file": f"motions/{m}", "fade_in": 500, "fade_out": 500} for m in motions],
+        },
         "expressions": manifest["expressions"],
     }
     model_json = {k: v for k, v in model_json.items() if v not in ("", None)}

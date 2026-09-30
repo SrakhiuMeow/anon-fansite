@@ -4,9 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>千早爱音 | Chihaya Anon · 非官方应援站</title>
-<meta name="description" content="千早爱音（MyGO!!!!! 吉他手）的非官方应援站 Demo：角色资料、性格解读、成长线、音乐作品与留言板。" />
+<meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
+<meta name="theme-color" content="#ff8899" />
 <link rel="icon" href="assets/favicon.svg" />
-<link rel="stylesheet" href="assets/css/style.css" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260929-3" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -23,12 +24,11 @@
 
     <nav class="nav" id="nav" aria-label="站内导航">
       <a href="#profile">资料</a>
-      <a href="#about">介绍</a>
-      <a href="#traits">性格</a>
-      <a href="#story">成长线</a>
-      <a href="#music">音乐</a>
-      <a href="#cards">卡面</a>
       <a href="#live2d">Live2D</a>
+      <a href="#cards">卡面</a>
+      <a href="#goods">官方周边</a>
+      <a href="#wiki">百科</a>
+      <a href="#music">音乐</a>
       <a href="#letters">留言</a>
     </nav>
 
@@ -69,8 +69,8 @@
         </p>
 
         <div class="cta">
-          <a class="btn btn-primary" href="#profile">认识爱音</a>
-          <a class="btn btn-ghost" href="#music">看她唱的歌</a>
+          <a class="btn btn-primary" href="#live2d">和爱音聊聊天</a>
+          <a class="btn btn-ghost" href="#profile">认识爱音</a>
         </div>
 
         <ul class="quick-stats">
@@ -106,13 +106,81 @@
     </div>
   </section>
 
+  <!-- ============ LIVE2D ============ -->
+  <section class="section" id="live2d">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>今天，想聊些什么？<span class="en">Live2D Room</span></h2>
+        <p class="section-sub">
+          选一套喜欢的衣服，打个招呼。对话会触发对应的表情与动作。
+        </p>
+      </header>
+
+      <div class="l2d-layout" id="anonRoom">
+        <div class="l2d-stage" id="l2dStage">
+          <canvas id="l2dCanvas" role="img" aria-label="千早爱音 Live2D 模型，可使用右侧按钮切换服装、动作和表情"></canvas>
+          <span class="room-label" aria-hidden="true">ANON'S ROOM / 01</span>
+          <p class="l2d-status" id="l2dStatus" role="status">靠近这里时开始加载模型…</p>
+          <div class="l2d-fallback" id="l2dFallback" hidden>
+            <img src="assets/img/standing/res037002.png" alt="千早爱音立绘（静态备用）" />
+            <p>Live2D 运行时没能加载（多为 CDN 不可达），这里先显示静态立绘。</p>
+          </div>
+        </div>
+
+        <div class="l2d-controls">
+          <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge">应援小剧场</span></div>
+          <p class="chat-disclosure" id="chatDisclosure">本站原创的关键词互动，非官方台词，也非 AI 聊天。内容不上传，刷新即清空。</p>
+          <div class="chat-log" id="anonChatLog" role="log" aria-label="与爱音的互动记录" aria-live="polite" aria-relevant="additions"></div>
+          <div class="chat-prompts" aria-label="试试这些话题">
+            <button type="button" class="chip" data-chat-prompt="你好，爱音！">打个招呼</button>
+            <button type="button" class="chip" data-chat-prompt="今天有点难过，可以鼓励我吗？">给我打气</button>
+            <button type="button" class="chip" data-chat-prompt="一起练吉他吧">一起练琴</button>
+            <button type="button" class="chip" data-chat-prompt="爱音真可爱">夸夸爱音</button>
+          </div>
+          <form id="anonChatForm" class="chat-form">
+            <label for="anonChatInput">想对爱音说的话</label>
+            <div class="chat-compose"><input id="anonChatInput" name="message" maxlength="200" autocomplete="off" placeholder="例如：眨眨眼、生日快乐…" aria-describedby="chatDisclosure" required /><button class="btn btn-primary" type="submit">发送</button></div>
+          </form>
+          <p id="anonChatState" class="chat-state" role="status"></p>
+          <div class="room-tools"><button class="chip" type="button" id="l2dPause" aria-pressed="false">暂停动画</button><button class="chip" type="button" id="l2dRetry">重新加载</button></div>
+          <details class="model-settings" open><summary>换装与动作</summary>
+          <div class="l2d-group">
+            <span class="l2d-label">服装</span>
+            <div class="l2d-chips" id="l2dCostumes"></div>
+          </div>
+          <div class="l2d-group">
+            <span class="l2d-label">动作</span>
+            <div class="l2d-chips" id="l2dMotions"></div>
+          </div>
+          <div class="l2d-group">
+            <span class="l2d-label">表情</span>
+            <div class="l2d-chips" id="l2dExpressions"></div>
+          </div>
+          <p class="l2d-hint" id="l2dHint"></p>
+          </details>
+        </div>
+      </div>
+
+      <p class="source-note">
+        Live2D 模型来自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 的游戏拆包资源（Cubism 2.1 格式），
+        模型与动作同源加载，运行时由固定版本 CDN 提供。模型版权归各权利人所有。
+        加载失败时可重试，或继续使用文字互动；静态备用图不会模拟 Live2D 动作。
+      </p>
+    </div>
+  </section>
+
   <!-- ============ PROFILE ============ -->
   <section class="section" id="profile">
     <div class="wrap">
       <header class="section-head">
         <h2>角色资料<span class="en">Profile</span></h2>
-        <p class="section-sub">先把「她是谁」说清楚。</p>
+        <p class="section-sub">从一张名片，认识舞台上的她。</p>
       </header>
+
+      <div class="official-intro">
+        <div><span class="section-kicker">OFFICIAL PROFILE</span><p id="officialSummary">MyGO!!!!! 吉他手。明朗健谈、富有行动力，喜欢尝试新鲜事。</p></div>
+        <a class="text-link" id="officialProfileLink" href="https://bang-dream.com/artist/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">阅读官方介绍</a>
+      </div>
 
       <div class="profile-grid">
         <div class="stat-card reveal">
@@ -128,7 +196,7 @@
         <div class="stat-card reveal">
           <span class="stat-label">身高</span>
           <strong>160 cm</strong>
-          <em>MyGO!!!!! 第二高</em>
+          <em>角色设定身高</em>
         </div>
         <div class="stat-card reveal">
           <span class="stat-label">担当</span>
@@ -162,8 +230,10 @@
         </div>
       </div>
 
+      <dl class="official-details" id="officialDetails"></dl>
+
       <p class="source-note">
-        资料核对：TV 动画《BanG Dream! It's MyGO!!!!!》官方角色页 + MyGO!!!!! 公开资料（2026 年 9 月校对）。
+        资料核对：<a href="https://bang-dream.com/artist/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">BanG Dream! 官方角色页</a>、<a href="https://bang-dream.bushimo.jp/character/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">游戏官方角色页</a>（<span id="officialCheckedAt">2026-09-29</span>）。
         角色 ID、成员色色值、卡面与发行日期取自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a>。
         非官方整理，如有出入以官方为准。
       </p>
@@ -174,17 +244,14 @@
   <section class="section section-alt" id="about">
     <div class="wrap">
       <header class="section-head">
-        <h2>官方介绍 · 中文解读<span class="en">About</span></h2>
-        <p class="section-sub">官方原文很短，但信息量不小。</p>
+        <h2>认识她的另一面<span class="en">About</span></h2>
+        <p class="section-sub">官方设定为起点，也留一点粉丝自己的理解。</p>
       </header>
 
       <div class="about-grid">
         <blockquote class="quote-card reveal">
-          <p class="quote-jp">
-            羽丘女子学園の高校1年生。成績優秀でコミュ力と行動力があり、中学時代はクラスの人気者で、
-            生徒会長も務めていた。ミーハーな性格で流行っているものに手を出しがち。
-          </p>
-          <footer>— 官方角色介绍原文</footer>
+          <p class="quote-jp">明朗的社交力，向前的行动力。想被看见的她，也在学着看见身边的人。</p>
+          <footer>— 本站角色解读 · 非官方台词</footer>
         </blockquote>
 
         <div class="about-text reveal">
@@ -193,8 +260,8 @@
             还担任过学生会会长。性格爱赶时髦，容易追着流行的东西跑。
           </p>
           <p>
-            官方用两句话就把她的矛盾点写完了：<b>能力很强，动机很轻</b>。她不是被热爱推着走的人，
-            而是被人群的目光推着走——想被看见、想被夸、想站在最中间。这份「承认欲求」既是她的笑点，
+            在本站看来，她很有意思的一面是：<b>能力很强，动机很轻</b>。起初，比起对音乐的热爱，
+            她更在意人群的目光——想被看见、想被夸、想站在最中间。这份「承认欲求」既是她的笑点，
             也是她所有行动的起点。
           </p>
           <p>
@@ -204,6 +271,19 @@
           </p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ WIKI ============ -->
+  <section class="section" id="wiki">
+    <div class="wrap">
+      <header class="section-head"><span class="section-kicker">CHARACTER NOTES</span><h2>她的故事，大家的喜欢<span class="en">Wiki &amp; Honors</span></h2><p class="section-sub">来自萌娘百科的角色笔记，以及一次次被粉丝记住的瞬间。</p></header>
+      <div class="wiki-intro"><p id="wikiSummary"></p><a class="text-link" href="https://zh.moegirl.org.cn/千早爱音" target="_blank" rel="noopener noreferrer">前往萌娘百科</a></div>
+      <div class="wiki-traits" id="wikiTraits"></div>
+      <div class="honors-heading"><h3>社区评选记录</h3><p>年份按赛事赛季记录；以下为粉丝社区评选，并非作品官方奖项。</p></div>
+      <ol class="honors-list" id="honorsList"></ol>
+      <p class="source-note" id="wikiAttribution"></p>
+      <nav class="reading-links" aria-label="继续了解爱音"><a href="#about">本站解读</a><a href="#traits">性格关键词</a><a href="#story">成长时间线（含剧透）</a></nav>
     </div>
   </section>
 
@@ -261,7 +341,7 @@
     <div class="wrap">
       <header class="section-head">
         <h2>成长线<span class="en">Story</span></h2>
-        <p class="section-sub">从「想红」到「想一起走下去」。</p>
+        <p class="section-sub">从「想红」到「想一起走下去」。以下剧情概括含动画剧透。</p>
       </header>
 
       <ol class="timeline">
@@ -304,7 +384,7 @@
           <span class="tl-date">2023.06.29</span>
           <div class="tl-body">
             <h3>TV 动画开播</h3>
-            <p>《BanG Dream! It's MyGO!!!!!》开始播出，角色与声优同时公开，爱音的形象被更多人认识。</p>
+            <p>《BanG Dream! It's MyGO!!!!!》开始播出，爱音与伙伴们的故事被更多人认识。</p>
           </div>
         </li>
         <li class="reveal">
@@ -435,7 +515,7 @@
       <header class="section-head">
         <h2>卡面图鉴<span class="en">Cards</span></h2>
         <p class="section-sub">
-          共 <b id="cardTotal">16</b> 张官方卡面，按稀有度排列。点开任意一张可看大图，并切换「特训前 / 特训后」。
+        本站收录 <b id="cardTotal">16</b> 张卡片，可按稀有度筛选。点开卡面，查看大图与「特训前 / 特训后」版本。
         </p>
       </header>
 
@@ -458,9 +538,20 @@
       <div class="notice">
         <strong>素材来源与版权：</strong>
         卡面图片与卡片数据通过 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 获取，
-        版权归 BanG Dream! Project 所有，此处仅用于个人学习与自用演示。
-        若要公开上线，建议改用自己绘制的应援图，并遵守官方的二次创作指引。
+        卡面版权归各权利人所有；Bestdori 为非官方资料站。本站仅作非商业应援展示，素材来源不代表官方授权。
       </div>
+    </div>
+  </section>
+
+  <!-- ============ GOODS ============ -->
+  <section class="section section-alt" id="goods">
+    <div class="wrap">
+      <header class="section-head"><span class="section-kicker">A LITTLE MORE ANON</span><h2>把喜欢，带进日常<span class="en">Official Goods</span></h2><p class="section-sub">立牌、挂件与玩偶，来自武士道官方商店的爱音周边。</p></header>
+      <div class="goods-toolbar"><div class="filters" role="group" aria-label="商品状态筛选"><button type="button" class="chip is-active" data-goods-filter="all" aria-pressed="true">全部</button><button type="button" class="chip" data-goods-filter="available" aria-pressed="false">在售</button><button type="button" class="chip" data-goods-filter="preorder" aria-pressed="false">预售</button></div><p id="goodsSnapshot" class="snapshot-note"></p></div>
+      <div class="goods-grid" id="goodsGrid"></div>
+      <p id="goodsEmpty" class="notice" hidden>当前没有符合筛选条件的商品。</p>
+      <p id="goodsNotice" class="source-note"></p>
+      <a class="text-link" href="https://bushiroad-store.com/collections/anon" target="_blank" rel="noopener noreferrer">逛逛官方爱音专区</a>
     </div>
   </section>
 
@@ -469,7 +560,7 @@
     <div class="wrap">
       <header class="section-head">
         <h2>想对爱音说的话<span class="en">Letters</span></h2>
-        <p class="section-sub">Demo 留言板：内容只存在你自己的浏览器里，不会上传。</p>
+        <p class="section-sub">把想说的话留下来。留言仅保存在当前浏览器，不会上传。</p>
       </header>
 
       <div class="letters-grid">
@@ -496,52 +587,6 @@
           <ul class="letter-list" id="letterList"></ul>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- ============ LIVE2D ============ -->
-  <section class="section" id="live2d">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Live2D 立绘<span class="en">Live2D</span></h2>
-        <p class="section-sub">
-          从游戏资源里提取的 3 套 Live2D 模型，可以换装、播放动作与表情。点击画面里的她，还会有不同反应。
-        </p>
-      </header>
-
-      <div class="l2d-layout">
-        <div class="l2d-stage" id="l2dStage">
-          <canvas id="l2dCanvas"></canvas>
-          <p class="l2d-status" id="l2dStatus">滚动到这里时才会开始加载 Live2D 运行时…</p>
-          <div class="l2d-fallback" id="l2dFallback" hidden>
-            <img src="assets/img/standing/res037002.png" alt="千早爱音立绘（静态备用）" />
-            <p>Live2D 运行时没能加载（多为 CDN 不可达），这里先显示静态立绘。</p>
-          </div>
-        </div>
-
-        <div class="l2d-controls">
-          <div class="l2d-group">
-            <span class="l2d-label">服装</span>
-            <div class="l2d-chips" id="l2dCostumes"></div>
-          </div>
-          <div class="l2d-group">
-            <span class="l2d-label">动作</span>
-            <div class="l2d-chips" id="l2dMotions"></div>
-          </div>
-          <div class="l2d-group">
-            <span class="l2d-label">表情</span>
-            <div class="l2d-chips" id="l2dExpressions"></div>
-          </div>
-          <p class="l2d-hint" id="l2dHint"></p>
-        </div>
-      </div>
-
-      <p class="source-note">
-        Live2D 模型来自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 的游戏拆包资源（Cubism 2.1 格式），
-        运行时使用 pixi.js + pixi-live2d-display + Live2D Cubism 2 Core，全部由 CDN 提供。
-        模型版权归 BanG Dream! Project 所有，仅供个人学习与自用。
-        直接双击打开 index.html 时浏览器会拦截模型文件的读取，请用本地服务或线上地址访问。
-      </p>
     </div>
   </section>
 
@@ -574,22 +619,33 @@
     </div>
   </section>
 
+  <section class="section sources-section" id="sources">
+    <div class="wrap">
+      <header class="section-head"><h2>每一份喜欢，都有出处<span class="en">Sources</span></h2></header>
+      <div class="source-grid">
+        <article><h3>官方设定与周边</h3><p>角色资料归纳自 BanG Dream! 官方网站；商品图片、价格与售卖状态取自武士道官方商店。商品信息为核验时快照，结算以商店页面为准。</p><a href="https://bang-dream.com/artist/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">官方角色页</a> · <a href="https://bushiroad-store.com/collections/anon" target="_blank" rel="noopener noreferrer">官方商店</a></article>
+        <article><h3>卡面与 Live2D</h3><p>素材通过非官方资料站 Bestdori 获取，角色 ID 为 37。模型与图片版权归各权利人所有；互动对话为本站原创，不代表官方发言。</p><a href="https://bestdori.com/info/characters/37/Chihaya-Anon" target="_blank" rel="noopener noreferrer">Bestdori 角色资料</a> · <a href="https://www.live2d.com/en/sdk/license/" target="_blank" rel="noopener noreferrer">Live2D 许可</a></article>
+        <article><h3>百科摘编与荣誉</h3><p>摘编自萌娘百科《千早爱音》，保留版本与原文链接。相关归纳改写文本依 CC BY-NC-SA 4.0 共享；该许可不涵盖角色及商品图片。</p><a href="https://zh.moegirl.org.cn/index.php?title=千早爱音&amp;action=history" target="_blank" rel="noopener noreferrer">原文贡献者</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans" target="_blank" rel="noopener noreferrer">文本许可</a></article>
+      </div>
+      <noscript><p class="notice">请启用 JavaScript 以使用卡面、商品图鉴与互动功能；官方资料和来源链接仍可直接阅读。</p></noscript>
+    </div>
+  </section>
 </main>
 
 <footer class="site-footer">
   <div class="wrap footer-inner">
     <div>
       <strong>千早愛音 非公式応援サイト</strong>
-      <p>本页面为学习 / 演示用途的非官方粉丝站，与 BanG Dream! Project 无隶属关系。</p>
+      <p>非商业、非官方粉丝应援站，与 BanG Dream! Project 无隶属关系。角色、卡面与商品图片版权归各权利人所有。</p>
     </div>
-    <p class="copyright">© BanG Dream! Project ／ 本站 Demo 由 <span>Anon Fan Site</span> 制作</p>
+    <p class="copyright">BanG Dream! Project ／ <span>Anon Fan Site</span><br /><a href="#sources">资料来源与署名</a></p>
   </div>
 </footer>
 
 <div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="卡面预览">
   <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭">×</button>
   <div class="lightbox-content">
-    <img class="lightbox-img" id="lightboxImg" src="" alt="" />
+    <img class="lightbox-img" id="lightboxImg" alt="" />
     <div class="lightbox-body">
       <div class="lightbox-head">
         <strong id="lightboxTitle"></strong>
@@ -601,9 +657,13 @@
   </div>
 </div>
 
-<script src="assets/data/anon-cards.js"></script>
-<script src="assets/data/anon-live2d.js"></script>
-<script src="assets/js/main.js"></script>
-<script src="assets/js/live2d-viewer.js?v=2"></script>
+<script src="assets/data/anon-cards.js?v=20260929-3"></script>
+<script src="assets/data/anon-live2d.js?v=20260929-3"></script>
+<script src="assets/data/anon-official.js?v=20260929-3"></script>
+<script src="assets/data/anon-wiki.js?v=20260929-3"></script>
+<script src="assets/js/main.js?v=20260929-3"></script>
+<script src="assets/js/content.js?v=20260929-3"></script>
+<script src="assets/js/live2d-viewer.js?v=20260929-3"></script>
+<script src="assets/js/anon-dialogue.js?v=20260929-3"></script>
 </body>
 </html>
