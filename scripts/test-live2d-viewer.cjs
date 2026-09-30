@@ -9,9 +9,9 @@ const actions = require("../assets/js/live2d-actions.js");
 const source = fs.readFileSync(path.join(__dirname, "../assets/js/live2d-viewer.js"), "utf8");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => {
-  let resolve;
-  const promise = new Promise((done) => { resolve = done; });
-  return { promise, resolve };
+  let resolve; let reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 };
 async function settle(check, message) {
   for (let attempt = 0; attempt < 30; attempt++) { if (check()) return; await tick(); }
@@ -43,6 +43,8 @@ async function harness(options = {}) {
   }
   const costumes = ["first", "second"].map((id) => ({ id, modelJson: id, label: id, motions, expressions, motionCount: motions.length, expressionCount: expressions.length }));
   if (options.costume) costumes[0] = { ...options.costume, id: "first", modelJson: "first" };
+  if (options.bdonFirst) costumes[0].source = "https://bdon.moe";
+  if (options.bdonSecond) costumes[1].source = "https://bdon.moe";
   for (const slot of [...(options.performance ? [0] : []), ...(options.performanceSecond ? [1] : [])]) Object.assign(costumes[slot], {
     mode: "performance", expressions: [], expressionCount: 0,
     motions: ["mtn_idle_01.motion3.json", "mtn_play01_01.motion3.json", "mtn_play02_01.motion3.json"], motionCount: 3,
@@ -309,10 +311,69 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.ok(Math.abs(h.models[0].scale.value - Math.min(320 * .86 / 2000, 230 * .9 / 2500) * 1.2) < 1e-9);
     h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
     await settle(() => h.viewer.getState().costume === "second", "换装完成");
-    assert.equal(h.viewer.getState().zoomPercent, 120);
-    assert.equal(h.elements.l2dZoomValue.textContent, "120%");
-    assert.equal(h.models[1].scale.value, h.models[0].scale.value, "同尺寸新模型保留相对比例");
+    assert.equal(h.viewer.getState().zoomPercent, 100);
+    assert.equal(h.elements.l2dZoomValue.textContent, "100%");
+    assert.ok(Math.abs(h.models[1].scale.value * 1.2 - h.models[0].scale.value) < 1e-9, "切换到另一款 Bestdori 模型恢复默认比例");
     assert.equal(h.models[1].initialized, true, "暂停换装仍需产生首帧顶点，不能只发零增量更新");
+  }
+  {
+    const h = await harness({ bdonSecond: true });
+    h.elements.l2dZoomIn.click(); h.elements.l2dZoomIn.click();
+    const top = h.models[0].y;
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.viewer.getState().costume === "second", "切换到 bdon 模型");
+    assert.equal(h.viewer.getState().zoomPercent, 180);
+    assert.equal(h.elements.l2dZoomValue.textContent, "180%");
+    assert.equal(h.elements.l2dZoomIn.disabled, true);
+    assert.equal(h.elements.l2dZoomReset.disabled, true);
+    assert.match(h.elements.l2dZoomReset.attributes["aria-label"], /180%/);
+    assert.match(h.elements.l2dZoomReset.title, /180%/);
+    assert.equal(h.models[1].y, top, "180% 延续顶部锚点，不从底部放大裁头");
+    h.elements.l2dZoomOut.click();
+    assert.equal(h.viewer.getState().zoomPercent, 170);
+    assert.equal(h.elements.l2dZoomReset.disabled, false);
+    h.elements.l2dZoomReset.click();
+    assert.equal(h.viewer.getState().zoomPercent, 180, "bdon 还原按钮回来源默认比例");
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
+    await settle(() => h.viewer.getState().costume === "first", "回到 Bestdori 模型");
+    assert.equal(h.viewer.getState().zoomPercent, 100);
+    assert.match(h.elements.l2dZoomReset.attributes["aria-label"], /100%/);
+  }
+  {
+    const h = await harness({ bdonFirst: true, performance: true });
+    assert.equal(h.viewer.getState().zoomPercent, 180, "初始演奏模型采用 bdon 默认180%");
+    h.elements.l2dZoomOut.click(); h.elements.l2dZoomOut.click();
+    h.elements.l2dPause.click(); h.elements.l2dPause.click();
+    h.resize(320, 230);
+    assert.equal(h.viewer.getState().zoomPercent, 160, "暂停恢复及窗口变化保留手动比例");
+    h.elements.l2dZoomReset.click();
+    assert.equal(h.viewer.getState().zoomPercent, 180);
+  }
+  {
+    const h = await harness({ bdonSecond: true });
+    h.elements.l2dZoomIn.click(); h.elements.l2dZoomIn.click();
+    const loading = deferred(); h.pendingModels.set("second", loading);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    assert.equal(h.viewer.getState().zoomPercent, 120, "加载中不提前更改当前模型比例");
+    loading.reject(new Error("模拟模型文件加载失败"));
+    await settle(() => !h.viewer.getState().loading, "失败后保留当前服装");
+    assert.equal(h.viewer.getState().costume, "first");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "加载失败保留当前比例");
+    assert.match(h.elements.l2dZoomReset.attributes["aria-label"], /100%/);
+  }
+  {
+    const h = await harness({ bdonSecond: true });
+    h.elements.l2dZoomIn.click(); h.elements.l2dZoomIn.click();
+    const second = deferred(); const first = deferred();
+    h.pendingModels.set("second", second); h.pendingModels.set("first", first);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "first").click();
+    first.resolve(h.buildModel("first"));
+    await settle(() => !h.viewer.getState().loading, "同模型重新挂载完成");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "同模型重载保留手动比例");
+    second.resolve(h.buildModel("second")); await tick();
+    assert.equal(h.viewer.getState().costume, "first");
+    assert.equal(h.viewer.getState().zoomPercent, 120, "迟到的 bdon 模型不能将当前比例改为180%");
   }
   {
     const h = await harness({ performance: true });
@@ -451,6 +512,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal(data.ANON_LIVE2D.costumes.length, 12);
     for (const costume of data.ANON_LIVE2D.costumes) {
       const h = await harness({ costume });
+      assert.equal(h.viewer.getState().zoomPercent, costume.source === "https://bdon.moe" ? 180 : 100, `${costume.id}初始加载采用来源默认比例`);
       for (const emotion of Object.keys(actions.defaults)) {
         const candidates = actions.variants(costume, { emotion });
         const expected = candidates.map((choice) => `${choice.motion}|${choice.expression}`).sort();
@@ -473,5 +535,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log("Live2D viewer 验证通过：29组加载/资源释放/播放/缩放/轮换回归，另验证真实12款×13语气×连续3轮全候选覆盖，共30组。");
+  console.log("Live2D viewer 验证通过：33组加载/资源释放/播放/缩放/轮换回归，另验证真实12款默认比例及13语气×连续3轮全候选覆盖，共34组。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

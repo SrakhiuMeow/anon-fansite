@@ -20,6 +20,7 @@
   const expressionNoteEl = byId("l2dExpressionNote");
   const ZOOM_MIN = 50;
   const ZOOM_MAX = 180;
+  const defaultZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
@@ -70,7 +71,12 @@
     if (zoomValueEl) zoomValueEl.textContent = `${zoomPercent}%`;
     if (zoomOutEl) zoomOutEl.disabled = !model || zoomPercent <= ZOOM_MIN;
     if (zoomInEl) zoomInEl.disabled = !model || zoomPercent >= ZOOM_MAX;
-    if (zoomResetEl) zoomResetEl.disabled = !model || zoomPercent === 100;
+    if (zoomResetEl) {
+      const baseline = defaultZoom(current || requested);
+      zoomResetEl.disabled = !model || zoomPercent === baseline;
+      zoomResetEl.setAttribute("aria-label", `还原模型为默认 ${baseline}%`);
+      zoomResetEl.title = `还原为默认 ${baseline}%`;
+    }
   };
   const syncMouseTracking = () => {
     if (followMouseEl) {
@@ -285,6 +291,7 @@
       });
       if (version !== loadVersion) { retireModel(next); return false; }
       const previous = model;
+      const changedCostume = current?.id !== costume.id;
       model = next;
       current = costume;
       app.stage.addChild(next);
@@ -293,6 +300,8 @@
       syncMouseTracking();
       // PIXI 只在 deltaTime 非零时初始化 Core 顶点；暂停换装也需要一个静态首帧。
       next.update(1);
+      // 成功切换服装才采用该来源的默认比例；同款重载保留手动缩放。
+      if (changedCostume) zoomPercent = defaultZoom(costume);
       fitModel();
       clearTimeout(layoutTimer);
       layoutTimer = setTimeout(() => { if (version === loadVersion) fitModel(); }, 150);
@@ -455,7 +464,7 @@
   window.AnonLive2D = { react, retry: start, getState };
   zoomOutEl?.addEventListener("click", () => setZoom(zoomPercent - 10));
   zoomInEl?.addEventListener("click", () => setZoom(zoomPercent + 10));
-  zoomResetEl?.addEventListener("click", () => setZoom(100));
+  zoomResetEl?.addEventListener("click", () => setZoom(defaultZoom(current || requested)));
   retryEl?.addEventListener("click", () => { void start(); });
   followMouseEl?.addEventListener("click", () => {
     followMouse = !followMouse;
