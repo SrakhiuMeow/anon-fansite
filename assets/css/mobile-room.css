@@ -41,7 +41,9 @@
   .mobile-room-browse svg{width:18px;height:18px}
   .mobile-room svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
   .mobile-room :is(button,summary):focus-visible{outline:2px solid var(--coral-deep);outline-offset:3px}
-  .mobile-room-dock{position:absolute;z-index:3;right:max(.6rem,env(safe-area-inset-right));top:max(calc(var(--room-zoom-top) + 170px),calc(50% - 157px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));width:50px;flex-direction:column;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:none}
+  .mobile-room-rail{position:absolute;z-index:6;right:max(.6rem,env(safe-area-inset-right));top:max(var(--room-zoom-top),calc(50% - 240px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));width:50px;flex-direction:column;gap:5px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;pointer-events:auto}
+  .mobile-room-dock{position:static;width:50px;flex:0 0 auto;flex-direction:column;gap:5px;pointer-events:none}
+  .mobile-room:not([data-panel="closed"]) .mobile-room-rail{top:var(--room-zoom-top);bottom:auto;max-height:calc(100% - var(--room-zoom-top) - max(.6rem,env(safe-area-inset-bottom)))}
   .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25;pointer-events:auto}
   .mobile-room-action svg{width:20px;height:20px}
   .mobile-room-arrow{font-size:21px;line-height:20px}
@@ -102,7 +104,7 @@
   .mobile-room[data-panel="tools"] :is(#l2dMotionGroup,#l2dExpressionGroup),
   .mobile-room[data-panel="expressions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dMotionGroup),
   .mobile-room[data-panel="motions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dExpressionGroup){display:none}
-  .mobile-room .mobile-room-zoom-host{position:absolute;z-index:6;top:var(--room-zoom-top);right:max(.6rem,env(safe-area-inset-right));display:flex;align-items:center;margin:0;width:50px}
+  .mobile-room .mobile-room-zoom-host{position:static;display:flex;flex:0 0 auto;align-items:center;margin:0;width:50px;pointer-events:auto}
   .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:column;align-items:center;gap:0;width:50px;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a}
   .mobile-room .l2d-zoom output{order:0;min-width:36px;height:24px;line-height:24px;text-align:center;font-size:12px}
   .mobile-room .l2d-zoom #l2dZoomOut{order:1}
