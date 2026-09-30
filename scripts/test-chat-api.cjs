@@ -2,6 +2,7 @@
 
 // 调用真实 handler、仅替换 fetch；不需要 API Key，不发出付费请求。
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const { EventEmitter } = require("node:events");
 const path = require("node:path");
 const handlerPath = path.resolve(__dirname, "../api/chat.js");
@@ -161,7 +162,17 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal(body.stream, true);
       assert.deepEqual(body.thinking, { type: "disabled" });
       assert.equal(body.messages[0].role, "system");
-      assert.match(body.messages[0].content, /非官方/);
+      // 站长上传原文的导入快照：不依赖本机 Downloads，也不忽略空白或换行。
+      const persona = body.messages[0].content.slice(0, 6002);
+      const protocol = body.messages[0].content.slice(6002);
+      assert.equal(createHash("sha256").update(persona, "utf8").digest("hex"), "4497f5dc085d3b18e733eb02b1068c78feca8216d5be4132f51dee5fb91a2ca5");
+      assert.ok(persona.endsWith("祥子ちゃん"));
+      assert.ok(protocol.startsWith("\n\n【网站交互与输出约定】"));
+      assert.match(protocol, /站长提供/);
+      assert.match(protocol, /非官方AI角色互动/);
+      assert.ok(protocol.includes("回复必须先输出一行 [[emotion]]"));
+      assert.ok(protocol.includes("smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、neutral"));
+      for (const oldText of ["已核验角色事实：", "以下是本站对角色的同人演绎规则", "眼光不错嘛，这个发饰", "又被拒绝，真的会很丧欸", "那、那个转弦是有点卡啦"]) assert.ok(!protocol.includes(oldText));
       assert.equal(body.messages[1].role, "user");
       assert.ok(!Object.hasOwn(body.messages[1], "name"));
       return streamed(`: keep-alive\n\n${chunk("[[sm")}${chunk("ile]]\n你")}${chunk("好呀！🎸")}${chunk(null, "stop")}data: [DONE]\n\n`);
