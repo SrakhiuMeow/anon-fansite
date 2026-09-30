@@ -13,6 +13,13 @@
   const retryEl = byId("l2dRetry");
   const pauseEl = byId("l2dPause");
   const followMouseEl = byId("l2dFollowMouse");
+  const zoomOutEl = byId("l2dZoomOut");
+  const zoomInEl = byId("l2dZoomIn");
+  const zoomResetEl = byId("l2dZoomReset");
+  const zoomValueEl = byId("l2dZoomValue");
+  const expressionNoteEl = byId("l2dExpressionNote");
+  const ZOOM_MIN = 50;
+  const ZOOM_MAX = 180;
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
@@ -41,6 +48,7 @@
   let failed = false;
   let layoutTimer = null;
   let followMouse = true;
+  let zoomPercent = 100;
   let desiredReaction = { emotion: "neutral" };
   try { followMouse = localStorage.getItem(FOLLOW_MOUSE_STORAGE) !== "false"; } catch { /* 隐私模式下仍可使用开关 */ }
 
@@ -51,7 +59,13 @@
   };
   const setHint = (text) => { if (hintEl) hintEl.textContent = text; };
   const emitState = () => window.dispatchEvent(new CustomEvent("anon:live2d-state", { detail: getState() }));
-  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, costume: current?.id || null });
+  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, zoomPercent, costume: current?.id || null });
+  const syncZoomControls = () => {
+    if (zoomValueEl) zoomValueEl.textContent = `${zoomPercent}%`;
+    if (zoomOutEl) zoomOutEl.disabled = !model || zoomPercent <= ZOOM_MIN;
+    if (zoomInEl) zoomInEl.disabled = !model || zoomPercent >= ZOOM_MAX;
+    if (zoomResetEl) zoomResetEl.disabled = !model || zoomPercent === 100;
+  };
   const syncMouseTracking = () => {
     if (followMouseEl) {
       followMouseEl.textContent = followMouse ? "跟随鼠标：开" : "跟随鼠标：关";
@@ -85,6 +99,7 @@
       pauseEl.textContent = paused ? "播放动画" : "暂停动画";
       pauseEl.setAttribute("aria-pressed", String(paused));
     }
+    syncZoomControls();
   };
   const showFailure = (text) => {
     failed = true;
@@ -143,11 +158,20 @@
     const bounds = model.getLocalBounds();
     const nativeW = bounds.width || model.internalModel.width || 2000;
     const nativeH = bounds.height || model.internalModel.height || 2500;
-    const scale = Math.min((width * 0.86) / nativeW, (height * 0.9) / nativeH);
+    const baseScale = Math.min((width * 0.86) / nativeW, (height * 0.9) / nativeH);
+    const scale = baseScale * zoomPercent / 100;
+    // 固定默认站位顶部和水平中心；放大时保留头部，上半身不会被脚底锚点推出画面。
+    const top = (height - nativeH * baseScale) / 2;
     model.scale.set(scale);
-    model.x = (width - nativeW * scale) / 2 - bounds.x * scale;
-    model.y = (height - nativeH * scale) / 2 - bounds.y * scale;
+    model.x = width / 2 - (bounds.x + nativeW / 2) * scale;
+    model.y = top - bounds.y * scale;
     app.render();
+  };
+  const setZoom = (percent) => {
+    zoomPercent = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, percent));
+    fitModel();
+    syncZoomControls();
+    emitState();
   };
   const buildChips = (host, items, onPick) => {
     if (!host) return;
@@ -169,16 +193,24 @@
       if (costume && (costume.id !== current?.id || loading)) await mountModel(costume);
     });
     markActive(hosts.costume, current.id);
-    buildChips(hosts.motion, MOTIONS.filter(([motion]) => actions.resolve(current, { motion })), async (motion) => {
+    const performance = current.mode === "performance";
+    const motionItems = performance
+      ? (current.performanceActions?.map(({ motion, label }) => [motion, label]) || current.motions.map((file, index) => {
+        const name = actions.stem(file);
+        return [name, current.motionLabels?.[name] || `演奏动作 ${index + 1}`];
+      }))
+      : MOTIONS.filter(([motion]) => actions.resolve(current, { motion }));
+    buildChips(hosts.motion, motionItems, async (motion) => {
       const result = await react({ motion });
-      setHint(result.ok ? `已播放「${MOTIONS.find(([name]) => name === motion)[1]}」动作。` : result.reason);
+      setHint(result.ok ? `已播放「${motionItems.find(([name]) => name === motion)[1]}」动作。` : result.reason);
     });
     buildChips(hosts.expression, EXPRESSIONS.filter(([expression]) => actions.resolve(current, { expression })), async (expression) => {
       const result = await react({ expression });
       setHint(result.ok ? `已切换「${EXPRESSIONS.find(([name]) => name === expression)[1]}」表情。` : result.reason);
     });
     markActive(hosts.expression, "default");
-    setHint(`当前服装有 ${current.motionCount} 个动作、${current.expressionCount} 个表情。${paused ? "动画已暂停，可按播放按钮开始。" : "试着打个招呼，或者点选一个动作。"}`);
+    if (expressionNoteEl) expressionNoteEl.hidden = current.expressions.length > 0;
+    setHint(`当前服装有 ${current.motionCount} 个动作、${current.expressionCount} 个独立表情。${performance ? "此款以吉他演奏为主，可手选上方舞台动作。" : ""}${paused ? "动画已暂停，可按播放按钮开始。" : "试着打个招呼，或者点选一个动作。"}`);
   };
 
   const warmReactions = async (target, costume) => {
@@ -188,7 +220,7 @@
       if (target !== model) return;
       const choice = actions.resolve(costume, { emotion });
       if (!choice) continue;
-      const expressionIndex = manager.expressionManager?.getExpressionIndex(choice.expression);
+      const expressionIndex = choice.expression ? manager.expressionManager?.getExpressionIndex(choice.expression) : -1;
       await Promise.allSettled([
         choice.motion ? manager.loadMotion(choice.group, choice.index) : null,
         expressionIndex >= 0 ? manager.expressionManager.loadExpression(expressionIndex) : null,
@@ -220,7 +252,8 @@
       if (previous) { app.stage.removeChild(previous); previous.destroy(); }
       // 加载期间也能切换偏好，以完成加载时的最新开关状态为准。
       syncMouseTracking();
-      next.update(0);
+      // PIXI 只在 deltaTime 非零时初始化 Core 顶点；暂停换装也需要一个静态首帧。
+      next.update(1);
       fitModel();
       clearTimeout(layoutTimer);
       layoutTimer = setTimeout(() => { if (version === loadVersion) fitModel(); }, 150);
@@ -283,7 +316,8 @@
     if (!inView || document.hidden) return { ok: false, reason: "文字回复已送达；模型在可见时播放动作。" };
     const version = ++reactionVersion;
     const target = model;
-    const choice = actions.resolve(current, request);
+    const costume = current;
+    const choice = actions.resolve(costume, request);
     if (!choice) return { ok: false, reason: "当前服装没有这个动作或表情。" };
     const { motion, expression, group, index } = choice;
     try {
@@ -306,9 +340,9 @@
       ]);
       if (signal?.aborted || version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
       if (results.some((result) => result === false)) return { ok: false, reason: "文字回复已送达；动作未能播放，请再试一次。" };
-      if (motion) markActive(hosts.motion, actions.defaults[choice.emotion]?.motion || motion);
+      if (motion) markActive(hosts.motion, current.mode === "performance" ? motion : actions.defaults[choice.emotion]?.motion || motion);
       if (expression) markActive(hosts.expression, actions.defaults[choice.emotion]?.expression || expression);
-      return { ok: true, motion, expression, emotion: choice.emotion };
+      return { ok: true, motion, expression, emotion: choice.emotion, mode: costume.mode || "story" };
     } catch (error) {
       console.warn("Live2D reaction:", error);
       return { ok: false, reason: "文字回复已送达；动作资源加载失败，请重试。" };
@@ -316,6 +350,9 @@
   };
 
   window.AnonLive2D = { react, retry: start, getState };
+  zoomOutEl?.addEventListener("click", () => setZoom(zoomPercent - 10));
+  zoomInEl?.addEventListener("click", () => setZoom(zoomPercent + 10));
+  zoomResetEl?.addEventListener("click", () => setZoom(100));
   retryEl?.addEventListener("click", () => { void start(); });
   followMouseEl?.addEventListener("click", () => {
     followMouse = !followMouse;

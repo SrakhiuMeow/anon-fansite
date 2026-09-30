@@ -3,6 +3,10 @@
   "manifestURL": "https://storage.bdon.moe/moenotes/models/adv_live2d_anon_002_live_01.json",
   "manifestSha256": "1b7454d724203d9c11061aa71c6ebcd116a6fa5dffb190a5e74e973edd380b87",
   "sourceModelId": "adv_live2d_anon_002_live_01",
+  "catalogUrls": [
+    "https://storage.bdon.moe/moenotes/models.json",
+    "https://assets.bdon.moe/chart-site/models.json"
+  ],
   "mocVersion": 5,
   "conversion": "Unity CubismFadeMotionData Hermite curves -> restricted cubic Beziers; CubismExpressionData -> exp3; CubismPhysicsRig -> physics3. Original parameters retained.",
   "upstreamFiles": {

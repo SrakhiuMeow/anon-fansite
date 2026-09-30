@@ -155,6 +155,7 @@ if (live) {
   counts.costumes = costumes.length;
   check(live.characterId === 37, 'Live2D 角色不是千早爱音（ID 37）');
   unique(costumes.map((costume) => costume.id), 'Live2D 服装 ID');
+  unique(costumes.map((costume) => costume.label), 'Live2D 服装名称');
   check(costumes.some((costume) => costume.id === live.defaultCostume), 'Live2D 默认服装不存在');
   for (const costume of costumes) {
     const label = `Live2D ${costume.id}`;
@@ -184,13 +185,14 @@ if (live) {
       file(motion.file, `${label} 动作`, base);
       if (motion.sound) file(motion.sound, `${label} 动作声音`, base);
     }
-    const expressions = list(model.expressions, `${label} 表情`);
+    const minimumExpressions = costume.mode === 'performance' ? 0 : 1;
+    const expressions = list(model.expressions, `${label} 表情`, minimumExpressions);
     for (const expression of expressions) {
       const dependency = file(expression.file, `${label} 表情 ${expression.name}`, base);
       if (dependency) json(dependency, `${label} 表情 ${expression.name}`);
     }
     const declaredMotions = list(costume.motions, `${label} 动作目录`);
-    const declaredExpressions = list(costume.expressions, `${label} 表情目录`);
+    const declaredExpressions = list(costume.expressions, `${label} 表情目录`, minimumExpressions);
     const motionFiles = new Set(motions.map((motion) => path.basename(motion.file || '')));
     const expressionNames = new Set(expressions.map((expression) => expression.name));
     check(costume.motionCount === declaredMotions.length, `${label} 动作计数不符`);

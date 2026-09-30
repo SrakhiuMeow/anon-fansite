@@ -143,8 +143,9 @@
       const outcome = await abortable(root.AnonLive2D?.react(signal ? { ...result, signal } : result), signal);
       if (signal?.aborted || version !== reactionRequest || turn !== request) return;
       if (emotion) {
-        emotion.textContent = outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
-        emotion.title = outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
+        const performance = outcome?.ok && outcome.mode === "performance" && outcome.expression === "";
+        emotion.textContent = performance ? "回应：演奏姿态" : outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
+        emotion.title = performance ? `本轮语气：${label}。当前演奏模型没有独立表情，已应用实际可用姿态。` : outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
       }
     } catch {
       if (!signal?.aborted && version === reactionRequest && turn === request && emotion) {

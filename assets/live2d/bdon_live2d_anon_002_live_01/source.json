@@ -1,0 +1,153 @@
+{
+  "source": "https://bdon.moe/tools/live2d?model=live2d_anon_002_live_01",
+  "manifestURL": "https://assets.bdon.moe/chart-site/models/live2d_anon_002_live_01.json",
+  "manifestSha256": "86fee7b6d455cc7ba3b7ccfbefffb268874af13c3f818b6676febc44f3321d6e",
+  "sourceModelId": "live2d_anon_002_live_01",
+  "catalogUrls": [
+    "https://assets.bdon.moe/chart-site/models.json"
+  ],
+  "mocVersion": 5,
+  "conversion": "Unity CubismFadeMotionData Hermite curves -> restricted cubic Beziers; CubismExpressionData -> exp3; CubismPhysicsRig -> physics3. Original parameters retained.",
+  "upstreamFiles": {
+    "live2d_anon_002_live_01.moc3": {
+      "asset": "assets/46fcea1d0da7268d548c513069e9c764d051d309c9ced6bd439484824f19b978.moc3",
+      "size": 2907328
+    },
+    "live2d_anon_002_live_01.prefab.json": {
+      "parts": [
+        [
+          "key",
+          "assets/4e34e6249a49831f6b82fe723fbb6a6fc414bc4cc5f9325111c5619068163286.json",
+          81
+        ],
+        [
+          "nodes",
+          "assets/f0b1528761549dbdf170b07ebea89f1f36211140a43c8708af91a6e09ee96c72.json",
+          6417019
+        ],
+        [
+          "canvas",
+          "assets/808d0b9b92adfe23b7be1587521682031302330400156a1ff343404175348b94.json",
+          104
+        ]
+      ],
+      "size": 6417231
+    },
+    "model.json": {
+      "asset": "assets/0c86c1b48772930a3a33ba8e107e0de5b62ffd79b664cb4f4d52dd8a92cc7323.json",
+      "size": 941
+    },
+    "shaders/Live2D_Cubism_Lit-URP-ADV-optimize.json": {
+      "asset": "assets/294409d4a76657de2d24c08f34967764fe286b12f6d09977c06a42ccd51c6178.json",
+      "size": 11877
+    },
+    "shaders/Live2D_Cubism_Lit-URP-ADV-optimize/gles3/s0p0_vertex_0.glsl": {
+      "asset": "assets/1ab0b5ffbcc56e31cd58d05286a3fabe786e14431009f9d840eba27bdd827116.glsl",
+      "size": 12018
+    },
+    "shaders/Live2D_Cubism_Lit-URP-ADV-optimize/gles3/s0p0_vertex_1.glsl": {
+      "asset": "assets/52a623bf1ccea31db12047c424188cb97553f6791b29ca87883975ce90ccf0c4.glsl",
+      "size": 13795
+    },
+    "shaders/Live2D_Cubism_Lit-URP-ADV-optimize/gles3/s0p0_vertex_3.glsl": {
+      "asset": "assets/23c5baaa47490353217fdc0ec44cdf81a9014db97067ebf612a8968a640593bc.glsl",
+      "size": 13831
+    },
+    "shaders/Live2D_Cubism_Mask.json": {
+      "asset": "assets/1fb98c24253c28d076eb61c29d02fa56c93f591c15d3c0c17c602f3e74eb6a70.json",
+      "size": 4649
+    },
+    "shaders/Live2D_Cubism_Mask/gles3/s0p0_vertex_0.glsl": {
+      "asset": "assets/e675927421e12afc3f3834e04cf04dea3db125857cf6cfe06dcc0a5908cde2b1.glsl",
+      "size": 2459
+    },
+    "shaders/shaders.json": {
+      "asset": "assets/d7ce5ff57f8e8106dc4eaf334bc0c9ec7d5ba214b6250944a0becd2a911248ca.json",
+      "size": 945
+    },
+    "textures/texture_00-086a4c66.png": {
+      "asset": "assets/89eccbd9c48dedca83771176d62cfcf27e44d4c8435c3f2a6ae1f66dade97072.png",
+      "size": 2600712
+    },
+    "textures/texture_01-6c87582d.png": {
+      "asset": "assets/483281574cd554a42e719b92be97f308b83dfe584d8558d3d0214160506d3cf8.png",
+      "size": 1884452
+    },
+    "textures/texture_02-689fc93e.png": {
+      "asset": "assets/6df0476095fd25564f38597711a80323c293ba6c1bbf93b798da2a92570871ef.png",
+      "size": 1274723
+    }
+  },
+  "files": [
+    {
+      "path": "model.moc3",
+      "bytes": 2907328,
+      "sha256": "46fcea1d0da7268d548c513069e9c764d051d309c9ced6bd439484824f19b978"
+    },
+    {
+      "path": "model.model3.json",
+      "bytes": 1247,
+      "sha256": "e6df1b2a1104fe4e99ac62e2d5b812bf6ee61c34aebe3d188bb041dba8c2ce01"
+    },
+    {
+      "path": "motions/mtn_action_01.motion3.json",
+      "bytes": 294406,
+      "sha256": "6f2c0b48a6b10464245cc7a28dc3952175d7e381ab6724c2e60acc5b66dba52f"
+    },
+    {
+      "path": "motions/mtn_finish_01.motion3.json",
+      "bytes": 223612,
+      "sha256": "2fa7bf1d54e0380341f9f047bf88b5bae5c7ce175e7f5a574065be2c99a5cdcd"
+    },
+    {
+      "path": "motions/mtn_idle_01.motion3.json",
+      "bytes": 79454,
+      "sha256": "49ec5e1d9b1cb1f0a0079a3f42f2e2fe60b61236c8444d48f56e38b4f060d5d9"
+    },
+    {
+      "path": "motions/mtn_play01_01.motion3.json",
+      "bytes": 551415,
+      "sha256": "2a2f86a570933a5109a7fbde614f694257edda0616e2ffbcd824dd83e805c97e"
+    },
+    {
+      "path": "motions/mtn_play01_02.motion3.json",
+      "bytes": 520003,
+      "sha256": "cf018e3a5b7dd0c80215e4705a3b1ac9a8c3a34a1312a99a4fd82215feb883a0"
+    },
+    {
+      "path": "motions/mtn_play01_03.motion3.json",
+      "bytes": 555892,
+      "sha256": "f72b7e590c36a10b15d618e152c936227d6726b836c23011ce5b80b40fff944b"
+    },
+    {
+      "path": "motions/mtn_play02_01.motion3.json",
+      "bytes": 536945,
+      "sha256": "0441180f82d7dfcc2efbb0d5e602e9d96edb52fcdb50e362da1016ed6a83932f"
+    },
+    {
+      "path": "motions/mtn_play02_02.motion3.json",
+      "bytes": 821052,
+      "sha256": "a4f75b6f088e58ab2d3d23d711707271d28023ec4345ae4177ad0dd398e560b0"
+    },
+    {
+      "path": "motions/mtn_play02_03.motion3.json",
+      "bytes": 552550,
+      "sha256": "e49aca16baf525479224b1f005ac8f4d80e35e0223393e61cf0c3e406a7e5faa"
+    },
+    {
+      "path": "textures/texture_0.png",
+      "bytes": 2600712,
+      "sha256": "89eccbd9c48dedca83771176d62cfcf27e44d4c8435c3f2a6ae1f66dade97072"
+    },
+    {
+      "path": "textures/texture_1.png",
+      "bytes": 1884452,
+      "sha256": "483281574cd554a42e719b92be97f308b83dfe584d8558d3d0214160506d3cf8"
+    },
+    {
+      "path": "textures/texture_2.png",
+      "bytes": 1274723,
+      "sha256": "6df0476095fd25564f38597711a80323c293ba6c1bbf93b798da2a92570871ef"
+    }
+  ]
+}

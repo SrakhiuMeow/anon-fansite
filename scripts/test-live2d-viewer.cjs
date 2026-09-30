@@ -31,17 +31,24 @@ class Element {
   querySelectorAll() { return this.children; }
   querySelector() { return null; }
 }
-async function harness() {
-  const names = ["l2dStage", "l2dCanvas", "l2dStatus", "l2dFallback", "l2dHint", "l2dRetry", "l2dPause", "l2dFollowMouse", "l2dCostumes", "l2dMotions", "l2dExpressions"];
+async function harness(options = {}) {
+  const names = ["l2dStage", "l2dCanvas", "l2dStatus", "l2dFallback", "l2dHint", "l2dRetry", "l2dPause", "l2dFollowMouse", "l2dCostumes", "l2dMotions", "l2dExpressions", "l2dExpressionNote", "l2dZoomIn", "l2dZoomOut", "l2dZoomReset", "l2dZoomValue"];
   const elements = Object.fromEntries(names.map((name) => [name, new Element()]));
   const defaults = Object.values(actions.defaults);
   const motions = [...new Set(defaults.map((item) => item.motion))].map((name) => name + ".mtn");
   const expressions = [...new Set(defaults.map((item) => item.expression))];
   const costumes = ["first", "second"].map((id) => ({ id, modelJson: id, label: id, motions, expressions, motionCount: motions.length, expressionCount: expressions.length }));
+  if (options.performance) Object.assign(costumes[0], {
+    mode: "performance", expressions: [], expressionCount: 0,
+    motions: ["mtn_idle_01.motion3.json", "mtn_play01_01.motion3.json"], motionCount: 2,
+    performanceActions: [{ motion: "mtn_idle_01", label: "演奏待机" }, { motion: "mtn_play01_01", label: "吉他演奏 1" }],
+    reactions: Object.fromEntries(Object.keys(actions.defaults).map((emotion) => [emotion, { motion: "mtn_idle_01", expression: "" }])),
+  });
   const models = [];
   const plays = [];
   const pendingModels = new Map();
   const buildModel = (id) => {
+    const { motions, expressions } = costumes.find((costume) => costume.id === id);
     const waiting = new Map();
     const expressionObjects = expressions.map((name) => ({ name }));
     const expressionManager = {
@@ -51,14 +58,14 @@ async function harness() {
       loadExpression: (index) => waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]),
     };
     const manager = {
-      expressionManager, state: { currentGroup: null, currentIndex: -1 }, isFinished: () => false,
+      expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, isFinished: () => false,
       loadMotion: (group, index) => waiting.get("motion:" + motions[index].replace(".mtn", ""))?.promise || Promise.resolve({ group, index }),
     };
     const model = {
-      id, waiting, destroyed: false, scale: { set() {} },
+      id, waiting, destroyed: false, scale: { value: 1, set(value) { this.value = value; } },
       internalModel: { motionManager: manager, focusController: { focus() {} } },
       getLocalBounds: () => ({ x: 0, y: 0, width: 2000, height: 2500 }),
-      registerInteraction() {}, unregisterInteraction() {}, update() {},
+      registerInteraction() {}, unregisterInteraction() {}, update(delta) { if (delta > 0) this.initialized = true; },
       destroy() { this.destroyed = true; },
       motion(group, index) {
         if (manager.state.currentGroup === group && manager.state.currentIndex === index) return Promise.resolve(false);
@@ -72,6 +79,8 @@ async function harness() {
   };
   let visibility;
   let intersection;
+  let resize;
+  let renderCount = 0;
   const document = { hidden: false, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
   const window = {
     ANON_LIVE2D: { defaultCostume: "first", costumes }, AnonLive2DActions: actions,
@@ -79,11 +88,11 @@ async function harness() {
     PIXI: {
       Application: class {
         constructor() { this.ticker = { add() {} }; this.renderer = { resize() {}, plugins: { interaction: {} } }; this.stage = { addChild() {}, removeChild() {} }; }
-        start() {} stop() {} render() {}
+        start() {} stop() {} render() { renderCount += 1; }
       },
       live2d: { config: {}, MotionPriority: { FORCE: 3 }, MotionPreloadStrategy: { IDLE: "IDLE" }, Live2DModel: { from: async (id) => pendingModels.has(id) ? pendingModels.get(id).promise : buildModel(id) } },
     },
-    addEventListener() {}, dispatchEvent() {}, matchMedia: () => ({ matches: false }),
+    addEventListener(type, handler) { if (type === "resize") resize = handler; }, dispatchEvent() {}, matchMedia: () => ({ matches: false }),
     IntersectionObserver: class {
       constructor(callback) { intersection = callback; }
       observe() { intersection([{ isIntersecting: true }]); }
@@ -97,7 +106,7 @@ async function harness() {
   await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, elements, pendingModels, buildModel, document, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]) };
+  return { viewer: window.AnonLive2D, models, plays, elements, pendingModels, buildModel, document, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
@@ -179,5 +188,57 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal((await h.viewer.react({ emotion: "smile" })).ok, true, "同动作已在播放时不应误报失败");
     assert.equal(h.plays.length, before, "当前动作与表情不应被重复启动");
   }
-  console.log("Live2D viewer 竞态验证通过：新情绪抢占、流中取消、暂停恢复、换装、离屏、已取消请求不复活、预加载失败及重复动作，共8组。");
+  {
+    const h = await harness();
+    const model = h.models[0];
+    const baseScale = model.scale.value;
+    const baseTop = model.y;
+    h.elements.l2dZoomIn.click();
+    assert.equal(h.viewer.getState().zoomPercent, 110);
+    assert.equal(h.elements.l2dZoomValue.textContent, "110%");
+    assert.ok(Math.abs(model.scale.value - baseScale * 1.1) < 1e-9);
+    assert.ok(Math.abs(model.y - baseTop) < 1e-9, "放大保留顶部，头部不会被推出画面");
+    assert.ok(Math.abs(model.x + 1000 * model.scale.value - 300) < 1e-9, "缩放保持横向居中");
+    for (let n = 0; n < 20; n++) h.elements.l2dZoomIn.click();
+    assert.equal(h.viewer.getState().zoomPercent, 180);
+    assert.equal(h.elements.l2dZoomIn.disabled, true);
+    for (let n = 0; n < 20; n++) h.elements.l2dZoomOut.click();
+    assert.equal(h.viewer.getState().zoomPercent, 50);
+    assert.equal(h.elements.l2dZoomOut.disabled, true);
+    h.elements.l2dZoomReset.click();
+    assert.equal(model.scale.value, baseScale);
+    assert.equal(h.elements.l2dZoomReset.disabled, true);
+  }
+  {
+    const h = await harness();
+    h.elements.l2dPause.click();
+    const before = h.renders();
+    h.elements.l2dZoomIn.click(); h.elements.l2dZoomIn.click();
+    assert.equal(h.viewer.getState().paused, true);
+    assert.ok(h.renders() > before, "暂停动画时缩放仍立即重绘");
+    h.resize(320, 230);
+    assert.equal(h.viewer.getState().zoomPercent, 120);
+    assert.ok(Math.abs(h.models[0].scale.value - Math.min(320 * .86 / 2000, 230 * .9 / 2500) * 1.2) < 1e-9);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.viewer.getState().costume === "second", "换装完成");
+    assert.equal(h.viewer.getState().zoomPercent, 120);
+    assert.equal(h.elements.l2dZoomValue.textContent, "120%");
+    assert.equal(h.models[1].scale.value, h.models[0].scale.value, "同尺寸新模型保留相对比例");
+    assert.equal(h.models[1].initialized, true, "暂停换装仍需产生首帧顶点，不能只发零增量更新");
+  }
+  {
+    const h = await harness({ performance: true });
+    assert.equal(h.elements.l2dExpressionNote.hidden, false);
+    assert.equal(h.elements.l2dExpressions.children.length, 0, "无表情模型不生成虚假的表情按钮");
+    assert.deepEqual(h.elements.l2dMotions.children.map((button) => button.textContent), ["演奏待机", "吉他演奏 1"]);
+    const result = await h.viewer.react({ emotion: "smile" });
+    assert.equal(result.ok, true, "空表情、无expressionManager的演奏模型仍能响应");
+    assert.equal(result.expression, "");
+    assert.equal(result.mode, "performance");
+    h.elements.l2dMotions.children[1].click();
+    await settle(() => h.plays.some((event) => event.name === "mtn_play01_01.motion3.json"), "可以手选真实舞台演奏动作");
+    assert.ok(h.plays.every((event) => event.type === "motion"), "不尝试播放不存在的表情");
+    assert.match(h.elements.l2dHint.textContent, /已播放「吉他演奏 1」动作/);
+  }
+  console.log("Live2D viewer 验证通过：8组取消与播放竞态、2组缩放与响应式站位、1组无独立表情演奏模型，共11组。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

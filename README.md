@@ -14,7 +14,7 @@
 | 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售 |
 | 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可 |
 | 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本，支持筛选、灯箱和版本切换 |
-| Live2D | 原有 3 套 Bestdori 服装，加上 bdon.moe 的眼镜私服、演出服、眼镜居家服，共 6 套；新增每套 66 动作、36 表情 |
+| Live2D | 原有 3 套 Bestdori 与 9 套 Our Notes，共 12 套；剧情款含私服、制服、居家服及眼镜版本，舞台款支持 9 个吉他演奏动作；提供模型缩放与还原 |
 | 互动对话 | DeepSeek 流式回复按语气分段切换表情，动作就绪后渐进显示对应文字；保留密码锁、本地互动、停止及清空 |
 | 聊天阅读 | 自托管免费 Noto Sans SC 700 粗体，统一正文、控件与弹窗，浅色和夜间主题均加强文字对比 |
 | 原有栏目 | 保留角色解读、成长线、音乐、官方入口、主题切换及本地留言板 |
@@ -30,6 +30,8 @@
 AI 人格主体采用站长提供的 `anon.txt` 全文，人物经历、关系和称呼表原样接入服务端提示词；Live2D 情绪与输出协议单独保留。人格原文与文件哈希的回归检查用于避免导入遗漏或改写。
 
 Live2D 控制区提供“跟随鼠标”开关，默认开启。关闭后恢复正向视线；开关偏好保存在当前浏览器，换装、重新加载与刷新后继续生效，不影响对话、动作和表情按钮。
+
+模型区可在 50%–180% 范围内按 10% 步进放大、缩小，并一键还原到 100%；换装和窗口尺寸变化保留当前比例，暂停时也可缩放。Our Notes 的 8 套剧情模型各有 66 个动作与 36 个表情；吉他演奏款有 9 个舞台动作，无独立表情，聊天时保持舞台待机并明确提示“演奏姿态”。同 ID 跨索引仅导入一次，同款低清副本不重复加入，眼镜与无眼镜款分别保留。
 
 ## 本地运行
 
@@ -56,7 +58,7 @@ assets/data/anon-live2d.js     Live2D 服装、动作与表情清单
 assets/data/anon-official.js   官方角色与商品快照
 assets/data/anon-wiki.js       萌娘百科摘编、荣誉与许可信息
 assets/img/                    卡面、立绘与商品图片
-assets/live2d/                 六套新旧模型及动作、表情、贴图、物理与来源清单
+assets/live2d/                 十二套新旧模型及动作、表情、贴图、物理与来源清单
 assets/fonts/noto-sans-sc/     聊天使用的免费粗体字体分段与 OFL 许可
 assets/vendor/                新版 Cubism Core 原文件及专有许可
 scripts/                       素材抓取、数据生成与离线检查脚本
@@ -82,7 +84,7 @@ python3 scripts/fetch_live2d.py
 - `fetch_bestdori.py` 抓取角色资料、卡面与立绘，原始 JSON 和清洗结果写入 `data/bestdori/`，图片写入 `assets/img/`。
 - `build_site_data.py` 根据本地清洗结果生成 `assets/data/anon-cards.js`，此步骤可离线执行。
 - `fetch_live2d.py` 根据 Bestdori 的 `buildData.asset` 清单下载资源，组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。
-- `node scripts/fetch_bdon_live2d.cjs` 下载 bdon.moe 的三套爱音模型，将真实 Unity 曲线、表情与物理转换为标准 Cubism 文件；加 `--offline` 可从 `/data/bdon/` 缓存重建。两种模型抓取脚本会保留另一来源的服装选项。
+- `node scripts/fetch_bdon_live2d.cjs` 合并 bdon.moe 剧情与演奏两个索引，按模型 ID 发现爱音全部不同款式；排除有标准版的同款 `_low` 副本，将真实 Unity 曲线、表情与物理转换为标准 Cubism 文件。索引与模型清单每次联网刷新，内容哈希资源复用缓存；加 `--offline` 可从 `/data/bdon/` 重建。两种模型抓取脚本会保留另一来源的服装选项与 bdon 去重清单。
 - `node scripts/fetch_chat_font.cjs` 重新获取固定版本 Noto Sans SC 粗体与许可，校验上游字体哈希。访客加载本地 `unicode-range` 字体分段，无需请求字体 CDN。
 
 两个抓取脚本默认跳过已存在文件，加 `--force` 可重新下载；资源会按日服、国服目录尝试，缺失素材不会被当作有效图片。重新抓取后的数量取决于上游实际数据，提交前应重新检查。Live2D 的 `idle` 分组仅放待机动作，41 个可触发动作放在 `reaction` 分组，避免待机时随机播放哭泣或生气。
@@ -98,6 +100,7 @@ node scripts/test-chat-api.cjs
 node scripts/test-chat-client.cjs
 node scripts/test-live2d-actions.cjs
 node scripts/test-live2d-viewer.cjs
+node scripts/test-bdon-import.cjs
 ```
 
 站点检查覆盖页面引用、本地文件、图片格式、数据字段与脚本语法；对话检查覆盖关键词回应与模型素材。AI 测试用模拟上游检查输入边界、流式解析、错误与取消等行为，不调用付费 API。浏览器布局、实际模型渲染、真实 API 联通、外链可达性和最新库存仍需另行验证。

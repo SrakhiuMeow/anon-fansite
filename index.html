@@ -7,8 +7,8 @@
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
 <link rel="icon" href="assets/favicon.svg" />
-<link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-4" />
-<link rel="stylesheet" href="assets/css/style.css?v=20260930-4" />
+<link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260930-5" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -121,6 +121,12 @@
         <div class="l2d-stage" id="l2dStage">
           <canvas id="l2dCanvas" role="img" aria-label="千早爱音 Live2D 模型，可使用右侧按钮切换服装、动作和表情"></canvas>
           <span class="room-label" aria-hidden="true">ANON'S ROOM / 01</span>
+          <div class="l2d-zoom" role="group" aria-label="模型缩放，范围百分之五十至百分之一百八十">
+            <button class="chip" type="button" id="l2dZoomIn" aria-label="放大模型" aria-controls="l2dCanvas" disabled>＋</button>
+            <output id="l2dZoomValue" aria-live="polite" aria-label="当前模型缩放比例">100%</output>
+            <button class="chip" type="button" id="l2dZoomOut" aria-label="缩小模型" aria-controls="l2dCanvas" disabled>−</button>
+            <button class="chip" type="button" id="l2dZoomReset" aria-label="还原模型为百分之一百" aria-controls="l2dCanvas" disabled>还原</button>
+          </div>
           <p class="l2d-status" id="l2dStatus" role="status">靠近这里时开始加载模型…</p>
           <div class="l2d-fallback" id="l2dFallback" hidden>
             <img src="assets/img/standing/res037002.png" alt="千早爱音立绘（静态备用）" />
@@ -168,6 +174,7 @@
           <div class="l2d-group">
             <span class="l2d-label">表情</span>
             <div class="l2d-chips" id="l2dExpressions"></div>
+            <p class="l2d-hint" id="l2dExpressionNote" hidden>此款没有独立表情文件；对话沿用演奏姿态，可在上方手选舞台动作。</p>
           </div>
           <p class="l2d-hint" id="l2dHint"></p>
           </details>
@@ -671,13 +678,13 @@
 </div>
 
 <script src="assets/data/anon-cards.js?v=20260929-3"></script>
-<script src="assets/data/anon-live2d.js?v=20260930-4"></script>
+<script src="assets/data/anon-live2d.js?v=20260930-5"></script>
 <script src="assets/data/anon-official.js?v=20260929-3"></script>
 <script src="assets/data/anon-wiki.js?v=20260929-3"></script>
 <script src="assets/js/main.js?v=20260929-3"></script>
 <script src="assets/js/content.js?v=20260929-3"></script>
-<script src="assets/js/live2d-actions.js?v=20260930-4"></script>
-<script src="assets/js/live2d-viewer.js?v=20260930-4"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-4"></script>
+<script src="assets/js/live2d-actions.js?v=20260930-5"></script>
+<script src="assets/js/live2d-viewer.js?v=20260930-5"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-5"></script>
 </body>
 </html>

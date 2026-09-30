@@ -418,6 +418,18 @@ async function testEmotionFeedback() {
   assert.equal(paused.ids.anonChatEmotion.title, "模型已暂停");
   await paused.complete("收到啦。");
 
+  // 演奏模型仍保留对话情绪语义，但不能把待机姿态宣称为已播放微笑等表情。
+  const performance = await browserFixture({ modelReact: async () => ({ ok: true, mode: "performance", motion: "mtn_idle_01", expression: "" }) });
+  performance.submit("演奏时聊一聊");
+  performance.requests.at(-1).writeChunk([
+    { ...shy, emotion: "shy" }, { type: "delta", text: "突然这么说，还挺不好意思的。" }, { type: "done" },
+  ]);
+  performance.requests.at(-1).close();
+  await settle(() => !performance.send.disabled, "演奏模式也应正常完成聊天");
+  assert.equal(performance.ids.anonChatEmotion.textContent, "回应：演奏姿态");
+  assert.match(performance.ids.anonChatEmotion.title, /本轮语气：害羞.*没有独立表情/);
+  assert.equal(performance.reactions.at(-1).emotion, "shy", "模型能力只影响状态说明，不能改写聊天情绪语义");
+
   let fail = false;
   const failed = await browserFixture({ modelReact: async () => {
     if (fail) throw new Error("模型资源异常");

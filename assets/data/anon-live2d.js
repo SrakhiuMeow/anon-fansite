@@ -1,7 +1,7 @@
 /* 由 scripts/fetch_live2d.py 与 scripts/fetch_bdon_live2d.cjs 生成。来源：Bestdori / bdon.moe */
 window.ANON_LIVE2D = {
   "source": "https://bestdori.com",
-  "generatedAt": "2026-09-30T06:06:33.450Z",
+  "generatedAt": "2026-09-30T06:33:07.408Z",
   "characterId": 37,
   "defaultCostume": "037_casual-2023",
   "costumes": [
@@ -246,10 +246,188 @@ window.ANON_LIVE2D = {
       ]
     },
     {
+      "id": "bdon_adv_live2d_anon_002_casual_spring_01",
+      "label": "Our Notes · 私服（春）",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "story",
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_casual_spring_01",
+      "sourceModelId": "adv_live2d_anon_002_casual_spring_01",
+      "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_casual_spring_01/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle01_C",
+      "defaultExpression": "exp_idle01",
+      "motionCount": 66,
+      "expressionCount": 36,
+      "motions": [
+        "mtn_look02_C.motion3.json",
+        "mtn_sad01_R.motion3.json",
+        "mtn_nod02_R.motion3.json",
+        "mtn_check02_R.motion3.json",
+        "mtn_sad01_C.motion3.json",
+        "mtn_idle01_C.motion3.json",
+        "mtn_surprised01_C.motion3.json",
+        "mtn_denial01_C.motion3.json",
+        "mtn_surprised01_L.motion3.json",
+        "mtn_wink01_R.motion3.json",
+        "mtn_question01_C.motion3.json",
+        "mtn_question01_L.motion3.json",
+        "mtn_surprised02_L.motion3.json",
+        "mtn_wink01_L.motion3.json",
+        "mtn_sad01_L.motion3.json",
+        "mtn_join01_C.motion3.json",
+        "mtn_smile02_R.motion3.json",
+        "mtn_smile02_L.motion3.json",
+        "mtn_denial01_R.motion3.json",
+        "mtn_nod01_C.motion3.json",
+        "mtn_check02_L.motion3.json",
+        "mtn_check01_C.motion3.json",
+        "mtn_nod01_R.motion3.json",
+        "mtn_bye01_C.motion3.json",
+        "mtn_join01_R.motion3.json",
+        "mtn_check02_C.motion3.json",
+        "mtn_cry01_C.motion3.json",
+        "mtn_surprised01_R.motion3.json",
+        "mtn_look02_L.motion3.json",
+        "mtn_surprised02_C.motion3.json",
+        "mtn_smile01_C.motion3.json",
+        "mtn_look02_R.motion3.json",
+        "mtn_thinking01_C.motion3.json",
+        "mtn_smile01_L.motion3.json",
+        "mtn_thinking01_R.motion3.json",
+        "mtn_smile01_R.motion3.json",
+        "mtn_kime01_L.motion3.json",
+        "mtn_question01_R.motion3.json",
+        "mtn_look01_C.motion3.json",
+        "mtn_look01_R.motion3.json",
+        "mtn_angry01_L.motion3.json",
+        "mtn_angry01_C.motion3.json",
+        "mtn_wink01_C.motion3.json",
+        "mtn_angry01_R.motion3.json",
+        "mtn_cry01_R.motion3.json",
+        "mtn_nod01_L.motion3.json",
+        "mtn_look01_L.motion3.json",
+        "mtn_smile02_C.motion3.json",
+        "mtn_idle01_L.motion3.json",
+        "mtn_nod02_L.motion3.json",
+        "mtn_serious01_L.motion3.json",
+        "mtn_bye01_R.motion3.json",
+        "mtn_nod02_C.motion3.json",
+        "mtn_serious01_R.motion3.json",
+        "mtn_thinking01_L.motion3.json",
+        "mtn_kime01_C.motion3.json",
+        "mtn_check01_L.motion3.json",
+        "mtn_cry01_L.motion3.json",
+        "mtn_join01_L.motion3.json",
+        "mtn_bye01_L.motion3.json",
+        "mtn_kime01_R.motion3.json",
+        "mtn_check01_R.motion3.json",
+        "mtn_serious01_C.motion3.json",
+        "mtn_denial01_L.motion3.json",
+        "mtn_surprised02_R.motion3.json",
+        "mtn_idle01_R.motion3.json"
+      ],
+      "expressions": [
+        "exp_shy03",
+        "exp_cry01",
+        "exp_idle01",
+        "exp_serious02",
+        "exp_smile03",
+        "exp_spin01",
+        "exp_angry01",
+        "exp_kime01",
+        "exp_surprised02",
+        "exp_angry02",
+        "exp_pale02",
+        "exp_idle03",
+        "exp_thinking02",
+        "exp_smile04",
+        "exp_smile05",
+        "exp_sdeprecate01",
+        "exp_thinking01",
+        "exp_surprised01",
+        "exp_heart01",
+        "exp_shy02",
+        "exp_sad01",
+        "exp_idle02",
+        "exp_shadow01",
+        "exp_sad03",
+        "exp_bsmile03",
+        "exp_cry02",
+        "exp_bsmile01",
+        "exp_shy01",
+        "exp_smile02",
+        "exp_serious01",
+        "exp_upset01",
+        "exp_sad02",
+        "exp_smile01",
+        "exp_bsmile02",
+        "exp_pale01",
+        "exp_bsmile04"
+      ],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle01_C",
+          "expression": "exp_idle01"
+        },
+        "smile": {
+          "motion": "mtn_smile01_C",
+          "expression": "exp_smile01"
+        },
+        "wink": {
+          "motion": "mtn_wink01_C",
+          "expression": "exp_smile01"
+        },
+        "shy": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_shy01"
+        },
+        "surprised": {
+          "motion": "mtn_surprised01_C",
+          "expression": "exp_surprised01"
+        },
+        "thinking": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_thinking01"
+        },
+        "serious": {
+          "motion": "mtn_serious01_C",
+          "expression": "exp_serious01"
+        },
+        "sad": {
+          "motion": "mtn_sad01_C",
+          "expression": "exp_sad01"
+        },
+        "angry": {
+          "motion": "mtn_angry01_C",
+          "expression": "exp_angry01"
+        },
+        "wave": {
+          "motion": "mtn_bye01_C",
+          "expression": "exp_smile01"
+        },
+        "cheer": {
+          "motion": "mtn_smile02_C",
+          "expression": "exp_smile02"
+        },
+        "cry": {
+          "motion": "mtn_cry01_C",
+          "expression": "exp_cry01"
+        },
+        "pose": {
+          "motion": "mtn_kime01_C",
+          "expression": "exp_kime01"
+        }
+      },
+      "bytes": 10849051
+    },
+    {
       "id": "bdon_adv_live2d_anon_002_casual_spring_01_glasses",
       "label": "Our Notes · 私服（眼镜）",
       "format": "cubism4",
       "source": "https://bdon.moe",
+      "mode": "story",
       "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_casual_spring_01_glasses",
       "sourceModelId": "adv_live2d_anon_002_casual_spring_01_glasses",
       "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_casual_spring_01_glasses/model.model3.json",
@@ -426,6 +604,7 @@ window.ANON_LIVE2D = {
       "label": "Our Notes · 演出服",
       "format": "cubism4",
       "source": "https://bdon.moe",
+      "mode": "story",
       "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_live_01",
       "sourceModelId": "adv_live2d_anon_002_live_01",
       "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_live_01/model.model3.json",
@@ -598,10 +777,188 @@ window.ANON_LIVE2D = {
       "bytes": 12099231
     },
     {
+      "id": "bdon_adv_live2d_anon_002_roomwear_01",
+      "label": "Our Notes · 居家服",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "story",
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_roomwear_01",
+      "sourceModelId": "adv_live2d_anon_002_roomwear_01",
+      "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_roomwear_01/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle01_C",
+      "defaultExpression": "exp_idle01",
+      "motionCount": 66,
+      "expressionCount": 36,
+      "motions": [
+        "mtn_thinking01_C.motion3.json",
+        "mtn_idle01_C.motion3.json",
+        "mtn_look02_L.motion3.json",
+        "mtn_join01_R.motion3.json",
+        "mtn_smile02_R.motion3.json",
+        "mtn_sad01_R.motion3.json",
+        "mtn_surprised01_C.motion3.json",
+        "mtn_nod01_L.motion3.json",
+        "mtn_kime01_C.motion3.json",
+        "mtn_serious01_R.motion3.json",
+        "mtn_question01_C.motion3.json",
+        "mtn_sad01_L.motion3.json",
+        "mtn_angry01_C.motion3.json",
+        "mtn_smile02_L.motion3.json",
+        "mtn_bye01_R.motion3.json",
+        "mtn_nod02_L.motion3.json",
+        "mtn_look02_C.motion3.json",
+        "mtn_thinking01_R.motion3.json",
+        "mtn_kime01_R.motion3.json",
+        "mtn_angry01_L.motion3.json",
+        "mtn_look01_L.motion3.json",
+        "mtn_nod01_C.motion3.json",
+        "mtn_wink01_L.motion3.json",
+        "mtn_check02_C.motion3.json",
+        "mtn_question01_R.motion3.json",
+        "mtn_serious01_C.motion3.json",
+        "mtn_surprised02_C.motion3.json",
+        "mtn_kime01_L.motion3.json",
+        "mtn_look01_C.motion3.json",
+        "mtn_check02_L.motion3.json",
+        "mtn_smile01_C.motion3.json",
+        "mtn_check01_C.motion3.json",
+        "mtn_cry01_R.motion3.json",
+        "mtn_angry01_R.motion3.json",
+        "mtn_join01_C.motion3.json",
+        "mtn_nod01_R.motion3.json",
+        "mtn_wink01_R.motion3.json",
+        "mtn_denial01_R.motion3.json",
+        "mtn_wink01_C.motion3.json",
+        "mtn_sad01_C.motion3.json",
+        "mtn_check01_L.motion3.json",
+        "mtn_question01_L.motion3.json",
+        "mtn_smile01_R.motion3.json",
+        "mtn_bye01_C.motion3.json",
+        "mtn_denial01_C.motion3.json",
+        "mtn_cry01_L.motion3.json",
+        "mtn_check01_R.motion3.json",
+        "mtn_surprised02_R.motion3.json",
+        "mtn_nod02_C.motion3.json",
+        "mtn_idle01_R.motion3.json",
+        "mtn_surprised02_L.motion3.json",
+        "mtn_denial01_L.motion3.json",
+        "mtn_surprised01_R.motion3.json",
+        "mtn_smile01_L.motion3.json",
+        "mtn_nod02_R.motion3.json",
+        "mtn_look02_R.motion3.json",
+        "mtn_surprised01_L.motion3.json",
+        "mtn_join01_L.motion3.json",
+        "mtn_bye01_L.motion3.json",
+        "mtn_smile02_C.motion3.json",
+        "mtn_look01_R.motion3.json",
+        "mtn_check02_R.motion3.json",
+        "mtn_thinking01_L.motion3.json",
+        "mtn_serious01_L.motion3.json",
+        "mtn_idle01_L.motion3.json",
+        "mtn_cry01_C.motion3.json"
+      ],
+      "expressions": [
+        "exp_bsmile03",
+        "exp_sad01",
+        "exp_bsmile04",
+        "exp_smile04",
+        "exp_thinking02",
+        "exp_cry02",
+        "exp_bsmile02",
+        "exp_shy02",
+        "exp_idle02",
+        "exp_sad03",
+        "exp_thinking01",
+        "exp_sad02",
+        "exp_bsmile01",
+        "exp_sdeprecate01",
+        "exp_angry01",
+        "exp_idle01",
+        "exp_smile01",
+        "exp_smile02",
+        "exp_heart01",
+        "exp_spin01",
+        "exp_serious02",
+        "exp_surprised02",
+        "exp_serious01",
+        "exp_pale01",
+        "exp_surprised01",
+        "exp_kime01",
+        "exp_idle03",
+        "exp_cry01",
+        "exp_smile03",
+        "exp_shy03",
+        "exp_pale02",
+        "exp_angry02",
+        "exp_shy01",
+        "exp_smile05",
+        "exp_upset01",
+        "exp_shadow01"
+      ],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle01_C",
+          "expression": "exp_idle01"
+        },
+        "smile": {
+          "motion": "mtn_smile01_C",
+          "expression": "exp_smile01"
+        },
+        "wink": {
+          "motion": "mtn_wink01_C",
+          "expression": "exp_smile01"
+        },
+        "shy": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_shy01"
+        },
+        "surprised": {
+          "motion": "mtn_surprised01_C",
+          "expression": "exp_surprised01"
+        },
+        "thinking": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_thinking01"
+        },
+        "serious": {
+          "motion": "mtn_serious01_C",
+          "expression": "exp_serious01"
+        },
+        "sad": {
+          "motion": "mtn_sad01_C",
+          "expression": "exp_sad01"
+        },
+        "angry": {
+          "motion": "mtn_angry01_C",
+          "expression": "exp_angry01"
+        },
+        "wave": {
+          "motion": "mtn_bye01_C",
+          "expression": "exp_smile01"
+        },
+        "cheer": {
+          "motion": "mtn_smile02_C",
+          "expression": "exp_smile02"
+        },
+        "cry": {
+          "motion": "mtn_cry01_C",
+          "expression": "exp_cry01"
+        },
+        "pose": {
+          "motion": "mtn_kime01_C",
+          "expression": "exp_kime01"
+        }
+      },
+      "bytes": 13769804
+    },
+    {
       "id": "bdon_adv_live2d_anon_002_roomwear_01_glasses",
       "label": "Our Notes · 居家服（眼镜）",
       "format": "cubism4",
       "source": "https://bdon.moe",
+      "mode": "story",
       "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_roomwear_01_glasses",
       "sourceModelId": "adv_live2d_anon_002_roomwear_01_glasses",
       "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_roomwear_01_glasses/model.model3.json",
@@ -772,10 +1129,687 @@ window.ANON_LIVE2D = {
         }
       },
       "bytes": 13517689
+    },
+    {
+      "id": "bdon_adv_live2d_anon_002_school_summer_hs_1st",
+      "label": "Our Notes · 制服（夏）",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "story",
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_school_summer_hs_1st",
+      "sourceModelId": "adv_live2d_anon_002_school_summer_hs_1st",
+      "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_school_summer_hs_1st/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle01_C",
+      "defaultExpression": "exp_idle01",
+      "motionCount": 66,
+      "expressionCount": 36,
+      "motions": [
+        "mtn_look01_C.motion3.json",
+        "mtn_surprised02_R.motion3.json",
+        "mtn_angry01_R.motion3.json",
+        "mtn_wink01_C.motion3.json",
+        "mtn_denial01_C.motion3.json",
+        "mtn_kime01_L.motion3.json",
+        "mtn_serious01_C.motion3.json",
+        "mtn_look02_C.motion3.json",
+        "mtn_angry01_L.motion3.json",
+        "mtn_nod02_R.motion3.json",
+        "mtn_question01_R.motion3.json",
+        "mtn_check01_L.motion3.json",
+        "mtn_surprised02_L.motion3.json",
+        "mtn_surprised01_C.motion3.json",
+        "mtn_bye01_R.motion3.json",
+        "mtn_thinking01_L.motion3.json",
+        "mtn_check01_C.motion3.json",
+        "mtn_smile02_L.motion3.json",
+        "mtn_surprised01_L.motion3.json",
+        "mtn_smile02_R.motion3.json",
+        "mtn_nod01_L.motion3.json",
+        "mtn_sad01_C.motion3.json",
+        "mtn_nod01_C.motion3.json",
+        "mtn_bye01_C.motion3.json",
+        "mtn_kime01_C.motion3.json",
+        "mtn_question01_L.motion3.json",
+        "mtn_check01_R.motion3.json",
+        "mtn_look01_L.motion3.json",
+        "mtn_serious01_R.motion3.json",
+        "mtn_smile01_L.motion3.json",
+        "mtn_idle01_L.motion3.json",
+        "mtn_sad01_L.motion3.json",
+        "mtn_check02_C.motion3.json",
+        "mtn_join01_C.motion3.json",
+        "mtn_nod02_L.motion3.json",
+        "mtn_serious01_L.motion3.json",
+        "mtn_check02_L.motion3.json",
+        "mtn_nod01_R.motion3.json",
+        "mtn_bye01_L.motion3.json",
+        "mtn_denial01_R.motion3.json",
+        "mtn_thinking01_R.motion3.json",
+        "mtn_idle01_R.motion3.json",
+        "mtn_idle01_C.motion3.json",
+        "mtn_cry01_R.motion3.json",
+        "mtn_look02_L.motion3.json",
+        "mtn_look01_R.motion3.json",
+        "mtn_cry01_C.motion3.json",
+        "mtn_cry01_L.motion3.json",
+        "mtn_angry01_C.motion3.json",
+        "mtn_smile02_C.motion3.json",
+        "mtn_denial01_L.motion3.json",
+        "mtn_join01_L.motion3.json",
+        "mtn_thinking01_C.motion3.json",
+        "mtn_check02_R.motion3.json",
+        "mtn_question01_C.motion3.json",
+        "mtn_wink01_L.motion3.json",
+        "mtn_join01_R.motion3.json",
+        "mtn_look02_R.motion3.json",
+        "mtn_nod02_C.motion3.json",
+        "mtn_kime01_R.motion3.json",
+        "mtn_surprised02_C.motion3.json",
+        "mtn_surprised01_R.motion3.json",
+        "mtn_smile01_R.motion3.json",
+        "mtn_smile01_C.motion3.json",
+        "mtn_sad01_R.motion3.json",
+        "mtn_wink01_R.motion3.json"
+      ],
+      "expressions": [
+        "exp_idle02",
+        "exp_smile05",
+        "exp_smile02",
+        "exp_bsmile03",
+        "exp_sad03",
+        "exp_surprised02",
+        "exp_serious01",
+        "exp_shy01",
+        "exp_sad01",
+        "exp_bsmile04",
+        "exp_smile01",
+        "exp_angry01",
+        "exp_sdeprecate01",
+        "exp_shy02",
+        "exp_bsmile01",
+        "exp_shy03",
+        "exp_idle01",
+        "exp_thinking01",
+        "exp_surprised01",
+        "exp_smile04",
+        "exp_serious02",
+        "exp_kime01",
+        "exp_angry02",
+        "exp_idle03",
+        "exp_bsmile02",
+        "exp_pale01",
+        "exp_smile03",
+        "exp_spin01",
+        "exp_upset01",
+        "exp_cry02",
+        "exp_cry01",
+        "exp_thinking02",
+        "exp_heart01",
+        "exp_shadow01",
+        "exp_pale02",
+        "exp_sad02"
+      ],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle01_C",
+          "expression": "exp_idle01"
+        },
+        "smile": {
+          "motion": "mtn_smile01_C",
+          "expression": "exp_smile01"
+        },
+        "wink": {
+          "motion": "mtn_wink01_C",
+          "expression": "exp_smile01"
+        },
+        "shy": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_shy01"
+        },
+        "surprised": {
+          "motion": "mtn_surprised01_C",
+          "expression": "exp_surprised01"
+        },
+        "thinking": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_thinking01"
+        },
+        "serious": {
+          "motion": "mtn_serious01_C",
+          "expression": "exp_serious01"
+        },
+        "sad": {
+          "motion": "mtn_sad01_C",
+          "expression": "exp_sad01"
+        },
+        "angry": {
+          "motion": "mtn_angry01_C",
+          "expression": "exp_angry01"
+        },
+        "wave": {
+          "motion": "mtn_bye01_C",
+          "expression": "exp_smile01"
+        },
+        "cheer": {
+          "motion": "mtn_smile02_C",
+          "expression": "exp_smile02"
+        },
+        "cry": {
+          "motion": "mtn_cry01_C",
+          "expression": "exp_cry01"
+        },
+        "pose": {
+          "motion": "mtn_kime01_C",
+          "expression": "exp_kime01"
+        }
+      },
+      "bytes": 21416878
+    },
+    {
+      "id": "bdon_adv_live2d_anon_002_school_winter_hs_1st",
+      "label": "Our Notes · 制服（冬）",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "story",
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_school_winter_hs_1st",
+      "sourceModelId": "adv_live2d_anon_002_school_winter_hs_1st",
+      "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_school_winter_hs_1st/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle01_C",
+      "defaultExpression": "exp_idle01",
+      "motionCount": 66,
+      "expressionCount": 36,
+      "motions": [
+        "mtn_look01_L.motion3.json",
+        "mtn_kime01_L.motion3.json",
+        "mtn_angry01_L.motion3.json",
+        "mtn_cry01_C.motion3.json",
+        "mtn_sad01_R.motion3.json",
+        "mtn_nod02_R.motion3.json",
+        "mtn_check02_L.motion3.json",
+        "mtn_bye01_L.motion3.json",
+        "mtn_check02_C.motion3.json",
+        "mtn_denial01_R.motion3.json",
+        "mtn_idle01_C.motion3.json",
+        "mtn_look02_L.motion3.json",
+        "mtn_sad01_C.motion3.json",
+        "mtn_bye01_R.motion3.json",
+        "mtn_kime01_C.motion3.json",
+        "mtn_surprised01_C.motion3.json",
+        "mtn_nod02_C.motion3.json",
+        "mtn_serious01_L.motion3.json",
+        "mtn_surprised02_C.motion3.json",
+        "mtn_nod01_R.motion3.json",
+        "mtn_nod01_L.motion3.json",
+        "mtn_question01_L.motion3.json",
+        "mtn_wink01_C.motion3.json",
+        "mtn_smile02_R.motion3.json",
+        "mtn_smile01_R.motion3.json",
+        "mtn_smile02_C.motion3.json",
+        "mtn_wink01_L.motion3.json",
+        "mtn_look01_C.motion3.json",
+        "mtn_wink01_R.motion3.json",
+        "mtn_serious01_R.motion3.json",
+        "mtn_smile01_L.motion3.json",
+        "mtn_serious01_C.motion3.json",
+        "mtn_surprised02_L.motion3.json",
+        "mtn_surprised02_R.motion3.json",
+        "mtn_check01_C.motion3.json",
+        "mtn_question01_C.motion3.json",
+        "mtn_denial01_L.motion3.json",
+        "mtn_look01_R.motion3.json",
+        "mtn_smile01_C.motion3.json",
+        "mtn_bye01_C.motion3.json",
+        "mtn_sad01_L.motion3.json",
+        "mtn_check02_R.motion3.json",
+        "mtn_question01_R.motion3.json",
+        "mtn_look02_R.motion3.json",
+        "mtn_look02_C.motion3.json",
+        "mtn_thinking01_L.motion3.json",
+        "mtn_check01_L.motion3.json",
+        "mtn_idle01_L.motion3.json",
+        "mtn_join01_L.motion3.json",
+        "mtn_thinking01_C.motion3.json",
+        "mtn_smile02_L.motion3.json",
+        "mtn_kime01_R.motion3.json",
+        "mtn_surprised01_L.motion3.json",
+        "mtn_cry01_L.motion3.json",
+        "mtn_join01_C.motion3.json",
+        "mtn_denial01_C.motion3.json",
+        "mtn_nod01_C.motion3.json",
+        "mtn_cry01_R.motion3.json",
+        "mtn_angry01_C.motion3.json",
+        "mtn_surprised01_R.motion3.json",
+        "mtn_angry01_R.motion3.json",
+        "mtn_join01_R.motion3.json",
+        "mtn_nod02_L.motion3.json",
+        "mtn_idle01_R.motion3.json",
+        "mtn_check01_R.motion3.json",
+        "mtn_thinking01_R.motion3.json"
+      ],
+      "expressions": [
+        "exp_upset01",
+        "exp_bsmile03",
+        "exp_spin01",
+        "exp_angry02",
+        "exp_serious01",
+        "exp_smile03",
+        "exp_sdeprecate01",
+        "exp_thinking02",
+        "exp_sad03",
+        "exp_surprised01",
+        "exp_serious02",
+        "exp_shadow01",
+        "exp_pale01",
+        "exp_idle02",
+        "exp_shy03",
+        "exp_smile01",
+        "exp_bsmile04",
+        "exp_shy02",
+        "exp_bsmile02",
+        "exp_idle01",
+        "exp_cry02",
+        "exp_kime01",
+        "exp_shy01",
+        "exp_sad02",
+        "exp_surprised02",
+        "exp_smile02",
+        "exp_smile04",
+        "exp_angry01",
+        "exp_sad01",
+        "exp_smile05",
+        "exp_thinking01",
+        "exp_idle03",
+        "exp_cry01",
+        "exp_heart01",
+        "exp_pale02",
+        "exp_bsmile01"
+      ],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle01_C",
+          "expression": "exp_idle01"
+        },
+        "smile": {
+          "motion": "mtn_smile01_C",
+          "expression": "exp_smile01"
+        },
+        "wink": {
+          "motion": "mtn_wink01_C",
+          "expression": "exp_smile01"
+        },
+        "shy": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_shy01"
+        },
+        "surprised": {
+          "motion": "mtn_surprised01_C",
+          "expression": "exp_surprised01"
+        },
+        "thinking": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_thinking01"
+        },
+        "serious": {
+          "motion": "mtn_serious01_C",
+          "expression": "exp_serious01"
+        },
+        "sad": {
+          "motion": "mtn_sad01_C",
+          "expression": "exp_sad01"
+        },
+        "angry": {
+          "motion": "mtn_angry01_C",
+          "expression": "exp_angry01"
+        },
+        "wave": {
+          "motion": "mtn_bye01_C",
+          "expression": "exp_smile01"
+        },
+        "cheer": {
+          "motion": "mtn_smile02_C",
+          "expression": "exp_smile02"
+        },
+        "cry": {
+          "motion": "mtn_cry01_C",
+          "expression": "exp_cry01"
+        },
+        "pose": {
+          "motion": "mtn_kime01_C",
+          "expression": "exp_kime01"
+        }
+      },
+      "bytes": 28203851
+    },
+    {
+      "id": "bdon_adv_live2d_anon_002_school_winter_hs_1st_glasses",
+      "label": "Our Notes · 制服（冬·眼镜）",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "story",
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=adv_live2d_anon_002_school_winter_hs_1st_glasses",
+      "sourceModelId": "adv_live2d_anon_002_school_winter_hs_1st_glasses",
+      "modelJson": "assets/live2d/bdon_adv_live2d_anon_002_school_winter_hs_1st_glasses/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle01_C",
+      "defaultExpression": "exp_idle01",
+      "motionCount": 66,
+      "expressionCount": 36,
+      "motions": [
+        "mtn_question01_C.motion3.json",
+        "mtn_serious01_L.motion3.json",
+        "mtn_nod02_R.motion3.json",
+        "mtn_surprised02_C.motion3.json",
+        "mtn_surprised01_L.motion3.json",
+        "mtn_serious01_R.motion3.json",
+        "mtn_check01_C.motion3.json",
+        "mtn_smile01_R.motion3.json",
+        "mtn_bye01_L.motion3.json",
+        "mtn_smile02_L.motion3.json",
+        "mtn_cry01_C.motion3.json",
+        "mtn_sad01_C.motion3.json",
+        "mtn_nod01_L.motion3.json",
+        "mtn_angry01_R.motion3.json",
+        "mtn_kime01_L.motion3.json",
+        "mtn_question01_R.motion3.json",
+        "mtn_surprised02_L.motion3.json",
+        "mtn_surprised02_R.motion3.json",
+        "mtn_check01_R.motion3.json",
+        "mtn_look02_L.motion3.json",
+        "mtn_look01_R.motion3.json",
+        "mtn_wink01_R.motion3.json",
+        "mtn_idle01_R.motion3.json",
+        "mtn_wink01_C.motion3.json",
+        "mtn_kime01_C.motion3.json",
+        "mtn_question01_L.motion3.json",
+        "mtn_surprised01_R.motion3.json",
+        "mtn_smile01_C.motion3.json",
+        "mtn_wink01_L.motion3.json",
+        "mtn_smile02_R.motion3.json",
+        "mtn_kime01_R.motion3.json",
+        "mtn_nod01_C.motion3.json",
+        "mtn_join01_C.motion3.json",
+        "mtn_cry01_R.motion3.json",
+        "mtn_angry01_L.motion3.json",
+        "mtn_check02_L.motion3.json",
+        "mtn_look01_L.motion3.json",
+        "mtn_idle01_L.motion3.json",
+        "mtn_denial01_C.motion3.json",
+        "mtn_look01_C.motion3.json",
+        "mtn_smile01_L.motion3.json",
+        "mtn_look02_C.motion3.json",
+        "mtn_bye01_R.motion3.json",
+        "mtn_serious01_C.motion3.json",
+        "mtn_idle01_C.motion3.json",
+        "mtn_surprised01_C.motion3.json",
+        "mtn_thinking01_C.motion3.json",
+        "mtn_angry01_C.motion3.json",
+        "mtn_sad01_L.motion3.json",
+        "mtn_sad01_R.motion3.json",
+        "mtn_check01_L.motion3.json",
+        "mtn_cry01_L.motion3.json",
+        "mtn_denial01_R.motion3.json",
+        "mtn_check02_C.motion3.json",
+        "mtn_look02_R.motion3.json",
+        "mtn_nod02_L.motion3.json",
+        "mtn_nod02_C.motion3.json",
+        "mtn_thinking01_L.motion3.json",
+        "mtn_bye01_C.motion3.json",
+        "mtn_join01_L.motion3.json",
+        "mtn_nod01_R.motion3.json",
+        "mtn_join01_R.motion3.json",
+        "mtn_thinking01_R.motion3.json",
+        "mtn_check02_R.motion3.json",
+        "mtn_denial01_L.motion3.json",
+        "mtn_smile02_C.motion3.json"
+      ],
+      "expressions": [
+        "exp_shy03",
+        "exp_smile04",
+        "exp_bsmile03",
+        "exp_surprised02",
+        "exp_angry02",
+        "exp_serious02",
+        "exp_angry01",
+        "exp_upset01",
+        "exp_surprised01",
+        "exp_sad01",
+        "exp_shy01",
+        "exp_spin01",
+        "exp_shadow01",
+        "exp_idle03",
+        "exp_thinking02",
+        "exp_shy02",
+        "exp_bsmile02",
+        "exp_idle01",
+        "exp_sad02",
+        "exp_smile01",
+        "exp_sdeprecate01",
+        "exp_smile02",
+        "exp_smile03",
+        "exp_pale01",
+        "exp_pale02",
+        "exp_cry02",
+        "exp_smile05",
+        "exp_sad03",
+        "exp_heart01",
+        "exp_kime01",
+        "exp_serious01",
+        "exp_bsmile04",
+        "exp_bsmile01",
+        "exp_thinking01",
+        "exp_idle02",
+        "exp_cry01"
+      ],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle01_C",
+          "expression": "exp_idle01"
+        },
+        "smile": {
+          "motion": "mtn_smile01_C",
+          "expression": "exp_smile01"
+        },
+        "wink": {
+          "motion": "mtn_wink01_C",
+          "expression": "exp_smile01"
+        },
+        "shy": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_shy01"
+        },
+        "surprised": {
+          "motion": "mtn_surprised01_C",
+          "expression": "exp_surprised01"
+        },
+        "thinking": {
+          "motion": "mtn_thinking01_C",
+          "expression": "exp_thinking01"
+        },
+        "serious": {
+          "motion": "mtn_serious01_C",
+          "expression": "exp_serious01"
+        },
+        "sad": {
+          "motion": "mtn_sad01_C",
+          "expression": "exp_sad01"
+        },
+        "angry": {
+          "motion": "mtn_angry01_C",
+          "expression": "exp_angry01"
+        },
+        "wave": {
+          "motion": "mtn_bye01_C",
+          "expression": "exp_smile01"
+        },
+        "cheer": {
+          "motion": "mtn_smile02_C",
+          "expression": "exp_smile02"
+        },
+        "cry": {
+          "motion": "mtn_cry01_C",
+          "expression": "exp_cry01"
+        },
+        "pose": {
+          "motion": "mtn_kime01_C",
+          "expression": "exp_kime01"
+        }
+      },
+      "bytes": 28270539
+    },
+    {
+      "id": "bdon_live2d_anon_002_live_01",
+      "label": "Our Notes · 吉他演奏（舞台）",
+      "format": "cubism4",
+      "source": "https://bdon.moe",
+      "mode": "performance",
+      "performanceActions": [
+        {
+          "motion": "mtn_play01_01",
+          "label": "演奏一 · 1"
+        },
+        {
+          "motion": "mtn_finish_01",
+          "label": "演奏收尾"
+        },
+        {
+          "motion": "mtn_play02_01",
+          "label": "演奏二 · 1"
+        },
+        {
+          "motion": "mtn_play01_03",
+          "label": "演奏一 · 3"
+        },
+        {
+          "motion": "mtn_idle_01",
+          "label": "舞台待机"
+        },
+        {
+          "motion": "mtn_play01_02",
+          "label": "演奏一 · 2"
+        },
+        {
+          "motion": "mtn_action_01",
+          "label": "舞台动作"
+        },
+        {
+          "motion": "mtn_play02_02",
+          "label": "演奏二 · 2"
+        },
+        {
+          "motion": "mtn_play02_03",
+          "label": "演奏二 · 3"
+        }
+      ],
+      "sourceUrl": "https://bdon.moe/tools/live2d?model=live2d_anon_002_live_01",
+      "sourceModelId": "live2d_anon_002_live_01",
+      "modelJson": "assets/live2d/bdon_live2d_anon_002_live_01/model.model3.json",
+      "motionGroup": "reaction",
+      "motionExtension": ".motion3.json",
+      "defaultMotion": "mtn_idle_01",
+      "defaultExpression": "",
+      "motionCount": 9,
+      "expressionCount": 0,
+      "motions": [
+        "mtn_play01_01.motion3.json",
+        "mtn_finish_01.motion3.json",
+        "mtn_play02_01.motion3.json",
+        "mtn_play01_03.motion3.json",
+        "mtn_idle_01.motion3.json",
+        "mtn_play01_02.motion3.json",
+        "mtn_action_01.motion3.json",
+        "mtn_play02_02.motion3.json",
+        "mtn_play02_03.motion3.json"
+      ],
+      "expressions": [],
+      "reactions": {
+        "neutral": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "smile": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "wink": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "shy": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "surprised": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "thinking": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "serious": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "sad": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "angry": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "wave": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "cheer": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "cry": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        },
+        "pose": {
+          "motion": "mtn_idle_01",
+          "expression": ""
+        }
+      },
+      "bytes": 12803791
     }
   ],
   "sources": [
     "https://bestdori.com",
     "https://bdon.moe"
-  ]
+  ],
+  "bdonCatalog": {
+    "indexes": [
+      "https://storage.bdon.moe/moenotes/models.json",
+      "https://assets.bdon.moe/chart-site/models.json"
+    ],
+    "indexedCount": 10,
+    "includedIds": [
+      "adv_live2d_anon_002_casual_spring_01",
+      "adv_live2d_anon_002_casual_spring_01_glasses",
+      "adv_live2d_anon_002_live_01",
+      "adv_live2d_anon_002_roomwear_01",
+      "adv_live2d_anon_002_roomwear_01_glasses",
+      "adv_live2d_anon_002_school_summer_hs_1st",
+      "adv_live2d_anon_002_school_winter_hs_1st",
+      "adv_live2d_anon_002_school_winter_hs_1st_glasses",
+      "live2d_anon_002_live_01"
+    ],
+    "excluded": [
+      {
+        "id": "live2d_anon_002_live_01_low",
+        "equivalentId": "live2d_anon_002_live_01",
+        "reason": "同款低清副本，保留标准画质版"
+      }
+    ]
+  }
 };

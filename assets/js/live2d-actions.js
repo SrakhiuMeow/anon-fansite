@@ -29,6 +29,10 @@
       : request.expression && defaults[key].expression === request.expression);
   };
   function resolve(costume, request = {}) {
+    if (!costume || !Array.isArray(costume.motions) || !Array.isArray(costume.expressions)) return null;
+    // 舞台演奏模型没有独立表情文件；仅此能力模式允许真实动作搭配空表情。
+    const motionOnly = costume.mode === "performance" && costume.expressions.length === 0;
+    if (request.expression === "" && !motionOnly) return null;
     const emotion = semantic(request);
     const mapped = emotion && (costume.reactions?.[emotion] || (!costume.reactions && defaults[emotion]));
     let motion = request.motion;
@@ -37,6 +41,11 @@
       // 手动表情按钮只切表情；动作按钮同时采用配套表情，避免上一情绪残留。
       motion = request.emotion || request.motion ? mapped.motion : undefined;
       expression = mapped.expression;
+    }
+    if (expression === "" && !motionOnly) return null;
+    if (motionOnly) {
+      if (expression) return null;
+      expression = "";
     }
     if ((!motion && !expression) || (motion && motionIndex(costume, motion) < 0) || (expression && !costume.expressions.includes(expression))) return null;
     return { emotion, motion, expression, index: motion ? motionIndex(costume, motion) : -1, group: costume.motionGroup || "reaction" };

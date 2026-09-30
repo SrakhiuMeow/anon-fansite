@@ -256,11 +256,13 @@ def main() -> int:
 
     # 保留另一个抓取脚本导入的 Our Notes 模型，重抓 Bestdori 不应删掉可选服装。
     other_costumes = []
+    bdon_catalog = None
     if DATA_OUT.exists():
         previous_text = DATA_OUT.read_text(encoding="utf-8")
         try:
             previous = json.loads(previous_text[previous_text.index("{"):previous_text.rindex("}") + 1])
             other_costumes = [c for c in previous.get("costumes", []) if c.get("id", "").startswith("bdon_")]
+            bdon_catalog = previous.get("bdonCatalog")
         except (ValueError, json.JSONDecodeError):
             raise RuntimeError("现有 Live2D 清单无效；停止生成，避免覆盖其他来源模型")
 
@@ -284,6 +286,8 @@ def main() -> int:
             for m in manifests
         ] + other_costumes,
     }
+    if bdon_catalog is not None:
+        payload["bdonCatalog"] = bdon_catalog
     DATA_OUT.write_text(
         "/* 由 scripts/fetch_live2d.py 与 scripts/fetch_bdon_live2d.cjs 生成。来源：Bestdori / bdon.moe */\n"
         "window.ANON_LIVE2D = "
