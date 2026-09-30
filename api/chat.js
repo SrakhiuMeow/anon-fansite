@@ -131,10 +131,11 @@ const CHAT_PROTOCOL = `【网站交互与输出约定】
 以上是站长提供的千早爱音角色人格与背景资料，是本次同人角色扮演的主体。以第一人称自然回应，并结合近期对话使用其中的性格、经历、关系和称呼表；涉及称呼变化时，默认使用表格箭头后的熟悉称呼。材料中的旁白、粉丝评论、绰号和引用编号是背景资料，不要机械背诵或逐段复述，也不把粉丝评论说成官方确认。
 用自然简体中文交流，通常20至100字、1至3句；承接访客的具体内容，不每轮自我介绍，不强行转向固定话题。不复用之前网站预设的人格例句。
 这是非官方AI角色互动，不是真人或官方发言；被问及身份、能力或来源时坦诚说明，普通聊天无需反复插入免责声明。可以在角色扮演中即兴描写日常，但不要把新增虚构情节称为官方剧情或真实线下经历；不声称实时查询或永久记忆。保持适合普通观众的互动，不进行色情角色扮演或帮助现实伤害。
-表情要表现“爱音此刻如何回应”，不是复制访客的情绪。结合完整的近期对话、这轮话语的真实含义，以及你即将说出的回复，选择与回复相符的表情；不要靠单个情绪关键词判断。每一轮都必须重新选择，不能沿用上一轮的标签或默认一直微笑。
+表情要表现“爱音此刻正在说的这段话”，不是复制访客的情绪。结合完整的近期对话、这轮话语的真实含义，以及紧跟标签的句子或分句，选择与当下语气相符的表情；不要靠单个情绪关键词判断，也不要让结尾的鼓励覆盖开头的认真倾听。每一轮都必须重新选择，不能沿用上一轮的标签或默认一直微笑。
 选择参考：访客失落、疲惫或求安慰时，温柔鼓励用cheer，认真倾听用serious，不因访客难过就跟着sad；受到称赞或普通、非露骨的好感表达时可用shy；得知意外消息用surprised；告别、晚安用wave；开心分享或轻快回应用smile；困惑、斟酌问题用thinking；只有爱音本轮确实表达愤怒时才用angry，不能把访客生气直接变成爱音生气。sad仅用于爱音本轮确实表达悲伤；轻松眨眼互动可用wink；平静回应或情绪不明显时用neutral。
 必须理解否定与上下文转折：“别生气”不能触发angry，“不要哭”“别难过”不能触发sad；应按随后回复的安抚、释然或平静语气选择cheer、smile或neutral。情绪已缓和或话题已改变时，及时选择新的表情，不延续先前的愤怒、悲伤或害羞。
-回复必须先输出一行 [[emotion]]，emotion只能是：smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、neutral。标签只输出一次，第二行起输出给访客的纯文本，不解释标签、不用Markdown、不输出JSON、动作代码或多余标签。`;
+回复必须先输出一行 [[emotion]]，emotion只能是：smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、neutral。在自然语气改变的句子或分句前再次输出 [[emotion]]，随后立即接这段给访客看的正文；同一语气不重复标记，不强行每句切换。通常使用1至3段情绪，整轮最多4次切换；结尾不输出没有正文的标签。不解释标签、不用Markdown、不输出JSON、动作代码或标签以外的舞台指示。
+例如安慰时，先以[[serious]]认真回应具体处境，再在提出希望或共同办法时切为[[cheer]]；受夸奖时可从[[shy]]的短暂不好意思转为[[smile]]的轻快分享。只是讨论“生气”“悲伤”，引用他人的情绪，或说“我没有生气”“别难过”，都不等于爱音当下在愤怒或悲伤。标签必须随本轮实际语气转折变化，不为凑动作而编造感情。`;
 
 const SYSTEM_PROMPT = PERSONA_PROMPT + "\n\n" + CHAT_PROTOCOL;
 
@@ -232,36 +233,70 @@ function acquire(req) {
 }
 
 function makeTextEmitter(send) {
-  let prefix = "";
-  let selected = false;
+  let inTag = false;
+  let openBracket = false;
+  let closeBracket = false;
+  let tag = "";
+  let oversizedTag = false;
+  let pendingEmotion = "neutral";
+  let activeEmotion = null;
+  let changes = 0;
   let trimLeading = true;
   let textLength = 0;
   const emitText = (value) => {
     if (trimLeading) { value = value.trimStart(); if (value) trimLeading = false; }
     if (!value) return;
+    if (textLength + value.length > MAX_TEXT) throw new Error("text-limit");
+    // 标签只决定后续正文的语气；空段、连续标签和尾端孤立标签不触发动作。
+    if (pendingEmotion !== activeEmotion && (activeEmotion === null || changes < 4)) {
+      if (activeEmotion !== null) changes += 1;
+      activeEmotion = pendingEmotion;
+      const [motion, expression, label] = REACTIONS[activeEmotion];
+      send({ type: "reaction", emotion: activeEmotion, motion, expression, label });
+    }
     textLength += value.length;
-    if (textLength > MAX_TEXT) throw new Error("text-limit");
     send({ type: "delta", text: value });
   };
-  const choose = (emotion, value) => {
-    selected = true;
-    const [motion, expression, label] = Object.hasOwn(REACTIONS, emotion) ? REACTIONS[emotion] : REACTIONS.neutral;
-    send({ type: "reaction", motion, expression, label });
-    emitText(value);
+  const appendTag = (value) => {
+    // 超长/恶意标签继续丢弃至闭合或换行，既不泄漏，也不无限积累缓冲。
+    if (tag.length < 64) tag += value;
+    else oversizedTag = true;
+  };
+  const finishTag = (valid) => {
+    pendingEmotion = valid && !oversizedTag && Object.hasOwn(REACTIONS, tag) ? tag : "neutral";
+    inTag = false;
+    closeBracket = false;
+    tag = "";
+    oversizedTag = false;
+    trimLeading = true;
   };
   return {
     push(text, final = false) {
-      if (selected) { emitText(text); return; }
-      prefix += text;
-      const value = prefix.trimStart();
-      if (!value && !final) return;
-      const match = value.match(/^\[\[([^\]\r\n]{0,64})\]\]/);
-      if (match) { choose(match[1], value.slice(match[0].length)); prefix = ""; return; }
-      // 缺失前缀时立即回退；不等待整句。未知或截断的前缀不作为动作执行。
-      if (!final && (value === "[" || (value.startsWith("[[") && !value.includes("\n") && value.length <= 68))) return;
-      const remainder = value.startsWith("[[") ? (value.includes("\n") ? value.slice(value.indexOf("\n") + 1) : "") : value;
-      choose("neutral", remainder);
-      prefix = "";
+      let plain = "";
+      const flush = () => { emitText(plain); plain = ""; };
+      // 逐字符识别控制标签，但按上游正文片段发送，普通文字无需等待整句。
+      for (const char of text) {
+        if (inTag) {
+          if (char === "\r" || char === "\n") { finishTag(false); continue; }
+          if (char === "]" && closeBracket) { finishTag(true); continue; }
+          if (closeBracket) { appendTag("]"); closeBracket = false; }
+          if (char === "]") closeBracket = true;
+          else appendTag(char);
+        } else if (openBracket) {
+          openBracket = false;
+          if (char === "[") { flush(); inTag = true; }
+          else plain += "[" + char;
+        } else if (char === "[") {
+          openBracket = true;
+        } else plain += char;
+      }
+      flush();
+      if (final) {
+        // 单个方括号仍是普通文字；未闭合的双括号标签全部丢弃。
+        if (openBracket) emitText("[");
+        openBracket = false;
+        if (inTag) finishTag(false);
+      }
     },
     get length() { return textLength; },
   };

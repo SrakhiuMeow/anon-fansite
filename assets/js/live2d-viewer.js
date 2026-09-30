@@ -1,11 +1,12 @@
-/* Cubism 2.1 真正模型播放器。素材保持同源；运行时固定版本与完整性校验。 */
+/* Cubism 2 / moc3 模型播放器。素材保持同源；不同服装使用各自的真实动作映射。 */
 (() => {
   "use strict";
   const data = window.ANON_LIVE2D;
+  const actions = window.AnonLive2DActions;
   const byId = (id) => document.getElementById(id);
   const stage = byId("l2dStage");
   const canvas = byId("l2dCanvas");
-  if (!data?.costumes?.length || !stage || !canvas) return;
+  if (!data?.costumes?.length || !actions || !stage || !canvas) return;
   const statusEl = byId("l2dStatus");
   const fallbackEl = byId("l2dFallback");
   const hintEl = byId("l2dHint");
@@ -15,12 +16,15 @@
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
-  // Core 是 Live2D 专有运行时（非 MIT）；镜像由 pixi-live2d-display 文档推荐。
-  // 固定至原始 SDK 2.1.00_1 提交，许可及来源见项目 README。
+  // 两代 Core 使用各自专有许可；新版官方 Core 随站点保存，详见 vendor 许可。
+  const cubismReady = () => {
+    try { return window.Live2DCubismCore?.Version.csmGetVersion() > 0; } catch { return false; }
+  };
   const RUNTIME = [
     { name: "PixiJS", path: "npm/pixi.js@6.5.10/dist/browser/pixi.min.js", integrity: "sha384-98eYPI3XO3wKMBW5IUYk3WpffOsMLc+0WSK+ZMutD8S5R6e4E7hKIqFKcdHBLOMB", ready: () => !!window.PIXI?.Application },
     { name: "Cubism 2", path: "gh/dylanNew/live2d@fd9fd400845e9a00bb194fdac0b6635c753a1e8a/webgl/Live2D/lib/live2d.min.js", integrity: "sha384-LWrKEMeBVbWko3WFDXTIBDN5SpFKepeYUI2JE6It+qbq+F+2NvN2QDO2J8H+8Y+O", ready: () => !!window.Live2D },
-    { name: "Live2D 播放器", path: "npm/pixi-live2d-display@0.4.0/dist/cubism2.min.js", integrity: "sha384-410ROfU/36nOSxh+9HKnuS7NRhqQbOIkVaSutIA+NOfjyqSXLVQ8BvTWbmHcY7Gf", ready: () => !!window.PIXI?.live2d?.Live2DModel },
+    { name: "Cubism Core 5.1", url: "assets/vendor/live2dcubismcore-5.1.0.min.js", integrity: "sha384-MeKqhuhBpq1ZqqshjOzqDOQJ/00BuDVdnNeYgPKul9hmgROzmT17WkmUeFJ9Jlrb", ready: cubismReady },
+    { name: "Live2D 播放器", path: "npm/pixi-live2d-display@0.4.0/dist/index.min.js", integrity: "sha384-Ukg4e48mEdLvXx4ipNmtVmWcMoKjgs89aotHN/5CB3Bj77JPioyjXXYORMiunxFz", ready: () => !!window.PIXI?.live2d?.Live2DModel },
   ];
   const MOTIONS = [["idle01", "待机"], ["smile01", "微笑"], ["wink01", "眨眼"], ["bye01", "挥手"], ["kandou01", "感动"], ["kime01", "摆姿势"], ["shame01", "害羞"], ["surprised01", "吃惊"], ["thinking01", "思考"], ["angry01", "生气"], ["cry01", "哭泣"], ["serious01", "认真"]];
   const EXPRESSIONS = [["default", "默认"], ["smile01", "微笑"], ["wink01", "眨眼"], ["shame01", "害羞"], ["surprised01", "吃惊"], ["thinking01", "思考"], ["serious01", "认真"], ["angry01", "生气"], ["sad01", "难过"], ["cry01", "哭泣"]];
@@ -37,6 +41,7 @@
   let failed = false;
   let layoutTimer = null;
   let followMouse = true;
+  let desiredReaction = { emotion: "neutral" };
   try { followMouse = localStorage.getItem(FOLLOW_MOUSE_STORAGE) !== "false"; } catch { /* 隐私模式下仍可使用开关 */ }
 
   const setStatus = (text) => {
@@ -117,10 +122,12 @@
       if (item.ready()) continue;
       setStatus(`正在加载 ${item.name}…`);
       let lastError;
-      for (const host of ["https://cdn.jsdelivr.net/", "https://fastly.jsdelivr.net/"]) {
-        try { await loadScript(host + item.path, item.integrity); lastError = null; break; }
+      for (const url of item.url ? [item.url] : ["https://cdn.jsdelivr.net/", "https://fastly.jsdelivr.net/"].map((host) => host + item.path)) {
+        try { await loadScript(url, item.integrity); lastError = null; break; }
         catch (error) { lastError = error; }
       }
+      // 新版 Core 内含异步 WASM 初始化；script.onload 并不等于 Core 已能创建模型。
+      for (let attempt = 0; !lastError && !item.ready() && attempt < 150; attempt++) await new Promise((resolve) => setTimeout(resolve, 20));
       if (lastError || !item.ready()) throw new Error(`${item.name} 暂不可用，请检查网络后重试`);
     }
     // 聊天会同时指定动作与表情，避免动作开始时库自动清空已选表情。
@@ -156,23 +163,37 @@
       host.appendChild(button);
     }
   };
-  const motionIndex = (costume, name) => costume?.motions.findIndex((item) => item === `${name}.mtn`) ?? -1;
   const renderControls = () => {
     buildChips(hosts.costume, data.costumes.map((item) => [item.id, item.label || item.id]), async (id) => {
       const costume = data.costumes.find((item) => item.id === id);
       if (costume && (costume.id !== current?.id || loading)) await mountModel(costume);
     });
     markActive(hosts.costume, current.id);
-    buildChips(hosts.motion, MOTIONS.filter(([name]) => motionIndex(current, name) >= 0), async (motion) => {
+    buildChips(hosts.motion, MOTIONS.filter(([motion]) => actions.resolve(current, { motion })), async (motion) => {
       const result = await react({ motion });
       setHint(result.ok ? `已播放「${MOTIONS.find(([name]) => name === motion)[1]}」动作。` : result.reason);
     });
-    buildChips(hosts.expression, EXPRESSIONS.filter(([name]) => current.expressions.includes(name)), async (expression) => {
+    buildChips(hosts.expression, EXPRESSIONS.filter(([expression]) => actions.resolve(current, { expression })), async (expression) => {
       const result = await react({ expression });
       setHint(result.ok ? `已切换「${EXPRESSIONS.find(([name]) => name === expression)[1]}」表情。` : result.reason);
     });
     markActive(hosts.expression, "default");
     setHint(`当前服装有 ${current.motionCount} 个动作、${current.expressionCount} 个表情。${paused ? "动画已暂停，可按播放按钮开始。" : "试着打个招呼，或者点选一个动作。"}`);
+  };
+
+  const warmReactions = async (target, costume) => {
+    const manager = target.internalModel.motionManager;
+    // 小批量预热常用资源，避免第一个回复在文字出现后才开始加载动作。
+    for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry"]) {
+      if (target !== model) return;
+      const choice = actions.resolve(costume, { emotion });
+      if (!choice) continue;
+      const expressionIndex = manager.expressionManager?.getExpressionIndex(choice.expression);
+      await Promise.allSettled([
+        choice.motion ? manager.loadMotion(choice.group, choice.index) : null,
+        expressionIndex >= 0 ? manager.expressionManager.loadExpression(expressionIndex) : null,
+      ]);
+    }
   };
 
   const mountModel = async (costume) => {
@@ -205,6 +226,7 @@
       layoutTimer = setTimeout(() => { if (version === loadVersion) fitModel(); }, 150);
       setStatus(null);
       renderControls();
+      void warmReactions(next, costume);
       return true;
     } catch (error) {
       if (version === loadVersion) {
@@ -219,6 +241,7 @@
         stage.setAttribute("aria-busy", "false");
         syncPlayback();
         emitState();
+        if (model && !desiredReaction.signal?.aborted) void react(desiredReaction);
       }
     }
   };
@@ -248,29 +271,44 @@
   };
 
   // 所有按钮与聊天使用同一入口；只有动作/表情的 Promise 成功才返回 ok。
-  const react = async ({ motion, expression } = {}) => {
+  const react = async (request = {}) => {
+    const { signal } = request;
+    if (signal?.aborted) return { ok: false, reason: "这段对话已停止。" };
+    desiredReaction = request;
+    ++reactionVersion;
     if (!model && !(await start())) return { ok: false, reason: "文字回复已送达；模型暂不可用，可点重试。" };
+    if (signal?.aborted || desiredReaction !== request) return { ok: false, reason: "这段对话已停止或被更新。" };
     if (loading) return { ok: false, reason: "文字回复已送达；正在换装，稍后再试动作。" };
     if (paused) return { ok: false, reason: "文字回复已送达；动画已暂停，点播放后再试。" };
     if (!inView || document.hidden) return { ok: false, reason: "文字回复已送达；模型在可见时播放动作。" };
     const version = ++reactionVersion;
     const target = model;
-    const index = motion ? motionIndex(current, motion) : -1;
-    if ((motion && index < 0) || (expression && !current.expressions.includes(expression))) return { ok: false, reason: "当前服装没有这个动作或表情。" };
+    const choice = actions.resolve(current, request);
+    if (!choice) return { ok: false, reason: "当前服装没有这个动作或表情。" };
+    const { motion, expression, group, index } = choice;
     try {
-      const expressionManager = target.internalModel.motionManager.expressionManager;
+      const motionManager = target.internalModel.motionManager;
+      const expressionManager = motionManager.expressionManager;
       const expressionIndex = expression ? expressionManager?.getExpressionIndex(expression) : -1;
+      // 先加载，后检查版本再播放：迟到的旧请求不能把停止/新情绪覆盖回去。
+      const loaded = await Promise.all([
+        motion ? motionManager.loadMotion(group, index) : null,
+        expressionIndex >= 0 ? expressionManager.loadExpression(expressionIndex) : null,
+      ]);
+      if (signal?.aborted || version !== reactionVersion || target !== model || paused || !inView || document.hidden) return { ok: false, reason: "已响应较新的操作，或模型已暂停。" };
+      if ((motion && !loaded[0]) || (expression && !loaded[1])) return { ok: false, reason: "文字回复已送达；动作或表情资源暂不可用，请重试。" };
       // 库对“重复设置当前表情”返回 false，但该表情确实已生效，不应误报失败。
       const expressionIsCurrent = expressionIndex >= 0 && expressionManager.expressions[expressionIndex] === expressionManager.currentExpression;
+      const motionIsCurrent = motion && motionManager.state.currentGroup === group && motionManager.state.currentIndex === index && !motionManager.isFinished();
       const results = await Promise.all([
-        motion ? target.motion("reaction", index, window.PIXI.live2d.MotionPriority.FORCE) : true,
+        motion && !motionIsCurrent ? target.motion(group, index, window.PIXI.live2d.MotionPriority.FORCE) : true,
         expression && !expressionIsCurrent ? target.expression(expression) : true,
       ]);
-      if (version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
+      if (signal?.aborted || version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
       if (results.some((result) => result === false)) return { ok: false, reason: "文字回复已送达；动作未能播放，请再试一次。" };
-      if (motion) markActive(hosts.motion, motion);
-      if (expression) markActive(hosts.expression, expression);
-      return { ok: true, motion, expression };
+      if (motion) markActive(hosts.motion, actions.defaults[choice.emotion]?.motion || motion);
+      if (expression) markActive(hosts.expression, actions.defaults[choice.emotion]?.expression || expression);
+      return { ok: true, motion, expression, emotion: choice.emotion };
     } catch (error) {
       console.warn("Live2D reaction:", error);
       return { ok: false, reason: "文字回复已送达；动作资源加载失败，请重试。" };
@@ -288,18 +326,25 @@
   });
   pauseEl?.addEventListener("click", () => {
     paused = !paused;
+    ++reactionVersion;
     syncPlayback();
     setHint(paused ? "动画已暂停，仍可发送文字。" : "动画继续播放。输入一句话，试试爱音的反应吧。" );
     emitState();
+    if (!paused && !desiredReaction.signal?.aborted) void react(desiredReaction);
   });
-  document.addEventListener("visibilitychange", syncPlayback);
+  document.addEventListener("visibilitychange", () => {
+    syncPlayback();
+    if (!document.hidden && inView && !desiredReaction.signal?.aborted) void react(desiredReaction);
+  });
   if ("ResizeObserver" in window) new ResizeObserver(fitModel).observe(stage);
   else window.addEventListener("resize", fitModel);
   if ("IntersectionObserver" in window) {
     const observer = new IntersectionObserver((entries) => {
+      const wasInView = inView;
       inView = entries.some((entry) => entry.isIntersecting);
       if (inView && !model && !failed) void start();
       syncPlayback();
+      if (!wasInView && inView && model && !desiredReaction.signal?.aborted) void react(desiredReaction);
     }, { threshold: 0 });
     observer.observe(stage);
   } else { inView = true; void start(); }

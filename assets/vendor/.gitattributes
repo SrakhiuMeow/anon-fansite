@@ -1,0 +1,2 @@
+# Preserve the official runtime bytes and its Subresource Integrity hash.
+live2dcubismcore-*.min.js -text

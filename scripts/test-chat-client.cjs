@@ -42,6 +42,19 @@ async function testParser() {
   await readEvents(bytesStream([encoder.encode(expected.map(JSON.stringify).join("\n"))]), (event) => tail.push(event));
   assert.deepEqual(tail, expected);
 
+  // 回调异步播放时，同一个网络块的下一事件必须等待，不能越过动作展示文字。
+  const ordered = [];
+  let resume;
+  const playing = readEvents(bytesStream([encoder.encode(expected.map(JSON.stringify).join("\n"))]), async (event) => {
+    ordered.push(`start:${event.type}`);
+    if (event.type === "reaction") await new Promise((resolve) => { resume = resolve; });
+    ordered.push(`end:${event.type}`);
+  });
+  await settle(() => !!resume, "首个异步事件应开始");
+  assert.deepEqual(ordered, ["start:reaction"]);
+  resume(); await playing;
+  assert.deepEqual(ordered, expected.flatMap((event) => [`start:${event.type}`, `end:${event.type}`]));
+
   const malformed = bytesStream([encoder.encode('{"type":"delta","text":"前段"}\n{"type":')]);
   const beforeError = [];
   await assert.rejects(readEvents(malformed, (event) => beforeError.push(event)), SyntaxError);
@@ -83,7 +96,28 @@ class Element {
   close() { this.open = false; this.dispatch("close"); }
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, modelReact, modelReady = true } = {}) {
+function playbackClock() {
+  let now = 1000;
+  let serial = 0;
+  const timers = new Map();
+  return {
+    now: () => now,
+    setTimeout(callback, delay) { const id = ++serial; timers.set(id, { callback, at: now + delay }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    async advance(ms) {
+      const end = now + ms;
+      for (let count = 0; count < 10000; count++) {
+        await tick();
+        const next = [...timers].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next) { now = end; await tick(); return; }
+        now = next[1].at; timers.delete(next[0]); next[1].callback();
+      }
+      throw new Error("测试时钟超出步数");
+    },
+  };
+}
+
+async function browserFixture({ accessCodeRequired = false, mobile = false, reducedMotion = true, clock, modelReact, modelReady = true } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion",
@@ -107,7 +141,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
       querySelector: () => null,
     },
     location: { protocol: "https:" },
-    matchMedia: () => ({ matches: mobile }),
+    matchMedia: (query) => ({ matches: query === "(prefers-reduced-motion: reduce)" ? reducedMotion : mobile }),
     requestAnimationFrame: (callback) => { frames.push(callback); },
     AnonLive2D: {
       react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
@@ -134,6 +168,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
       request.body = new ReadableStream({
         start(controller) {
           request.write = (event) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          request.writeChunk = (events) => controller.enqueue(encoder.encode(`${events.map(JSON.stringify).join("\n")}\n`));
           request.close = () => controller.close();
           options.signal.addEventListener("abort", () => controller.error(new DOMException("Aborted", "AbortError")), { once: true });
         },
@@ -142,7 +177,9 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, mode
     },
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../assets/js/anon-dialogue.js"), "utf8"), {
-    window: root, AbortController, AbortSignal, TextDecoder, setTimeout, clearTimeout,
+    window: root, AbortController, AbortSignal, TextDecoder,
+    setTimeout: clock ? clock.setTimeout : setTimeout, clearTimeout: clock ? clock.clearTimeout : clearTimeout,
+    ...(clock ? { Date: { now: clock.now } } : {}),
   }, { filename: "anon-dialogue.js" });
   await settle(() => !aiOption.disabled, "AI 配置应启用选项");
   return {
@@ -368,7 +405,9 @@ async function testEmotionFeedback() {
   const shy = { type: "reaction", motion: "shame01", expression: "shame01", label: "害羞" };
   ui.requests.at(-1).write(shy);
   await settle(() => ui.ids.anonChatEmotion.textContent === "回应：害羞", "应在模型确认后显示情绪标签");
-  assert.deepEqual({ ...ui.reactions.at(-1) }, shy);
+  const { signal: shySignal, ...shyPlayed } = ui.reactions.at(-1);
+  assert.deepEqual(shyPlayed, shy);
+  assert.equal(shySignal, ui.requests.at(-1).options.signal);
   assert.match(ui.ids.anonChatEmotion.title, /已应用/);
   await ui.complete("突然夸我，有点不好意思啦。");
 
@@ -405,8 +444,14 @@ async function testEmotionFeedback() {
   thinking.resolve({ ok: false, reason: "过期的思考动作" });
   await tick();
   assert.equal(race.ids.anonChatEmotion.textContent, "回应：害羞");
-  await race.complete("第一句回答");
+  race.requests.at(-1).writeChunk([
+    { type: "reaction", motion: "smile01", expression: "smile01", label: "微笑" },
+    { type: "delta", text: "第一句回答" }, { type: "done" },
+  ]);
+  race.requests.at(-1).close();
+  await settle(() => pending.at(-1).reaction.label === "微笑", "后续正文应等待新动作");
   const oldTurn = pending.at(-1);
+  assert.equal(race.lastText(), "第一句", "未完成的动作不能提前显示后续正文");
   race.ids.anonChatClear.dispatch("click");
   assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机" });
   pending.at(-1).resolve({ ok: true });
@@ -430,10 +475,84 @@ async function testEmotionFeedback() {
   assert.equal(race.ids.anonChatEmotion.textContent, "回应：平静待机");
 }
 
+async function testSegmentPlayback() {
+  const clock = playbackClock();
+  const pending = [];
+  const shy = { type: "reaction", emotion: "shy", motion: "shame01", expression: "shame01", label: "害羞" };
+  const smile = { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" };
+  const ui = await browserFixture({ reducedMotion: false, clock, modelReact: (reaction) => {
+    if (reaction.type !== "reaction") return Promise.resolve({ ok: true });
+    return new Promise((resolve) => pending.push({ reaction, resolve, at: clock.now() }));
+  } });
+  ui.submit("分段回答");
+  const request = ui.requests.at(-1);
+  // 一次收到完整响应，仍须按动作、文字、下一动作的顺序播放。
+  request.writeChunk([shy, { type: "delta", text: "先" }, shy, { type: "delta", text: "。" }, smile, { type: "delta", text: "后。" }, { type: "done" }]);
+  request.close();
+  await settle(() => pending.length === 1, "首段动作应开始");
+  assert.equal(ui.lastText(), "分段回答");
+  assert.equal(ui.send.disabled, true, "网络已结束但动作未完成时仍应忙碌");
+  pending[0].resolve({ ok: true });
+  await settle(() => ui.lastText() === "先", "动作就绪后才逐字显示正文");
+  await clock.advance(19);
+  assert.equal(ui.lastText(), "先");
+  await clock.advance(1);
+  assert.equal(ui.lastText(), "先。", "相邻 delta 不应各自等待最短情绪停留");
+  assert.equal(pending.length, 1, "重复相同情绪不得重新触发动作");
+  await clock.advance(679);
+  assert.equal(pending.length, 1, "短句情绪应至少保留 700 毫秒");
+  await clock.advance(1);
+  assert.equal(pending.length, 2);
+  assert.equal(pending[1].at - pending[0].at, 700);
+  assert.equal(ui.lastText(), "先。", "下一段文字必须等待下一动作就绪");
+  pending[1].resolve({ ok: true });
+  await settle(() => ui.lastText() === "先。后", "第二段开始显示");
+  assert.equal(ui.send.disabled, true, "文字未播放完不得写入历史或允许新请求");
+  await clock.advance(40);
+  assert.equal(ui.lastText(), "先。后。");
+  assert.equal(ui.send.disabled, false);
+  ui.submit("追问");
+  assert.deepEqual(ui.requests.at(-1).messages.map((item) => item.content), ["分段回答", "先。后。", "追问"]);
+  ui.ids.anonChatStop.dispatch("click");
+  await tick();
+
+  // 网络数据已全部缓冲时，停止、清空、模式切换和重锁仍应立刻取消播放队列。
+  for (const action of ["stop", "clear", "mode", "lock"]) {
+    const time = playbackClock();
+    const cancelled = await browserFixture({ accessCodeRequired: true, reducedMotion: false, clock: time });
+    cancelled.ids.anonChatUnlock.dispatch("click");
+    cancelled.unlock("test-only"); cancelled.unlocks.at(-1).resolve();
+    await settle(() => !cancelled.ids.anonChatLock.hidden, "播放测试先解锁");
+    cancelled.submit("旧问题");
+    const old = cancelled.requests.at(-1);
+    old.writeChunk([shy, { type: "delta", text: "这一段还没说完" }, smile, { type: "delta", text: "后段不应播放" }, { type: "done" }]); old.close();
+    await settle(() => cancelled.lastText() === "这", "先显示一个字后取消");
+    if (action === "mode") cancelled.select("local");
+    else cancelled.ids[{ stop: "anonChatStop", clear: "anonChatClear", lock: "anonChatLock" }[action]].dispatch("click");
+    await settle(() => !cancelled.send.disabled, "取消播放应立即恢复控件");
+    const afterCancel = cancelled.lastText();
+    await time.advance(3000);
+    assert.equal(old.options.signal.aborted, true);
+    assert.equal(cancelled.lastText(), afterCancel, `${action} 后旧文字不能继续显示`);
+    assert.equal(cancelled.reactions.some((value) => value.emotion === "smile"), false, `${action} 后不能触发缓冲中的下一动作`);
+    if (action === "mode") cancelled.select("deepseek");
+    if (action === "mode" || action === "lock") {
+      cancelled.ids.anonChatUnlock.dispatch("click");
+      cancelled.unlock("test-only"); cancelled.unlocks.at(-1).resolve();
+      await settle(() => !cancelled.ids.anonChatLock.hidden, "重新解锁后检查历史");
+    }
+    cancelled.submit("新问题");
+    assert.deepEqual(cancelled.requests.at(-1).messages, [{ role: "user", content: "新问题" }], "未播完的回复不能进入后续历史");
+    cancelled.ids.anonChatStop.dispatch("click");
+    await tick();
+  }
+}
+
 (async () => {
   await testParser();
   await testClient();
   await testPasswordLock();
   await testEmotionFeedback();
-  console.log("聊天前端验证通过：UTF-8/NDJSON、生命周期竞争、历史预算、故障降级、密码弹窗与鉴权、取消和重新锁定、情绪动作实际结果与回调竞争。");
+  await testSegmentPlayback();
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码弹窗与鉴权、同块分段情绪、渐进播放与最短停留、播放取消与历史隔离。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

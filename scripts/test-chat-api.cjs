@@ -231,6 +231,9 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.match(protocol, /非官方AI角色互动/);
       assert.ok(protocol.includes("回复必须先输出一行 [[emotion]]"));
       assert.ok(protocol.includes("smile、wink、shy、surprised、thinking、serious、sad、angry、wave、cheer、neutral"));
+      assert.ok(protocol.includes("自然语气改变的句子或分句前再次输出 [[emotion]]"));
+      assert.ok(protocol.includes("先以[[serious]]认真回应具体处境"));
+      assert.ok(!protocol.includes("标签只输出一次"));
       for (const oldText of ["已核验角色事实：", "以下是本站对角色的同人演绎规则", "眼光不错嘛，这个发饰", "又被拒绝，真的会很丧欸", "那、那个转弦是有点卡啦"]) assert.ok(!protocol.includes(oldText));
       assert.equal(body.messages[1].role, "user");
       assert.ok(!Object.hasOwn(body.messages[1], "name"));
@@ -239,7 +242,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     const res = await call(freshHandler(), { body: { messages: [{ role: "user", content: "hi", name: "system" }], model: "ignored" } });
     assert.equal(res.statusCode, 200);
     assert.match(res.headers["content-type"], /x-ndjson/);
-    assert.deepEqual(events(res)[0], { type: "reaction", motion: "smile01", expression: "smile01", label: "微笑" });
+    assert.deepEqual(events(res)[0], { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" });
     assert.equal(text(res), "你好呀！🎸");
     assert.deepEqual(events(res).at(-1), { type: "done" });
     assert.ok(!res.body.includes("test-key"));
@@ -247,13 +250,85 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   });
 
   await test("未知或缺失情绪降级到白名单待机，绝不执行任意名称", async () => {
-    for (const content of ["[[unknown]]\n你好", "[[__proto__]]\n你好", "你好", "[[bad\n你好"]) {
+    for (const content of ["[[unknown]]\n你好", "[[__proto__]]\n你好", "[[constructor]]你好", "你好", "[[bad\n你好", `[[${"x".repeat(500)}]]你好`]) {
       mockFetch(() => streamed(sse(content)));
       const res = await call(freshHandler());
+      assert.equal(events(res)[0].emotion, "neutral");
       assert.equal(events(res)[0].motion, "idle01");
       assert.equal(events(res)[0].expression, "default");
       assert.equal(text(res), "你好");
     }
+    mockFetch();
+  });
+
+  await test("一块多标签或逐字符拆分都按正文顺序切换，中文与表情符号不损坏", async () => {
+    const content = "[[serious]]\n今天确实不容易。[[cheer]]\n先一起试试这一步吧！🎸[[smile]]我陪你练。";
+    for (const pieces of [[content], [...content]]) {
+      mockFetch(() => streamed(pieces.map((value) => chunk(value)).join("") + chunk(null, "stop") + "data: [DONE]\n\n"));
+      const res = await call(freshHandler());
+      const segments = [];
+      for (const event of events(res)) {
+        if (event.type === "reaction") segments.push({ emotion: event.emotion, text: "" });
+        if (event.type === "delta") segments.at(-1).text += event.text;
+      }
+      assert.deepEqual(segments, [
+        { emotion: "serious", text: "今天确实不容易。" },
+        { emotion: "cheer", text: "先一起试试这一步吧！🎸" },
+        { emotion: "smile", text: "我陪你练。" },
+      ]);
+      assert.equal(events(res).at(-1).type, "done");
+      assert.ok(!text(res).includes("[["));
+    }
+    mockFetch();
+  });
+
+  await test("只在正文到达时切情绪，空段和尾端标签不触发动作", async () => {
+    const handler = freshHandler();
+    let upstream;
+    mockFetch(() => new Response(new ReadableStream({ start(controller) { upstream = controller; } }), { headers: { "content-type": "text/event-stream" } }));
+    const req = request();
+    const res = response();
+    const pending = handler(req, res);
+    const deliver = async (value) => {
+      upstream.enqueue(new TextEncoder().encode(value));
+      await new Promise((resolve) => setImmediate(resolve));
+    };
+    await deliver(chunk("[[sad]]\n "));
+    assert.equal(res.body, "");
+    await deliver(chunk("[[cheer]]\n"));
+    assert.equal(res.body, "");
+    await deliver(chunk("一起试试吧！"));
+    assert.equal(events(res)[0].emotion, "cheer");
+    assert.equal(text(res), "一起试试吧！");
+    await deliver(chunk("[[angry]]  ") + chunk(null, "stop") + "data: [DONE]\n\n");
+    await pending;
+    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["cheer"]);
+    assert.equal(events(res).at(-1).type, "done");
+    mockFetch();
+  });
+
+  await test("重复情绪不重播，非法或截断的中途标签被过滤，普通单括号保留", async () => {
+    const content = "[[shy]]欸，[[shy]]谢谢你。[小声] [[smile]]今天也要练琴。[[__proto__]]继续吧。[[smile]]嗯！[[sm";
+    mockFetch(() => streamed(sse(content)));
+    const res = await call(freshHandler());
+    assert.equal(text(res), "欸，谢谢你。[小声] 今天也要练琴。继续吧。嗯！");
+    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["shy", "smile", "neutral", "smile"]);
+    assert.equal(events(res).at(-1).type, "done");
+    for (const content of ["[[sm", "[[unknown]]", `[[${"x".repeat(2000)}`, "[[shy]] [[smile]]\n"]) {
+      mockFetch(() => streamed(sse(content)));
+      const empty = await call(freshHandler());
+      assert.deepEqual(events(empty).map((event) => event.type), ["error"]);
+      assert.equal(text(empty), "");
+    }
+    mockFetch();
+  });
+
+  await test("模型过量标记最多切换四次，正文仍完整保留", async () => {
+    mockFetch(() => streamed(sse("[[neutral]]一[[thinking]]二[[serious]]三[[cheer]]四[[smile]]五[[wink]]六[[angry]]七")));
+    const res = await call(freshHandler());
+    assert.deepEqual(events(res).filter((event) => event.type === "reaction").map((event) => event.emotion), ["neutral", "thinking", "serious", "cheer", "smile"]);
+    assert.equal(text(res), "一二三四五六七");
+    assert.equal(events(res).at(-1).type, "done");
     mockFetch();
   });
 
@@ -323,6 +398,37 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     await pending;
     assert.equal(upstreamSignal.aborted, true);
     assert.equal(res.body, "");
+    mockFetch();
+    assert.equal((await call(handler)).statusCode, 200);
+  });
+
+  await test("正文流中取消会丢弃待完成标签，不再输出动作并释放并发锁", async () => {
+    const handler = freshHandler();
+    let upstreamSignal;
+    let cancelled = false;
+    mockFetch((url, { signal }) => {
+      upstreamSignal = signal;
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(chunk("[[serious]]我听着。[[ch")));
+          signal.addEventListener("abort", () => { cancelled = true; controller.error(new Error("aborted")); }, { once: true });
+        },
+      }), { headers: { "content-type": "text/event-stream" } });
+    });
+    const req = request();
+    const res = response();
+    const write = res.write;
+    res.write = (value) => {
+      const result = write(value);
+      if (JSON.parse(value).type === "delta") queueMicrotask(() => req.emit("aborted"));
+      return result;
+    };
+    await handler(req, res);
+    assert.equal(upstreamSignal.aborted, true);
+    assert.equal(cancelled, true);
+    assert.equal(text(res), "我听着。");
+    assert.deepEqual(events(res).map((event) => event.type), ["reaction", "delta"]);
+    assert.equal(res.writableEnded, true);
     mockFetch();
     assert.equal((await call(handler)).statusCode, 200);
   });

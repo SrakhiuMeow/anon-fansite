@@ -118,20 +118,36 @@
     log.scrollTop = log.scrollHeight;
     return content;
   };
-  const react = async (result) => {
+  const abortable = (task, signal) => {
+    if (!signal) return Promise.resolve(task);
+    return new Promise((resolve, reject) => {
+      const finish = (callback, value) => { signal.removeEventListener("abort", abort); callback(value); };
+      const abort = () => finish(reject, new Error("对话已取消"));
+      signal.addEventListener("abort", abort, { once: true });
+      Promise.resolve(task).then((value) => finish(resolve, value), (error) => finish(reject, error));
+      if (signal.aborted) abort();
+    });
+  };
+  const pausePlayback = (ms, signal) => {
+    let timer;
+    return abortable(new Promise((resolve) => { timer = setTimeout(resolve, Math.max(0, ms)); }), signal)
+      .finally(() => clearTimeout(timer));
+  };
+  const react = async (result, signal) => {
+    if (signal?.aborted) return;
     const version = ++reactionRequest;
     const turn = request;
     const label = result.label || "平静待机";
     if (emotion) { emotion.textContent = `回应：${label}…`; emotion.title = "正在应用对应的 Live2D 表情与动作"; }
     try {
-      const outcome = await root.AnonLive2D?.react(result);
-      if (version !== reactionRequest || turn !== request) return;
+      const outcome = await abortable(root.AnonLive2D?.react(signal ? { ...result, signal } : result), signal);
+      if (signal?.aborted || version !== reactionRequest || turn !== request) return;
       if (emotion) {
         emotion.textContent = outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
         emotion.title = outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
       }
     } catch {
-      if (version === reactionRequest && turn === request && emotion) {
+      if (!signal?.aborted && version === reactionRequest && turn === request && emotion) {
         emotion.textContent = `回应：${label} · 暂不可用`;
         emotion.title = "模型动作未能应用，请检查模型加载状态";
       }
@@ -183,11 +199,16 @@
       return;
     }
     setState("爱音正在想怎么回答…");
-    react({ motion: "thinking01", expression: "thinking01", label: "思考" });
+    react({ motion: "thinking01", expression: "thinking01", label: "思考" }, active.signal);
     let content = null;
     let answer = "";
     let complete = false;
-    const timeout = setTimeout(() => active.abort("timeout"), 50000);
+    const reducedMotion = !!root.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    let segment = "";
+    let segmentStarted = 0;
+    const requireCurrent = () => { if (version !== request || active.signal.aborted) throw new Error("对话已取消"); };
+    // 45 秒服务端期限之外，为最多 1000 字的渐进显示留出时间。
+    const timeout = setTimeout(() => active.abort("timeout"), 75000);
     try {
       const context = history.slice(-10);
       // 按服务端预算保留完整轮次；极长回答时可少于五轮。
@@ -203,19 +224,38 @@
         throw new Error(error.error || "AI 服务暂时不可用");
       }
       if (!response.headers.get("content-type")?.includes("application/x-ndjson") || !response.body) throw new Error("AI 服务返回格式异常");
-      await api.readEvents(response.body, (event) => {
-        if (version !== request || active.signal.aborted) return;
-        if (event.type === "reaction") react(event);
+      await api.readEvents(response.body, async (event) => {
+        requireCurrent();
+        if (event.type === "reaction") {
+          const nextSegment = `${event.emotion || ""}|${event.motion}|${event.expression}`;
+          if (nextSegment !== segment) {
+            // 同一网络块中的多段情绪也依序播放；只在切换情绪时保证停留。
+            const remaining = segment ? 700 - (Date.now() - segmentStarted) : 0;
+            if (!reducedMotion && remaining > 0) await pausePlayback(remaining, active.signal);
+            requireCurrent();
+            await react(event, active.signal);
+            requireCurrent();
+            segment = nextSegment;
+            segmentStarted = Date.now();
+          }
+        }
         if (event.type === "delta" && typeof event.text === "string") {
-          answer = (answer + event.text).slice(0, 1000);
-          if (!content) content = append("anon", "");
-          content.textContent = answer;
-          log.scrollTop = log.scrollHeight;
-          setState("爱音正在回复…");
+          const text = event.text.slice(0, 1000 - answer.length);
+          const pieces = reducedMotion ? [text] : Array.from(text);
+          for (const piece of pieces) {
+            requireCurrent();
+            if (!piece) continue;
+            answer += piece;
+            if (!content) content = append("anon", "");
+            content.textContent = answer;
+            log.scrollTop = log.scrollHeight;
+            setState("爱音正在回复…");
+            if (!reducedMotion) await pausePlayback(20, active.signal);
+          }
         }
         if (event.type === "done") complete = true;
         if (event.type === "error") throw new Error(event.message || "AI 回复中断");
-      });
+      }, active.signal);
       if (version !== request) return;
       if (active.signal.aborted || !complete || !answer.trim()) throw new Error("AI 回复未完成");
       history.push({ role: "user", content: text }, { role: "assistant", content: answer });
@@ -312,11 +352,14 @@
     return response("我在听哦！这里的我只会一些预先写好的回应。可以试试「给我加油」「眨眼」或「聊聊吉他」。", "thinking01", "default", "认真倾听");
   };
   // 网络分块可落在任意 UTF-8 字符或换行处；只处理完整 NDJSON 事件。
-  const readEvents = async (body, onEvent) => {
+  const readEvents = async (body, onEvent, signal) => {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    const consume = (line) => { if (line.trim()) onEvent(JSON.parse(line)); };
+    const consume = async (line) => {
+      if (signal?.aborted) throw new Error("对话已取消");
+      if (line.trim()) await onEvent(JSON.parse(line));
+    };
     try {
       while (true) {
         const { value, done } = await reader.read();
@@ -324,9 +367,9 @@
         if (buffer.length > 65536) throw new Error("AI 响应超出限制");
         let newline;
         while ((newline = buffer.indexOf("\n")) >= 0) {
-          consume(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1);
+          await consume(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1);
         }
-        if (done) { consume(buffer); break; }
+        if (done) { await consume(buffer); break; }
       }
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   };

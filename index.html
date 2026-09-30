@@ -7,7 +7,8 @@
 <meta name="description" content="千早爱音非官方应援站：官方角色资料与周边、Bestdori 卡面图鉴、可换装的 Live2D 对话、萌娘百科设定与社区荣誉。" />
 <meta name="theme-color" content="#ff8899" />
 <link rel="icon" href="assets/favicon.svg" />
-<link rel="stylesheet" href="assets/css/style.css?v=20260930-3" />
+<link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-4" />
+<link rel="stylesheet" href="assets/css/style.css?v=20260930-4" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -112,7 +113,7 @@
       <header class="section-head">
         <h2>今天，想聊些什么？<span class="en">Live2D Room</span></h2>
         <p class="section-sub">
-          选一套喜欢的衣服，打个招呼。对话会触发对应的表情与动作。
+          选一套喜欢的衣服，打个招呼。表情会随爱音正在说的话自然变化。
         </p>
       </header>
 
@@ -174,8 +175,8 @@
       </div>
 
       <p class="source-note">
-        Live2D 模型来自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 的游戏拆包资源（Cubism 2.1 格式），
-        模型与动作同源加载，运行时由固定版本 CDN 提供。模型版权归各权利人所有。
+        Live2D 素材来自 <a href="https://bestdori.com" target="_blank" rel="noopener">Bestdori</a> 与 <a href="https://bdon.moe/tools/live2d" target="_blank" rel="noopener">bdon.moe / Our Notes</a>。
+        模型与真实动作同源加载，按服装分别匹配表情。模型版权归各权利人所有；Live2D Cubism Core © Live2D Inc.
         加载失败时可重试，或继续使用文字互动；静态备用图不会模拟 Live2D 动作。
       </p>
     </div>
@@ -636,7 +637,7 @@
       <header class="section-head"><h2>每一份喜欢，都有出处<span class="en">Sources</span></h2></header>
       <div class="source-grid">
         <article><h3>官方设定与周边</h3><p>角色资料归纳自 BanG Dream! 官方网站；商品图片、价格与售卖状态取自武士道官方商店。商品信息为核验时快照，结算以商店页面为准。</p><a href="https://bang-dream.com/artist/mygo/chihaya-anon/" target="_blank" rel="noopener noreferrer">官方角色页</a> · <a href="https://bushiroad-store.com/collections/anon" target="_blank" rel="noopener noreferrer">官方商店</a></article>
-        <article><h3>卡面与 Live2D</h3><p>素材通过非官方资料站 Bestdori 获取，角色 ID 为 37。模型与图片版权归各权利人所有；互动对话为非官方同人演绎，不代表官方发言。</p><a href="https://bestdori.com/info/characters/37/Chihaya-Anon" target="_blank" rel="noopener noreferrer">Bestdori 角色资料</a> · <a href="https://www.live2d.com/en/sdk/license/" target="_blank" rel="noopener noreferrer">Live2D 许可</a></article>
+        <article><h3>卡面与 Live2D</h3><p>卡面及原有模型来自 Bestdori（角色 ID 37），新增模型来自 bdon.moe 的 Our Notes 资料。模型与图片版权归各权利人所有；互动对话为非官方同人演绎，不代表官方发言。</p><a href="https://bestdori.com/info/characters/37/Chihaya-Anon" target="_blank" rel="noopener noreferrer">Bestdori 角色资料</a> · <a href="https://bdon.moe/tools/live2d" target="_blank" rel="noopener noreferrer">Our Notes 模型来源</a> · <a href="https://www.live2d.com/en/sdk/license/" target="_blank" rel="noopener noreferrer">Live2D 许可</a></article>
         <article><h3>百科摘编与荣誉</h3><p>摘编自萌娘百科《千早爱音》，保留版本与原文链接。相关归纳改写文本依 CC BY-NC-SA 4.0 共享；该许可不涵盖角色及商品图片。</p><a href="https://zh.moegirl.org.cn/index.php?title=千早爱音&amp;action=history" target="_blank" rel="noopener noreferrer">原文贡献者</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans" target="_blank" rel="noopener noreferrer">文本许可</a></article>
       </div>
       <noscript><p class="notice">请启用 JavaScript 以使用卡面、商品图鉴与互动功能；官方资料和来源链接仍可直接阅读。</p></noscript>
@@ -670,12 +671,13 @@
 </div>
 
 <script src="assets/data/anon-cards.js?v=20260929-3"></script>
-<script src="assets/data/anon-live2d.js?v=20260929-3"></script>
+<script src="assets/data/anon-live2d.js?v=20260930-4"></script>
 <script src="assets/data/anon-official.js?v=20260929-3"></script>
 <script src="assets/data/anon-wiki.js?v=20260929-3"></script>
 <script src="assets/js/main.js?v=20260929-3"></script>
 <script src="assets/js/content.js?v=20260929-3"></script>
-<script src="assets/js/live2d-viewer.js?v=20260929-5"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-3"></script>
+<script src="assets/js/live2d-actions.js?v=20260930-4"></script>
+<script src="assets/js/live2d-viewer.js?v=20260930-4"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-4"></script>
 </body>
 </html>

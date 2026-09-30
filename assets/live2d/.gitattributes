@@ -1,0 +1,5 @@
+# Preserve generated file hashes across Windows checkouts.
+bdon_*/*.json text eol=lf
+bdon_*/*/*.json text eol=lf
+*.moc3 binary
+*.png binary

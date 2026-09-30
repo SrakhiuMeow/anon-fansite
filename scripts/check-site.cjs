@@ -161,8 +161,14 @@ if (live) {
     check(nonempty(costume.id) && nonempty(costume.label), `${label} 缺少 ID 或名称`);
     const filename = file(costume.modelJson, `${label} model.json`);
     if (!filename) continue;
-    const model = json(filename, label);
-    if (!model) continue;
+    const rawModel = json(filename, label);
+    if (!rawModel) continue;
+    const refs = rawModel.FileReferences;
+    const model = refs ? {
+      model: refs.Moc, textures: refs.Textures, physics: refs.Physics, pose: refs.Pose,
+      motions: Object.fromEntries(Object.entries(refs.Motions || {}).map(([group, entries]) => [group, entries.map((entry) => ({ file: entry.File, sound: entry.Sound }))])),
+      expressions: (refs.Expressions || []).map((entry) => ({ name: entry.Name, file: entry.File })),
+    } : rawModel;
     const base = path.dirname(filename);
     file(model.model, `${label} 模型`, base);
     for (const texture of list(model.textures, `${label} 纹理`)) file(texture, `${label} 纹理`, base);
@@ -193,6 +199,10 @@ if (live) {
     unique(declaredExpressions, `${label} 表情目录`);
     for (const name of declaredMotions) check(motionFiles.has(name), `${label} model.json 缺少动作 ${name}`);
     for (const name of declaredExpressions) check(expressionNames.has(name), `${label} model.json 缺少表情 ${name}`);
+    const actions = require('../assets/js/live2d-actions.js');
+    for (const emotion of Object.keys(actions.defaults)) {
+      check(!!actions.resolve(costume, { emotion }), `${label} 缺少有效的 ${emotion} 对话动作映射`);
+    }
   }
 }
 

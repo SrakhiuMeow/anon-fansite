@@ -805,6 +805,30 @@ button:disabled{cursor:wait;opacity:.55}
 [data-theme="night"]{--coral-deep:#ff9db0}
 [data-theme="night"] .btn-primary,[data-theme="night"] .nav a.is-active,[data-theme="night"] .chip.is-active{color:#221d2c}
 
+/* 聊天统一使用自托管 Noto Sans SC 真粗体，正文与控件共享字体和清晰文字色。 */
+.l2d-controls{
+  --chat-font:"Anon Chat Sans","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --ink:#241b2d;
+  --ink-soft:#514059;
+  --coral-deep:#a6264b;
+  font-family:var(--chat-font);
+  font-weight:700;
+  color:var(--ink);
+}
+.l2d-controls :is(button,input,select,textarea,label,p,span,strong,small,summary,h3,h4){font-family:var(--chat-font);font-weight:700}
+.l2d-controls :is(.chat-message,.chat-compose input,.chat-access-dialog input){font-size:1rem;line-height:1.8;color:var(--ink)}
+.l2d-controls :is(.chat-options,.chat-disclosure,.chat-state,.chat-status-row .chip,.chat-options .chip,.chat-prompts .chip,.small-badge,.chat-form label,.chat-access-dialog p,.chat-access-dialog label){font-size:.875rem;line-height:1.8}
+.l2d-controls .chat-message strong{font-size:.875rem}
+.l2d-controls :is(.chat-disclosure,.chat-state,.l2d-hint,.chat-access-dialog p){color:var(--ink-soft)}
+.l2d-controls .chat-access-dialog .chat-access-error{color:var(--coral-deep)}
+.l2d-controls input::placeholder{color:var(--ink-soft);opacity:1;font-weight:700}
+[data-theme="night"] .l2d-controls{
+  --ink:#fff6fb;
+  --ink-soft:#e0cede;
+  --coral-deep:#ffabc0;
+  color-scheme:dark;
+}
+
 @media (max-width:1100px){
   .nav-toggle{display:grid}
   .header-inner{position:relative}

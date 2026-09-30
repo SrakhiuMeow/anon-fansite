@@ -14,13 +14,16 @@
 | 官方商品 | 6 件商品的图片、含税日元价格和购买链接；2026-09-29 快照中 5 件在售、1 件预售 |
 | 角色百科 | 萌娘百科简介与特点摘编、7 条社区荣誉记录，注明来源、核验范围与许可 |
 | 卡面图鉴 | 保留原有 16 张卡片、27 个特训前后卡面版本，支持筛选、灯箱和版本切换 |
-| Live2D | 私服（春）、制服（冬）、制服（夏）3 套服装；每套收录 41 个动作、28 个表情，提供常用动作与表情按钮 |
-| 互动对话 | 可选 DeepSeek 流式对话、近期上下文与情绪动作；保留本地关键词互动、停止回复和清空对话 |
+| Live2D | 原有 3 套 Bestdori 服装，加上 bdon.moe 的眼镜私服、演出服、眼镜居家服，共 6 套；新增每套 66 动作、36 表情 |
+| 互动对话 | DeepSeek 流式回复按语气分段切换表情，动作就绪后渐进显示对应文字；保留密码锁、本地互动、停止及清空 |
+| 聊天阅读 | 自托管免费 Noto Sans SC 700 粗体，统一正文、控件与弹窗，浅色和夜间主题均加强文字对比 |
 | 原有栏目 | 保留角色解读、成长线、音乐、官方入口、主题切换及本地留言板 |
 
 商品数据为核验快照，价格、库存与配送范围以官方商店页面及结算结果为准。社区荣誉属于粉丝赛事或评审结果，不是 BanG Dream! 官方授予的角色头衔；卡面也不宣称覆盖所有最新实装。
 
 本地互动在浏览器内匹配关键词，不上传聊天内容。配置服务端密钥后可使用 DeepSeek AI：本条消息及最多最近 5 轮成功的 AI 对话经 Vercel 服务端发送到 DeepSeek，流式回复同时触发表情和动作。两种模式均为非官方同人演绎，聊天历史仅保留在当前页面内存；刷新、清空或切换模式会重置 AI 上下文。本站代码不将聊天写入数据库、浏览器持久存储或应用日志，服务提供商的数据处理以其政策为准。留言板和主题偏好仍保存在当前浏览器的 `localStorage`。
+
+同一次 AI 回复可在自然语气转折时切换情绪，例如先认真倾听、再微笑鼓励。播放器按服装映射实际动作，预热常用资源，文字与动作按顺序展示，避免一批流事件导致表情快速覆盖。停止或重新锁定会取消尚未展示的文字和动作；网络已接收但还未展示完的轮次仍可停止。系统“减少动态效果”偏好下文字直接展示。分段情绪由模型判断，不能保证每次都准确还原角色。
 
 **启用 AI：** 在 Vercel 项目环境变量中设置 `DEEPSEEK_API_KEY` 并重新部署。密钥仅在 `/api/chat` 服务端使用，禁止放入前端脚本或提交 Git。AI 默认启用密码锁，访客需在提示框输入站长提供的密码；刷新或手动锁定后需重新解锁，本地互动不受影响。默认密码仅保存服务端加盐摘要，可用 `CHAT_ACCESS_CODE` 覆盖；解锁验证不调用模型，每次聊天仍在服务端验密。完整配置、限流边界与验证步骤见 [DeepSeek 接入说明](docs/DEEPSEEK.md)。
 
@@ -53,7 +56,9 @@ assets/data/anon-live2d.js     Live2D 服装、动作与表情清单
 assets/data/anon-official.js   官方角色与商品快照
 assets/data/anon-wiki.js       萌娘百科摘编、荣誉与许可信息
 assets/img/                    卡面、立绘与商品图片
-assets/live2d/                 三套 Cubism 2.1 模型及动作、表情、贴图
+assets/live2d/                 六套新旧模型及动作、表情、贴图、物理与来源清单
+assets/fonts/noto-sans-sc/     聊天使用的免费粗体字体分段与 OFL 许可
+assets/vendor/                新版 Cubism Core 原文件及专有许可
 scripts/                       素材抓取、数据生成与离线检查脚本
 docs/SOURCES.md                内容来源、版本与核验说明
 data/bestdori/                 可重新抓取的原始数据和中间产物，不入库
@@ -77,6 +82,8 @@ python3 scripts/fetch_live2d.py
 - `fetch_bestdori.py` 抓取角色资料、卡面与立绘，原始 JSON 和清洗结果写入 `data/bestdori/`，图片写入 `assets/img/`。
 - `build_site_data.py` 根据本地清洗结果生成 `assets/data/anon-cards.js`，此步骤可离线执行。
 - `fetch_live2d.py` 根据 Bestdori 的 `buildData.asset` 清单下载资源，组装 Cubism 2.1 `model.json` 并生成 `assets/data/anon-live2d.js`。
+- `node scripts/fetch_bdon_live2d.cjs` 下载 bdon.moe 的三套爱音模型，将真实 Unity 曲线、表情与物理转换为标准 Cubism 文件；加 `--offline` 可从 `/data/bdon/` 缓存重建。两种模型抓取脚本会保留另一来源的服装选项。
+- `node scripts/fetch_chat_font.cjs` 重新获取固定版本 Noto Sans SC 粗体与许可，校验上游字体哈希。访客加载本地 `unicode-range` 字体分段，无需请求字体 CDN。
 
 两个抓取脚本默认跳过已存在文件，加 `--force` 可重新下载；资源会按日服、国服目录尝试，缺失素材不会被当作有效图片。重新抓取后的数量取决于上游实际数据，提交前应重新检查。Live2D 的 `idle` 分组仅放待机动作，41 个可触发动作放在 `reaction` 分组，避免待机时随机播放哭泣或生气。
 
@@ -89,11 +96,13 @@ node scripts/check-site.cjs
 node scripts/test-dialogue.cjs
 node scripts/test-chat-api.cjs
 node scripts/test-chat-client.cjs
+node scripts/test-live2d-actions.cjs
+node scripts/test-live2d-viewer.cjs
 ```
 
 站点检查覆盖页面引用、本地文件、图片格式、数据字段与脚本语法；对话检查覆盖关键词回应与模型素材。AI 测试用模拟上游检查输入边界、流式解析、错误与取消等行为，不调用付费 API。浏览器布局、实际模型渲染、真实 API 联通、外链可达性和最新库存仍需另行验证。
 
-Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0**，以及固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a` 的 Cubism 2 Core 镜像。CDN 脚本使用 SRI 完整性校验，加载器设置超时、备用 CDN 入口和页面重试按钮。网络、CDN 或 WebGL 故障时会显示备用内容与状态提示，文字回应仍可使用；这些措施不保证外部服务始终可用。
+Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0 全格式包**，以及固定提交 `fd9fd400845e9a00bb194fdac0b6635c753a1e8a` 的 Cubism 2 Core 镜像。新增 `.moc3` 使用同源保存的官方 **Cubism Core 5.1.0**，等待其 WASM 初始化后再加载模型。运行时脚本使用 SRI 完整性校验，CDN 加载设置超时与备用入口，并保留重试按钮。网络、CDN 或 WebGL 故障时会显示备用内容与状态提示，文字回应仍可使用；这些措施不保证外部服务始终可用。
 
 ## 部署与忽略规则
 
@@ -115,4 +124,4 @@ git push origin main
 
 萌娘百科摘编文本注明“萌娘百科贡献者；本站归纳改写”，按核验日的 **CC BY-NC-SA 4.0** 提供，并附原条目、编辑历史和许可链接。该许可不覆盖角色图片、模型或商标。
 
-PixiJS 和 pixi-live2d-display 使用 MIT 许可；Live2D Cubism 2 Core 使用其专有许可，不能与前两者统一标为 MIT。具体来源、官方商品链接、百科版本和运行时许可入口见 [docs/SOURCES.md](docs/SOURCES.md)。
+PixiJS 和 pixi-live2d-display 使用 MIT 许可；两代 Live2D Cubism Core 使用其专有许可，不能与前两者统一标为 MIT。聊天字体 Noto Sans SC 使用 SIL Open Font License 1.1，许可证随字体部署。具体来源、官方商品链接、百科版本和运行时许可入口见 [docs/SOURCES.md](docs/SOURCES.md)。
