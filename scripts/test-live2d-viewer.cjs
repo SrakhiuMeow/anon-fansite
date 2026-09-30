@@ -77,12 +77,24 @@ async function harness(options = {}) {
       loadExpression: (index) => { resources.push("expression:" + expressions[index]); return waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]); },
     };
     const managerEvents = new Map();
+    const motionObject = (group, index) => {
+      const motion = { group, index };
+      const duration = typeof options.motionDuration === "function" ? options.motionDuration(actions.stem(motions[index])) : options.motionDuration;
+      if (options.motionRuntime === "cubism2") {
+        motion.getDurationMSec = () => duration;
+        motion.getLoopDurationMSec = () => options.motionLoopDuration;
+      } else if (options.motionRuntime === "cubism4") {
+        motion.getDuration = () => duration == null ? duration : duration / 1000;
+        motion.getLoopDuration = () => options.motionLoopDuration == null ? options.motionLoopDuration : options.motionLoopDuration / 1000;
+      }
+      return motion;
+    };
     const manager = {
       expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, finished: false,
       on(name, callback) { managerEvents.set(name, callback); },
       emit(name) { managerEvents.get(name)?.(); },
       isFinished() { return this.finished; },
-      loadMotion: (group, index) => { resources.push("motion:" + actions.stem(motions[index])); return waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve({ group, index }); },
+      loadMotion: (group, index) => { resources.push("motion:" + actions.stem(motions[index])); return waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve(motionObject(group, index)); },
     };
     const textureId = options.sharedTextures ? "shared" : id;
     if (!textures.has(textureId) || textures.get(textureId).destroyed) textures.set(textureId, {
@@ -126,6 +138,7 @@ async function harness(options = {}) {
   let resize;
   let advance;
   let application;
+  let nativeTime = 0;
   const media = { matches: !!options.mobile, addEventListener(type, callback) { this.changed = callback; } };
   let renderCount = 0;
   const document = { hidden: !!options.hidden, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
@@ -151,6 +164,7 @@ async function harness(options = {}) {
       observe() { intersection([{ isIntersecting: options.visible !== false }]); }
     },
   };
+  if (options.nativeClock) window.UtSystem = { getUserTimeMSec: () => nativeTime };
   vm.runInNewContext(source, {
     window, document, console, CustomEvent: class {}, IntersectionObserver: window.IntersectionObserver,
     localStorage: { getItem: () => null, setItem() {} },
@@ -159,7 +173,7 @@ async function harness(options = {}) {
   if (!options.hidden && options.visible !== false) await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
+  return { viewer: window.AnonLive2D, models, plays, resources, modelLoads, textures, elements, pendingModels, buildModel, document, setNativeTime: (milliseconds) => { nativeTime = milliseconds; }, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
@@ -489,7 +503,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal(complete, false, "经过700ms也不能把动作启动误作动作完成");
     assert.ok(!h.plays.some((play) => play.name === "angry01.mtn"), "上一段未结束不得切入下一段动作");
     h.advance(9000); await tick();
-    assert.equal(complete, false, "等待真实完成，不能用固定播放时长截断长动作");
+    assert.equal(complete, false, "未知动作时长仍等待真实完成，不能用固定播放时长截断长动作");
     h.models[0].internalModel.motionManager.finished = true;
     let finalFrameComplete = false;
     h.viewer.whenReactionComplete().then(() => { finalFrameComplete = true; });
@@ -500,6 +514,124 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal(complete, true);
     assert.ok(h.plays.some((play) => play.name === "angry01.mtn"));
   }
+  for (const motionRuntime of ["cubism2", "cubism4"]) {
+    for (const motionDuration of [1000, 4000, 12000]) {
+      const h = await harness({ motionRuntime, motionDuration, expressionFadeIn: 0.1, expressionFadeOut: 0.1 });
+      await h.viewer.react({ emotion: "smile", source: "chat" });
+      let complete = false;
+      const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+      h.advance(1);
+      h.advance(motionDuration * 0.799); await tick();
+      assert.equal(complete, false, `${motionRuntime} ${motionDuration}ms动作在79.9%不提前衔接`);
+      h.advance(motionDuration * 0.001);
+      await settle(() => complete, `${motionRuntime} ${motionDuration}ms动作到80%可衔接`);
+      await gate;
+      assert.equal(h.models[0].internalModel.motionManager.finished, false, "80%衔接不依赖动作结束事件");
+    }
+    {
+      const h = await harness({ motionRuntime, motionDuration: -1, motionLoopDuration: 2500, performance: true });
+      await h.viewer.react({ emotion: "smile", source: "chat" });
+      let complete = false;
+      const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+      h.advance(1); h.advance(1999); await tick();
+      assert.equal(complete, false, `${motionRuntime}循环动作使用真实单轮时长`);
+      h.advance(1);
+      await settle(() => complete, `${motionRuntime}循环动作单轮80%后解除等待`);
+      await gate;
+    }
+    {
+      const h = await harness({ motionRuntime, motionDuration: 4000, performance: true });
+      await h.viewer.react({ emotion: "smile" });
+      h.advance(1); h.advance(1600);
+      const before = h.plays.length;
+      await h.viewer.react({ emotion: "smile" });
+      assert.equal(h.plays.length, before, `${motionRuntime}相同正在播放动作不强制重启`);
+      let complete = false;
+      const gate = h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+      h.advance(1599); await tick();
+      assert.equal(complete, false, "保留进度后也不能在80%之前放行");
+      h.advance(1);
+      await settle(() => complete, `${motionRuntime}重复同动作沿用先前40%进度`);
+      await gate;
+    }
+  }
+  {
+    const h = await harness({ motionRuntime: "cubism4", motionDuration: (name) => name === "smile01" ? 1000 : 5000, expressionFadeIn: 0.1, expressionFadeOut: 0.1 });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    let complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1); h.advance(800);
+    await settle(() => complete, "短动作按自身时长到达80%");
+    await h.viewer.react({ emotion: "angry", source: "chat" });
+    complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1); h.advance(3999); await tick();
+    assert.equal(complete, false, "新动作重新读取自己的时长和进度，不沿用上一动作");
+    h.advance(1);
+    await settle(() => complete, "长动作在自身80%时衔接");
+  }
+  {
+    const h = await harness({ motionRuntime: "cubism4", motionDuration: 1000, expressionFadeIn: 0.2, expressionFadeOut: 2 });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    let complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1); h.advance(800); await tick();
+    assert.equal(complete, false, "动作先到80%不能跳过较慢表情淡出");
+    h.advance(799); await tick();
+    assert.equal(complete, false, "表情淡出未达80%时继续等待");
+    h.advance(1);
+    await settle(() => complete, "动作和表情都达80%后才衔接，以慢者为准");
+  }
+  {
+    const h = await harness({ motionRuntime: "cubism4", motionDuration: 1000, performance: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    let complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(5000, false); await tick();
+    assert.equal(complete, false, "只有ticker更新时间、尚未render不能推进动作进度");
+    h.render(); await tick();
+    assert.equal(complete, false, "首个真实动作render只确定起点，不能扣除首帧之前的时间");
+    h.advance(799); await tick();
+    assert.equal(complete, false);
+    h.advance(1, false); await tick();
+    assert.equal(complete, false, "跨过80%的最后一帧尚未渲染时仍不能放行");
+    h.render();
+    await settle(() => complete, "实际render跨过80%后释放动作等待");
+  }
+  {
+    const h = await harness({ motionRuntime: "cubism2", motionDuration: 2000, cubism2Expressions: true, nativeClock: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    let complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.setNativeTime(10000); h.advance(1);
+    h.advance(5000); await tick();
+    assert.equal(complete, false, "Cubism2原生时钟未推进时，ticker时间不能虚增进度");
+    h.setNativeTime(11599); h.advance(1); await tick();
+    assert.equal(complete, false, "Cubism2按原生时钟累计79.95%时不放行");
+    h.setNativeTime(11600); h.advance(1, false); await tick();
+    assert.equal(complete, false, "原生时钟已到80%也须等实际render");
+    h.render();
+    await settle(() => complete, "Cubism2实际render按Core时钟达到80%后放行");
+  }
+  {
+    const h = await harness({ motionRuntime: "cubism4", motionDuration: 4000, variants: true, expressionFadeIn: 0.1, expressionFadeOut: 0.1 });
+    const first = await h.viewer.react({ emotion: "smile", source: "chat" });
+    h.advance(1); h.advance(3196);
+    const before = h.plays.length;
+    const held = await h.viewer.react({ emotion: "smile", source: "chat", continuation: true });
+    assert.equal(held.motion, first.motion);
+    assert.equal(h.plays.length, before, "79.9%的续接不打断动作或消耗候选");
+    h.advance(4);
+    const next = await h.viewer.react({ emotion: "smile", source: "chat", continuation: true });
+    assert.equal(next.motion, "smile02", "80%的续接可换下一个同语气动作候选");
+    assert.equal(next.expression, "smile02");
+    let complete = false;
+    h.viewer.whenReactionComplete().then((ready) => { complete = ready; });
+    h.advance(1); h.advance(3196); await tick();
+    assert.equal(complete, false, "续接的新候选重新累计自己的80%进度");
+    h.advance(4);
+    await settle(() => complete, "新候选达到80%后可继续衔接");
+  }
   {
     const h = await harness({ expressionFadeIn: 0.2, expressionFadeOut: 1 });
     await h.viewer.react({ expression: "thinking01", source: "chat" });
@@ -509,8 +641,10 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     h.advance(1);
     h.advance(200); await tick();
     assert.equal(complete, false, "新表情淡入结束还需等待旧表情的淡出");
-    h.advance(800); await gate;
-    assert.equal(complete, true, "表情完成按有限过渡时长，不等持续表情的队列结束");
+    h.advance(599); await tick();
+    assert.equal(complete, false, "旧表情淡出79.9%时仍须等待");
+    h.advance(1); await gate;
+    assert.equal(complete, true, "表情淡入和淡出均达到80%后衔接，不等持续表情的队列结束");
     await h.viewer.react({ emotion: "smile", source: "chat" });
     const motionGate = h.viewer.whenReactionComplete();
     h.advance(1);
@@ -527,7 +661,9 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     h.advance(1);
     h.advance(750); await tick();
     assert.equal(complete, false, "Cubism2 从真实创建参数读取淡入和淡出，不假定统一500ms");
-    h.advance(350); await gate;
+    h.advance(129); await tick();
+    assert.equal(complete, false, "Cubism2 的1100ms淡出在879ms时尚未达到80%");
+    h.advance(1); await gate;
     assert.equal(complete, true);
     await h.viewer.react({ emotion: "neutral" });
     const idleGate = h.viewer.whenReactionComplete();
@@ -544,7 +680,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     assert.equal(complete, false, "ticker只累积delta、尚未实际render时不能消耗表情过渡");
     h.render(); await tick();
     assert.equal(complete, false, "首次render才建立表情fade起点，不能提前扣首帧delta");
-    h.advance(499); await tick();
+    h.advance(399); await tick();
     assert.equal(complete, false);
     h.advance(1, false); await tick();
     assert.equal(complete, false, "最后一毫秒尚未渲染也不能先放行下一段");
@@ -554,7 +690,7 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     h.advance(1); h.advance(250);
     await h.viewer.react({ expression: "smile01", source: "chat" });
     const repeated = h.viewer.whenReactionComplete();
-    h.advance(250);
+    h.advance(150);
     assert.equal(await repeated, true, "重复同表情沿用已有fade进度与渲染时间，不重设首帧");
   }
   {
@@ -749,5 +885,5 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
       }
     }
   }
-  console.log(`Live2D viewer 验证通过：加载/资源释放/真实动作结束与两代表情过渡门控/取消与离屏释放/手机150%及跨模型缩放记忆/200%缩放上限/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
+  console.log(`Live2D viewer 验证通过：加载/资源释放/两代动作与表情80%衔接/未知时长等待结束/循环时长与原生时钟/实际渲染边界/同动作进度保留/取消与离屏释放/手机150%及跨模型缩放记忆/200%缩放上限/桌面还原；另验证真实${costumeTotal}套模型的默认比例、卡面服装元数据及13语气×连续3轮全候选覆盖。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

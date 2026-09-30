@@ -22,6 +22,7 @@
   const ZOOM_MIN = 50;
   const ZOOM_MAX = 200;
   const MOBILE_DEFAULT_ZOOM = 150;
+  const REACTION_HANDOFF_PROGRESS = 0.8;
   const mobileViewport = window.matchMedia?.("(max-width: 700px)");
   const sourceZoom = (costume) => costume?.source === "https://bdon.moe" ? 180 : 100;
   const defaultZoom = (costume) => mobileViewport?.matches ? MOBILE_DEFAULT_ZOOM : sourceZoom(costume);
@@ -111,15 +112,15 @@
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-  // 完成门控随渲染帧检查真实播放状态；离屏后没有额外计时器继续运行。
+  // 衔接门控随渲染帧检查真实播放进度；离屏后没有额外计时器继续运行。
   const reactionComplete = (reaction) => {
     if (!reaction || reaction.target !== model) return true;
     const manager = reaction.target.internalModel.motionManager;
     const sameMotion = manager.state.currentGroup === reaction.choice.group && manager.state.currentIndex === reaction.choice.index;
-    // 两代管理器都在结束事件后清理 currentGroup；最后一帧队列已结束但
-    // playing 仍为 true 时等下一帧，否则同动作续接会被库判定为重复请求。
-    const motionDone = reaction.motionDone || !sameMotion || (manager.isFinished() && !manager.playing);
-    return motionDone && reaction.expressionRemaining <= 0;
+    const reachedHandoff = reaction.motionDuration !== null && reaction.motionElapsed >= reaction.motionDuration * REACTION_HANDOFF_PROGRESS;
+    // 无法读取时长时仍等真实结束；有时长的动作到80%即可交给下一段自然淡变。
+    const motionReady = reachedHandoff || reaction.motionDone || !sameMotion || (manager.isFinished() && !manager.playing);
+    return motionReady && reaction.expressionRemaining <= 0;
   };
   const flushReactionWaiters = () => {
     for (const waiter of [...reactionWaiters]) waiter.check();
@@ -148,6 +149,17 @@
     const seconds = expression?.[direction === "in" ? "getFadeInTime" : "getFadeOutTime"]?.();
     const milliseconds = Number.isFinite(seconds) ? seconds * 1000 : expressionFades.get(expression)?.[direction];
     return Number.isFinite(milliseconds) && milliseconds >= 0 ? milliseconds : window.PIXI?.live2d?.config.expressionFadingDuration || 500;
+  };
+  const motionDuration = (motion) => {
+    // Cubism 2 返回毫秒，Cubism 4 返回秒；循环动作的 duration 为负，改取单轮时长。
+    const durations = [motion?.getDurationMSec?.(), motion?.getDuration?.() * 1000,
+      motion?.getLoopDurationMSec?.(), motion?.getLoopDuration?.() * 1000];
+    return durations.find((duration) => Number.isFinite(duration) && duration > 0) ?? null;
+  };
+  const playbackTime = (target, legacy) => {
+    // Cubism 2 Core 使用自己的毫秒时钟；Cubism 4 使用模型累计渲染时间。
+    const nativeTime = legacy ? window.UtSystem?.getUserTimeMSec?.() : undefined;
+    return Number.isFinite(nativeTime) ? nativeTime : target.elapsedTime;
   };
   const syncPlayback = () => {
     const running = !!model && !paused && inView && !document.hidden;
@@ -403,14 +415,19 @@
         }
       });
       // Live2DModel.update 仅累积 delta，Core 到实际 render 才求值。两代均在
-      // 表情更新后发此事件：首帧只建立 fade 起点，后续仅计入已渲染的进度。
+      // 表情更新后发此事件：首帧只建立起点，后续仅计入已渲染的进度。
       next.internalModel.on("beforeModelUpdate", () => {
         if (activeReaction?.target !== next) return;
-        const elapsed = next.elapsedTime;
-        if (activeReaction.expressionRenderedAt !== null) {
-          activeReaction.expressionRemaining = Math.max(0, activeReaction.expressionRemaining - Math.max(0, elapsed - activeReaction.expressionRenderedAt));
+        const motionTime = playbackTime(next, activeReaction.motionLegacy);
+        const expressionTime = playbackTime(next, activeReaction.expressionLegacy);
+        if (activeReaction.motionRenderedAt !== null) {
+          activeReaction.motionElapsed += Math.max(0, motionTime - activeReaction.motionRenderedAt);
         }
-        activeReaction.expressionRenderedAt = elapsed;
+        activeReaction.motionRenderedAt = motionTime;
+        if (activeReaction.expressionRenderedAt !== null) {
+          activeReaction.expressionRemaining = Math.max(0, activeReaction.expressionRemaining - Math.max(0, expressionTime - activeReaction.expressionRenderedAt));
+        }
+        activeReaction.expressionRenderedAt = expressionTime;
         flushReactionWaiters();
       });
       app.stage.addChild(next);
@@ -541,8 +558,9 @@
     const activeChoice = activeReaction?.target === target ? activeReaction.choice : null;
     const idleMotion = actions.resolve(costume, { emotion: "neutral" })?.motion;
     if (request.source === "chat" && request.continuation && activeChoice?.motion && activeChoice.motion !== idleMotion
-      && motionManager.state.currentGroup === activeChoice.group && motionManager.state.currentIndex === activeChoice.index && !motionManager.isFinished()) {
-      // 当前舞台动作尚未结束：保留实际姿态，不打断，也不消耗下一候选。
+      && motionManager.state.currentGroup === activeChoice.group && motionManager.state.currentIndex === activeChoice.index && !motionManager.isFinished()
+      && !reactionComplete(activeReaction)) {
+      // 尚未达到80%衔接点时保留实际姿态，不打断，也不消耗下一候选。
       rememberSelection(request, costume, activeChoice, activeReaction.ordinal);
       return responseFor(costume, activeChoice);
     }
@@ -571,11 +589,20 @@
       if (signal?.aborted || version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
       if (results.some((result) => result === false)) return { ok: false, reason: "文字回复已送达；动作未能播放，请再试一次。" };
       const expressionRemaining = expression && !expressionIsCurrent
-        ? Math.max(fadeDuration(loaded[1], "in"), previousExpression ? fadeDuration(previousExpression, "out") : 0)
+        ? Math.max(fadeDuration(loaded[1], "in"), previousExpression ? fadeDuration(previousExpression, "out") : 0) * REACTION_HANDOFF_PROGRESS
         : activeReaction?.target === target ? activeReaction.expressionRemaining : 0;
       const expressionRenderedAt = expression && !expressionIsCurrent ? null
         : activeReaction?.target === target ? activeReaction.expressionRenderedAt : null;
-      activeReaction = { target, choice, ordinal, signal, expressionRemaining, expressionRenderedAt, motionDone: !motion || motion === idleMotion };
+      const expressionLegacy = expression && !expressionIsCurrent ? expressionFades.has(loaded[1])
+        : activeReaction?.target === target ? activeReaction.expressionLegacy : false;
+      // 同动作继续自然播放剩余部分，保留原进度；强行重启会被库拒绝且容易产生跳变。
+      const samePlayback = motionIsCurrent && activeChoice?.group === group && activeChoice?.index === index;
+      activeReaction = { target, choice, ordinal, signal, expressionRemaining, expressionRenderedAt, expressionLegacy,
+        motionDuration: motionDuration(loaded[0]),
+        motionLegacy: typeof loaded[0]?.getDurationMSec === "function",
+        motionElapsed: samePlayback ? activeReaction.motionElapsed : 0,
+        motionRenderedAt: samePlayback ? activeReaction.motionRenderedAt : null,
+        motionDone: !motion || motion === idleMotion };
       flushReactionWaiters();
       rememberSelection(request, costume, choice, ordinal);
       if (request.source === "chat") {

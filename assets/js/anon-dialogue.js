@@ -172,7 +172,7 @@
     if (gated) chatReactionTail = new Promise((resolve) => { release = resolve; });
     try {
       if (gated) {
-        // 先等上一调用加载并启动，再等真实动作结束和表情淡变完成；不能仅等固定间隔。
+        // 先等上一调用加载并启动，再等动作与表情各自达到80%衔接点；不能仅等固定间隔。
         await abortable(previous, signal);
         if (signal?.aborted || version !== reactionRequest || turn !== request) return;
         await abortable(root.AnonLive2D.whenReactionComplete(signal), signal);
