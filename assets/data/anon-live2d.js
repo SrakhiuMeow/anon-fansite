@@ -1,7 +1,7 @@
 /* 由 scripts/fetch_live2d.py 与 scripts/fetch_bdon_live2d.cjs 生成。来源：Bestdori / bdon.moe */
 window.ANON_LIVE2D = {
   "source": "https://bestdori.com",
-  "generatedAt": "2026-09-30T06:33:07.408Z",
+  "generatedAt": "2026-09-30T06:55:55.106Z",
   "characterId": 37,
   "defaultCostume": "037_casual-2023",
   "costumes": [
@@ -1732,51 +1732,51 @@ window.ANON_LIVE2D = {
           "expression": ""
         },
         "smile": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play01_02",
           "expression": ""
         },
         "wink": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_02",
           "expression": ""
         },
         "shy": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play01_01",
           "expression": ""
         },
         "surprised": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_action_01",
           "expression": ""
         },
         "thinking": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play01_01",
           "expression": ""
         },
         "serious": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_01",
           "expression": ""
         },
         "sad": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_01",
           "expression": ""
         },
         "angry": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_01",
           "expression": ""
         },
         "wave": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_finish_01",
           "expression": ""
         },
         "cheer": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_03",
           "expression": ""
         },
         "cry": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_play02_01",
           "expression": ""
         },
         "pose": {
-          "motion": "mtn_idle_01",
+          "motion": "mtn_action_01",
           "expression": ""
         }
       },

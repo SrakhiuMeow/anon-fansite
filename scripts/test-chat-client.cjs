@@ -239,6 +239,7 @@ async function testClient() {
   await tick();
   assert.equal(changing.options.signal.aborted, true);
   assert.match(ui.lastText(), /Wink/);
+  assert.equal(ui.reactions.at(-1).source, "chat", "本地对话也应使用聊天动作候选");
   const localRequestCount = ui.requests.length;
   ui.select("deepseek"); ui.submit("重新连接");
   assert.equal(ui.requests.length, localRequestCount + 1);
@@ -250,6 +251,7 @@ async function testClient() {
   await settle(() => !ui.send.disabled, "HTTP 错误应退出忙碌");
   assert.match(ui.lastText(), /Wink/);
   assert.match(ui.ids.anonChatState.textContent, /本地预设/);
+  assert.equal(ui.reactions.at(-1).source, "chat", "本地降级回复仍是对话反应");
   ui.submit("继续聊");
   assert.deepEqual(ui.requests.at(-1).messages.map((item) => item.content), ["重新连接", "重新见面啦", "继续聊"]);
   // 200 响应中的 error 事件也走降级；用于覆盖真实解析器至 UI 的异常传递。
@@ -406,7 +408,7 @@ async function testEmotionFeedback() {
   ui.requests.at(-1).write(shy);
   await settle(() => ui.ids.anonChatEmotion.textContent === "回应：害羞", "应在模型确认后显示情绪标签");
   const { signal: shySignal, ...shyPlayed } = ui.reactions.at(-1);
-  assert.deepEqual(shyPlayed, shy);
+  assert.deepEqual(shyPlayed, { ...shy, source: "chat" });
   assert.equal(shySignal, ui.requests.at(-1).options.signal);
   assert.match(ui.ids.anonChatEmotion.title, /已应用/);
   await ui.complete("突然夸我，有点不好意思啦。");
@@ -418,17 +420,46 @@ async function testEmotionFeedback() {
   assert.equal(paused.ids.anonChatEmotion.title, "模型已暂停");
   await paused.complete("收到啦。");
 
-  // 演奏模型仍保留对话情绪语义，但不能把待机姿态宣称为已播放微笑等表情。
-  const performance = await browserFixture({ modelReact: async () => ({ ok: true, mode: "performance", motion: "mtn_idle_01", expression: "" }) });
+  // 使用真实舞台清单和语义解析器，避免仅mock成功而掩盖“所有情绪都映射到待机”。
+  const costumesContext = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../assets/data/anon-live2d.js"), "utf8"), costumesContext);
+  const costume = costumesContext.window.ANON_LIVE2D.costumes.find((item) => item.mode === "performance");
+  const actions = require("../assets/js/live2d-actions.js");
+  const actualActions = [];
+  const performance = await browserFixture({ modelReact: async (reaction) => {
+    const choice = actions.resolve(costume, reaction);
+    assert.ok(choice, "舞台模型必须解析出真实动作");
+    const action = costume.performanceActions.find((item) => item.motion === choice.motion);
+    assert.ok(action, "已执行动作应有对应的真实按钮名称");
+    actualActions.push(choice);
+    return { ok: true, mode: costume.mode, motion: choice.motion, expression: choice.expression, actionLabel: action.label };
+  } });
   performance.submit("演奏时聊一聊");
   performance.requests.at(-1).writeChunk([
     { ...shy, emotion: "shy" }, { type: "delta", text: "突然这么说，还挺不好意思的。" }, { type: "done" },
   ]);
   performance.requests.at(-1).close();
   await settle(() => !performance.send.disabled, "演奏模式也应正常完成聊天");
-  assert.equal(performance.ids.anonChatEmotion.textContent, "回应：演奏姿态");
+  const shyAction = costume.performanceActions.find((item) => item.motion === actualActions.at(-1).motion);
+  assert.equal(performance.ids.anonChatEmotion.textContent, `回应：${shyAction.label}`);
   assert.match(performance.ids.anonChatEmotion.title, /本轮语气：害羞.*没有独立表情/);
   assert.equal(performance.reactions.at(-1).emotion, "shy", "模型能力只影响状态说明，不能改写聊天情绪语义");
+
+  const ordinary = "刚从便利店回来，买了一副新的耳机。";
+  assert.equal(require("../assets/js/anon-dialogue.js").reply(ordinary).label, "认真倾听", "普通聊天不依赖本地动作关键词");
+  performance.submit(ordinary);
+  assert.equal(performance.requests.at(-1).messages.at(-1).content, require("../assets/js/anon-dialogue.js").normalize(ordinary));
+  performance.requests.at(-1).writeChunk([
+    { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" },
+    { type: "delta", text: "诶，新耳机！有试过用它听喜欢的歌吗？" }, { type: "done" },
+  ]);
+  performance.requests.at(-1).close();
+  await settle(() => !performance.send.disabled, "无关键词的普通AI聊天也应完成演奏动作");
+  assert.equal(performance.reactions.at(-1).emotion, "smile", "动作必须由AI响应情绪驱动");
+  assert.notEqual(actualActions.at(-1).motion, costume.defaultMotion, "普通聊天的微笑回应应触发实际演奏，不能全部退回待机");
+  const ordinaryAction = costume.performanceActions.find((item) => item.motion === actualActions.at(-1).motion);
+  assert.equal(performance.ids.anonChatEmotion.textContent, `回应：${ordinaryAction.label}`);
+  assert.match(performance.ids.anonChatEmotion.title, /本轮语气：微笑.*已触发舞台动作/);
 
   let fail = false;
   const failed = await browserFixture({ modelReact: async () => {
@@ -465,7 +496,7 @@ async function testEmotionFeedback() {
   const oldTurn = pending.at(-1);
   assert.equal(race.lastText(), "第一句", "未完成的动作不能提前显示后续正文");
   race.ids.anonChatClear.dispatch("click");
-  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机" });
+  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机", source: "control" });
   pending.at(-1).resolve({ ok: true });
   await settle(() => race.ids.anonChatEmotion.textContent === "回应：平静待机", "清空后应恢复待机");
   oldTurn.resolve({ ok: true });
@@ -478,7 +509,7 @@ async function testEmotionFeedback() {
   await settle(() => pending.at(-1).reaction.label === "害羞", "第二轮应收到情绪动作");
   const stoppedReaction = pending.at(-1);
   race.ids.anonChatStop.dispatch("click");
-  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机" });
+  assert.deepEqual({ ...pending.at(-1).reaction }, { motion: "idle01", expression: "default", label: "平静待机", source: "control" });
   pending.at(-1).resolve({ ok: true });
   await settle(() => !race.send.disabled && race.ids.anonChatEmotion.textContent === "回应：平静待机", "停止后应恢复待机与发送控件");
   stoppedReaction.reject(new Error("停止后的旧动作失败"));
@@ -560,11 +591,111 @@ async function testSegmentPlayback() {
   }
 }
 
+async function testLongReplyContinuation() {
+  const reaction = { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" };
+  const paragraph = `${"这".repeat(224)}。`;
+  const text = paragraph.repeat(4);
+  const clock = playbackClock();
+  const calls = [];
+  const ui = await browserFixture({ reducedMotion: false, clock, modelReact: async (value) => {
+    calls.push({ ...value, at: clock.now() });
+    return { ok: true };
+  } });
+  ui.submit("刚从便利店回来，买了一副新的耳机。");
+  assert.equal(calls[0].source, "chat", "AI思考也使用聊天动作");
+  ui.requests.at(-1).writeChunk([reaction, { type: "delta", text }, { type: "done" }]);
+  ui.requests.at(-1).close();
+  await settle(() => ui.lastText() === "这", "长回复应逐字显示");
+  await clock.advance(4499);
+  assert.equal(calls.filter((item) => item.continuation).length, 0, "不足4.5秒不得续接");
+  await clock.advance(1);
+  assert.equal(calls.filter((item) => item.continuation).length, 1);
+  await clock.advance(13500);
+  assert.equal(ui.lastText(), text, "续接不改变正文或截断标点");
+  assert.equal(ui.send.disabled, false);
+  const continued = calls.filter((item) => item.continuation);
+  assert.equal(continued.length, 3, "同一轮最多3次续接，第四处长句读不再触发");
+  assert.deepEqual(continued.map((item) => item.at), [5500, 10000, 14500]);
+  for (const value of continued) {
+    assert.equal(value.source, "chat");
+    assert.equal(value.emotion, "smile");
+    assert.equal(value.motion, reaction.motion);
+    assert.equal(value.expression, reaction.expression);
+    assert.equal(value.signal, ui.requests.at(-1).options.signal);
+  }
+  await clock.advance(30000);
+  assert.equal(calls.filter((item) => item.continuation).length, 3, "回复结束后不能后台触发动作");
+  ui.submit("继续聊");
+  assert.equal(ui.requests.at(-1).messages[1].content, text, "续接不改变已完成的对话历史");
+  ui.ids.anonChatStop.dispatch("click"); await tick();
+  assert.equal(calls.at(-1).source, "control", "停止复位不得参与聊天轮换");
+
+  // 短回复、减少动态效果均不附加动作；网络静默时也没有后台动作计时器。
+  for (const reducedMotion of [false, true]) {
+    const time = playbackClock();
+    const simple = await browserFixture({ reducedMotion, clock: time });
+    simple.submit("普通问题");
+    simple.requests.at(-1).writeChunk([reaction, { type: "delta", text: reducedMotion ? text : "知道啦。" }, { type: "done" }]);
+    simple.requests.at(-1).close();
+    await time.advance(20000);
+    assert.equal(simple.send.disabled, false);
+    assert.equal(simple.reactions.some((value) => value.continuation), false);
+  }
+  const waitingClock = playbackClock();
+  const waiting = await browserFixture({ reducedMotion: false, clock: waitingClock });
+  waiting.submit("普通问题");
+  waiting.requests.at(-1).writeChunk([reaction, { type: "delta", text: "还在继续" }]);
+  await waitingClock.advance(5000);
+  assert.equal(waiting.reactions.some((value) => value.continuation), false, "没有新文字句读时不能自行续接");
+  waiting.requests.at(-1).writeChunk([{ type: "delta", text: "。" }, { type: "done" }]); waiting.requests.at(-1).close();
+  await waitingClock.advance(20);
+  assert.equal(waiting.reactions.filter((value) => value.continuation).length, 1, "到达句读才延续当前语气");
+  assert.equal(waiting.send.disabled, false);
+
+  // 续接动作尚未完成时取消，后来的模型结果、正文和下一续接都不能复活旧一轮。
+  for (const action of ["stop", "clear", "mode", "lock"]) {
+    const time = playbackClock();
+    let pending;
+    const cancelled = await browserFixture({ accessCodeRequired: true, reducedMotion: false, clock: time, modelReact: (value) => {
+      if (!value.continuation) return Promise.resolve({ ok: true });
+      return new Promise((resolve) => { pending = { value, resolve }; });
+    } });
+    cancelled.ids.anonChatUnlock.dispatch("click");
+    cancelled.unlock("test-only"); cancelled.unlocks.at(-1).resolve();
+    await settle(() => !cancelled.ids.anonChatLock.hidden, "续接取消测试先解锁");
+    cancelled.submit("普通问题");
+    cancelled.requests.at(-1).writeChunk([reaction, { type: "delta", text }, { type: "done" }]); cancelled.requests.at(-1).close();
+    await time.advance(4500);
+    assert.ok(pending, "应进入尚未结束的续接动作");
+    if (action === "mode") cancelled.select("local");
+    else cancelled.ids[{ stop: "anonChatStop", clear: "anonChatClear", lock: "anonChatLock" }[action]].dispatch("click");
+    await settle(() => !cancelled.send.disabled, "取消续接应立即退出忙碌");
+    assert.equal(pending.value.signal.aborted, true);
+    assert.equal(cancelled.reactions.at(-1).source, "control");
+    const after = cancelled.lastText();
+    pending.resolve({ ok: true });
+    await time.advance(20000);
+    assert.equal(cancelled.lastText(), after, "迟到续接不能继续播放文字");
+    assert.equal(cancelled.reactions.filter((value) => value.continuation).length, 1, "取消后不能再触发后续动作");
+    assert.equal(cancelled.ids.anonChatEmotion.textContent, "回应：平静待机");
+    if (action === "mode") cancelled.select("deepseek");
+    if (action === "mode" || action === "lock") {
+      cancelled.ids.anonChatUnlock.dispatch("click");
+      cancelled.unlock("test-only"); cancelled.unlocks.at(-1).resolve();
+      await settle(() => !cancelled.ids.anonChatLock.hidden, "重新解锁检查未完成历史");
+    }
+    cancelled.submit("新问题");
+    assert.deepEqual(cancelled.requests.at(-1).messages, [{ role: "user", content: "新问题" }]);
+    cancelled.ids.anonChatStop.dispatch("click"); await tick();
+  }
+}
+
 (async () => {
   await testParser();
   await testClient();
   await testPasswordLock();
   await testEmotionFeedback();
   await testSegmentPlayback();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码弹窗与鉴权、同块分段情绪、渐进播放与最短停留、播放取消与历史隔离。");
+  await testLongReplyContinuation();
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复句读续接与次数上限、取消隔离。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

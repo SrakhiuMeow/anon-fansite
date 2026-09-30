@@ -1,4 +1,4 @@
-# Noto Sans SC · 聊天粗体
+# Noto Sans SC · 全站阅读字体
 
 本目录自托管 Noto Sans SC 的 700（Bold）字重，来源为固定版本 `@fontsource/noto-sans-sc@5.3.0`。字体免费使用，按 **SIL Open Font License 1.1** 分发；完整版权声明及许可保存在同目录 `LICENSE` 中，随网站一并部署。
 
@@ -7,7 +7,7 @@
 - 许可原文：https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/LICENSE
 - 上游项目：https://github.com/google/fonts/tree/main/ofl/notosanssc
 
-`700.css` 使用独立 CSS 家族别名 `Anon Chat Sans`，仅用于聊天区。所有字体二进制保留原始内容，CSS 保留发布包的 `unicode-range`，并去除未下载的旧版 `.woff` 后备地址。101 个 WOFF2 分段合计 **2,461,192 字节**；浏览器根据实际显示的中文、日语假名、英文等字符按需加载，不会在访问时请求 Google Fonts、Fontsource 或 jsDelivr。
+`700.css` 沿用独立 CSS 家族别名 `Anon Chat Sans`，通过全站 `--font` 变量用于导航、正文、标题、卡片、表单及聊天区，中文、日文、英文与数字使用同一字重。所有字体二进制保留原始内容，CSS 保留发布包的 `unicode-range`，并去除未下载的旧版 `.woff` 后备地址。101 个 WOFF2 分段合计 **2,461,192 字节**；浏览器根据实际显示的中文、日语假名、英文等字符按需加载，不会在访问时请求 Google Fonts、Fontsource 或 jsDelivr。
 
 `font-display: swap` 保证加载期间文字仍可阅读；字体就绪后统一使用本地文件中的真实粗体。平台不支持或字体不含的罕见字及彩色 Emoji 由系统后备字体显示。
 

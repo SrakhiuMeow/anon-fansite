@@ -50,6 +50,9 @@
   let followMouse = true;
   let zoomPercent = 100;
   let desiredReaction = { emotion: "neutral" };
+  const variantHistory = new Map();
+  const requestSelections = new WeakMap();
+  let activeReaction = null;
   try { followMouse = localStorage.getItem(FOLLOW_MOUSE_STORAGE) !== "false"; } catch { /* 隐私模式下仍可使用开关 */ }
 
   const setStatus = (text) => {
@@ -210,21 +213,29 @@
     });
     markActive(hosts.expression, "default");
     if (expressionNoteEl) expressionNoteEl.hidden = current.expressions.length > 0;
-    setHint(`当前服装有 ${current.motionCount} 个动作、${current.expressionCount} 个独立表情。${performance ? "此款以吉他演奏为主，可手选上方舞台动作。" : ""}${paused ? "动画已暂停，可按播放按钮开始。" : "试着打个招呼，或者点选一个动作。"}`);
+    setHint(`当前服装有 ${current.motionCount} 个动作、${current.expressionCount} 个独立表情。${performance ? "聊天会自动触发此款真实舞台动作，也可在上方手选；动作结束后恢复待机。" : ""}${paused ? "动画已暂停，可按播放按钮开始。" : "试着打个招呼，或者点选一个动作。"}`);
   };
 
   const warmReactions = async (target, costume) => {
     const manager = target.internalModel.motionManager;
+    const warmed = new Set();
     // 小批量预热常用资源，避免第一个回复在文字出现后才开始加载动作。
     for (const emotion of ["neutral", "thinking", "smile", "serious", "cheer", "shy", "surprised", "wave", "wink", "sad", "angry"]) {
-      if (target !== model) return;
-      const choice = actions.resolve(costume, { emotion });
-      if (!choice) continue;
-      const expressionIndex = choice.expression ? manager.expressionManager?.getExpressionIndex(choice.expression) : -1;
-      await Promise.allSettled([
-        choice.motion ? manager.loadMotion(choice.group, choice.index) : null,
-        expressionIndex >= 0 ? manager.expressionManager.loadExpression(expressionIndex) : null,
-      ]);
+      const choices = ["smile", "cheer", "wink"].includes(emotion) && actions.variants
+        ? actions.variants(costume, { emotion }).slice(0, 3)
+        : [actions.resolve(costume, { emotion })];
+      for (const choice of choices) {
+        if (target !== model) return;
+        if (!choice) continue;
+        const key = `${choice.group}:${choice.index}:${choice.expression || ""}`;
+        if (warmed.has(key)) continue;
+        warmed.add(key);
+        const expressionIndex = choice.expression ? manager.expressionManager?.getExpressionIndex(choice.expression) : -1;
+        await Promise.allSettled([
+          choice.motion ? manager.loadMotion(choice.group, choice.index) : null,
+          expressionIndex >= 0 ? manager.expressionManager.loadExpression(expressionIndex) : null,
+        ]);
+      }
     }
   };
 
@@ -274,7 +285,7 @@
         stage.setAttribute("aria-busy", "false");
         syncPlayback();
         emitState();
-        if (model && !desiredReaction.signal?.aborted) void react(desiredReaction);
+        if (model && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
       }
     }
   };
@@ -304,24 +315,79 @@
   };
 
   // 所有按钮与聊天使用同一入口；只有动作/表情的 Promise 成功才返回 ok。
-  const react = async (request = {}) => {
+  const signature = (choice) => `${choice.group}:${choice.motion || ""}:${choice.expression || ""}`;
+  const responseFor = (costume, choice) => {
+    const actionLabel = costume.mode === "performance"
+      ? costume.performanceActions?.find((item) => item.motion === choice.motion)?.label || "舞台动作"
+      : undefined;
+    return { ok: true, motion: choice.motion, expression: choice.expression, emotion: choice.emotion, mode: costume.mode || "story", ...(actionLabel ? { actionLabel } : {}) };
+  };
+  const rememberSelection = (request, costume, choice, ordinal) => {
+    const record = requestSelections.get(request) || { byCostume: new Map() };
+    record.last = { choice, ordinal };
+    record.byCostume.set(costume.id, record.last);
+    requestSelections.set(request, record);
+  };
+  const chooseReaction = (costume, request, replay) => {
+    const initial = actions.resolve(costume, request);
+    if (!initial) return null;
+    if (request.source !== "chat" || !actions.variants) return { choice: initial, ordinal: 0 };
+    const candidates = actions.variants(costume, request);
+    if (!candidates.length) return null;
+    const record = replay ? requestSelections.get(request) : undefined;
+    const previous = record?.byCostume.get(costume.id) || record?.last;
+    if (previous) {
+      const exact = candidates.findIndex((choice) => signature(choice) === signature(previous.choice));
+      const ordinal = exact >= 0 ? exact : previous.ordinal % candidates.length;
+      return { choice: candidates[ordinal], ordinal, consume: false };
+    }
+    const history = variantHistory.get(`${costume.id}:${initial.emotion}`);
+    if (!history) return { choice: candidates[0], ordinal: 0, consume: true, resetCycle: false };
+    const start = (candidates.findIndex((choice) => signature(choice) === history.signature) + 1) % candidates.length;
+    const unused = candidates.map((choice, index) => !history.used.has(signature(choice)) ? index : -1).filter((index) => index >= 0);
+    const resetCycle = unused.length === 0;
+    const eligible = new Set(resetCycle ? candidates.map((_, index) => index) : unused);
+    // 每轮先覆盖所有候选，避免双不同评分长期跳过同动作/表情的候选。
+    // 在本轮未用候选内，仍优先同时换动作与表情。
+    let ordinal = start;
+    let bestScore = -1;
+    for (let offset = 0; offset < candidates.length; offset++) {
+      const index = (start + offset) % candidates.length;
+      if (!eligible.has(index)) continue;
+      const choice = candidates[index];
+      const score = (choice.motion !== history.motion ? 2 : 0) + (choice.expression !== history.expression ? 1 : 0);
+      if (score > bestScore) { ordinal = index; bestScore = score; }
+      if (score === 3) break;
+    }
+    return { choice: candidates[ordinal], ordinal, consume: true, resetCycle };
+  };
+  const react = async (request = {}, replay = false) => {
     const { signal } = request;
     if (signal?.aborted) return { ok: false, reason: "这段对话已停止。" };
     desiredReaction = request;
     ++reactionVersion;
     if (!model && !(await start())) return { ok: false, reason: "文字回复已送达；模型暂不可用，可点重试。" };
     if (signal?.aborted || desiredReaction !== request) return { ok: false, reason: "这段对话已停止或被更新。" };
-    if (loading) return { ok: false, reason: "文字回复已送达；正在换装，稍后再试动作。" };
+    if (loading) return { ok: false, reason: "文字回复已送达；正在换装，完成后播放最新回应。" };
     if (paused) return { ok: false, reason: "文字回复已送达；动画已暂停，点播放后再试。" };
     if (!inView || document.hidden) return { ok: false, reason: "文字回复已送达；模型在可见时播放动作。" };
     const version = ++reactionVersion;
     const target = model;
     const costume = current;
-    const choice = actions.resolve(costume, request);
-    if (!choice) return { ok: false, reason: "当前服装没有这个动作或表情。" };
+    const motionManager = target.internalModel.motionManager;
+    const activeChoice = activeReaction?.target === target ? activeReaction.choice : null;
+    const idleMotion = actions.resolve(costume, { emotion: "neutral" })?.motion;
+    if (request.source === "chat" && request.continuation && activeChoice?.motion && activeChoice.motion !== idleMotion
+      && motionManager.state.currentGroup === activeChoice.group && motionManager.state.currentIndex === activeChoice.index && !motionManager.isFinished()) {
+      // 当前舞台动作尚未结束：保留实际姿态，不打断，也不消耗下一候选。
+      rememberSelection(request, costume, activeChoice, activeReaction.ordinal);
+      return responseFor(costume, activeChoice);
+    }
+    const selection = chooseReaction(costume, request, replay);
+    if (!selection) return { ok: false, reason: "当前服装没有这个动作或表情。" };
+    const { choice, ordinal } = selection;
     const { motion, expression, group, index } = choice;
     try {
-      const motionManager = target.internalModel.motionManager;
       const expressionManager = motionManager.expressionManager;
       const expressionIndex = expression ? expressionManager?.getExpressionIndex(expression) : -1;
       // 先加载，后检查版本再播放：迟到的旧请求不能把停止/新情绪覆盖回去。
@@ -340,9 +406,17 @@
       ]);
       if (signal?.aborted || version !== reactionVersion || target !== model) return { ok: false, reason: "已响应较新的操作。" };
       if (results.some((result) => result === false)) return { ok: false, reason: "文字回复已送达；动作未能播放，请再试一次。" };
+      activeReaction = { target, choice, ordinal };
+      rememberSelection(request, costume, choice, ordinal);
+      if (request.source === "chat") {
+        const key = `${costume.id}:${choice.emotion}`;
+        const used = new Set(selection.resetCycle ? [] : variantHistory.get(key)?.used || []);
+        if (selection.consume) used.add(signature(choice));
+        variantHistory.set(key, { signature: signature(choice), motion: choice.motion, expression: choice.expression, used });
+      }
       if (motion) markActive(hosts.motion, current.mode === "performance" ? motion : actions.defaults[choice.emotion]?.motion || motion);
       if (expression) markActive(hosts.expression, actions.defaults[choice.emotion]?.expression || expression);
-      return { ok: true, motion, expression, emotion: choice.emotion, mode: costume.mode || "story" };
+      return responseFor(costume, choice);
     } catch (error) {
       console.warn("Live2D reaction:", error);
       return { ok: false, reason: "文字回复已送达；动作资源加载失败，请重试。" };
@@ -367,11 +441,11 @@
     syncPlayback();
     setHint(paused ? "动画已暂停，仍可发送文字。" : "动画继续播放。输入一句话，试试爱音的反应吧。" );
     emitState();
-    if (!paused && !desiredReaction.signal?.aborted) void react(desiredReaction);
+    if (!paused && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
   });
   document.addEventListener("visibilitychange", () => {
     syncPlayback();
-    if (!document.hidden && inView && !desiredReaction.signal?.aborted) void react(desiredReaction);
+    if (!document.hidden && inView && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
   });
   if ("ResizeObserver" in window) new ResizeObserver(fitModel).observe(stage);
   else window.addEventListener("resize", fitModel);
@@ -381,7 +455,7 @@
       inView = entries.some((entry) => entry.isIntersecting);
       if (inView && !model && !failed) void start();
       syncPlayback();
-      if (!wasInView && inView && model && !desiredReaction.signal?.aborted) void react(desiredReaction);
+      if (!wasInView && inView && model && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
     }, { threshold: 0 });
     observer.observe(stage);
   } else { inView = true; void start(); }

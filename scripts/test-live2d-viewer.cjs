@@ -37,12 +37,17 @@ async function harness(options = {}) {
   const defaults = Object.values(actions.defaults);
   const motions = [...new Set(defaults.map((item) => item.motion))].map((name) => name + ".mtn");
   const expressions = [...new Set(defaults.map((item) => item.expression))];
+  if (options.variants) {
+    motions.push("smile02.mtn", "smile03.mtn");
+    expressions.push("smile02", "smile03", "wink02", "wink03");
+  }
   const costumes = ["first", "second"].map((id) => ({ id, modelJson: id, label: id, motions, expressions, motionCount: motions.length, expressionCount: expressions.length }));
-  if (options.performance) Object.assign(costumes[0], {
+  if (options.costume) costumes[0] = { ...options.costume, id: "first", modelJson: "first" };
+  for (const slot of [...(options.performance ? [0] : []), ...(options.performanceSecond ? [1] : [])]) Object.assign(costumes[slot], {
     mode: "performance", expressions: [], expressionCount: 0,
-    motions: ["mtn_idle_01.motion3.json", "mtn_play01_01.motion3.json"], motionCount: 2,
-    performanceActions: [{ motion: "mtn_idle_01", label: "演奏待机" }, { motion: "mtn_play01_01", label: "吉他演奏 1" }],
-    reactions: Object.fromEntries(Object.keys(actions.defaults).map((emotion) => [emotion, { motion: "mtn_idle_01", expression: "" }])),
+    motions: ["mtn_idle_01.motion3.json", "mtn_play01_01.motion3.json", "mtn_play02_01.motion3.json"], motionCount: 3,
+    performanceActions: [{ motion: "mtn_idle_01", label: "演奏待机" }, { motion: "mtn_play01_01", label: "吉他演奏 1" }, { motion: "mtn_play02_01", label: "吉他演奏 2" }],
+    reactions: Object.fromEntries(Object.keys(actions.defaults).map((emotion) => [emotion, { motion: emotion === "neutral" ? "mtn_idle_01" : emotion === "thinking" ? "mtn_play02_01" : "mtn_play01_01", expression: "" }])),
   });
   const models = [];
   const plays = [];
@@ -58,8 +63,9 @@ async function harness(options = {}) {
       loadExpression: (index) => waiting.get("expression:" + expressions[index])?.promise || Promise.resolve(expressionObjects[index]),
     };
     const manager = {
-      expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, isFinished: () => false,
-      loadMotion: (group, index) => waiting.get("motion:" + motions[index].replace(".mtn", ""))?.promise || Promise.resolve({ group, index }),
+      expressionManager: expressions.length ? expressionManager : undefined, state: { currentGroup: null, currentIndex: -1 }, finished: false,
+      isFinished() { return this.finished; },
+      loadMotion: (group, index) => waiting.get("motion:" + actions.stem(motions[index]))?.promise || Promise.resolve({ group, index }),
     };
     const model = {
       id, waiting, destroyed: false, scale: { value: 1, set(value) { this.value = value; } },
@@ -68,8 +74,9 @@ async function harness(options = {}) {
       registerInteraction() {}, unregisterInteraction() {}, update(delta) { if (delta > 0) this.initialized = true; },
       destroy() { this.destroyed = true; },
       motion(group, index) {
-        if (manager.state.currentGroup === group && manager.state.currentIndex === index) return Promise.resolve(false);
+        if (manager.state.currentGroup === group && manager.state.currentIndex === index && !manager.finished) return Promise.resolve(false);
         manager.state.currentGroup = group; manager.state.currentIndex = index;
+        manager.finished = false;
         plays.push({ id, type: "motion", name: motions[index] }); return Promise.resolve(true);
       },
       expression(name) { plays.push({ id, type: "expression", name }); expressionManager.currentExpression = expressionObjects[expressions.indexOf(name)]; return Promise.resolve(true); },
@@ -230,15 +237,160 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     const h = await harness({ performance: true });
     assert.equal(h.elements.l2dExpressionNote.hidden, false);
     assert.equal(h.elements.l2dExpressions.children.length, 0, "无表情模型不生成虚假的表情按钮");
-    assert.deepEqual(h.elements.l2dMotions.children.map((button) => button.textContent), ["演奏待机", "吉他演奏 1"]);
+    assert.deepEqual(h.elements.l2dMotions.children.map((button) => button.textContent), ["演奏待机", "吉他演奏 1", "吉他演奏 2"]);
     const result = await h.viewer.react({ emotion: "smile" });
     assert.equal(result.ok, true, "空表情、无expressionManager的演奏模型仍能响应");
     assert.equal(result.expression, "");
     assert.equal(result.mode, "performance");
-    h.elements.l2dMotions.children[1].click();
-    await settle(() => h.plays.some((event) => event.name === "mtn_play01_01.motion3.json"), "可以手选真实舞台演奏动作");
+    assert.equal(result.motion, "mtn_play01_01");
+    assert.equal(result.actionLabel, "吉他演奏 1");
+    h.elements.l2dMotions.children[2].click();
+    await settle(() => h.plays.some((event) => event.name === "mtn_play02_01.motion3.json"), "可以手选真实舞台演奏动作");
     assert.ok(h.plays.every((event) => event.type === "motion"), "不尝试播放不存在的表情");
-    assert.match(h.elements.l2dHint.textContent, /已播放「吉他演奏 1」动作/);
+    assert.match(h.elements.l2dHint.textContent, /已播放「吉他演奏 2」动作/);
   }
-  console.log("Live2D viewer 验证通过：8组取消与播放竞态、2组缩放与响应式站位、1组无独立表情演奏模型，共11组。");
+  {
+    const h = await harness({ performance: true });
+    assert.match(h.elements.l2dHint.textContent, /聊天会自动触发此款真实舞台动作/);
+    await h.viewer.react({ emotion: "smile" });
+    const before = h.plays.length;
+    assert.equal((await h.viewer.react({ emotion: "smile" })).ok, true);
+    assert.equal(h.plays.length, before, "仍在播放的相同动作不反复重启");
+    h.models[0].internalModel.motionManager.finished = true;
+    assert.equal((await h.viewer.react({ emotion: "smile" })).ok, true);
+    assert.equal(h.plays.length, before + 1, "同一动作结束后可以再次响应聊天");
+    const idle = await h.viewer.react({ emotion: "neutral" });
+    assert.equal(idle.actionLabel, "演奏待机");
+    assert.equal(idle.motion, "mtn_idle_01");
+  }
+  {
+    const h = await harness({ performanceSecond: true });
+    const loading = deferred(); h.pendingModels.set("second", loading);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    assert.equal((await h.viewer.react({ emotion: "smile" })).ok, false);
+    assert.equal((await h.viewer.react({ emotion: "thinking" })).ok, false);
+    const target = h.buildModel("second"); loading.resolve(target);
+    await settle(() => h.plays.some((event) => event.id === "second"), "换装后自动播放最新回应");
+    assert.deepEqual(h.plays.filter((event) => event.id === "second").map((event) => event.name), ["mtn_play02_01.motion3.json"]);
+  }
+  {
+    const h = await harness({ performanceSecond: true });
+    const loading = deferred(); h.pendingModels.set("second", loading);
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    const controller = new AbortController();
+    await h.viewer.react({ emotion: "smile", signal: controller.signal });
+    controller.abort(); h.elements.l2dPause.click();
+    loading.resolve(h.buildModel("second"));
+    await settle(() => h.viewer.getState().costume === "second", "已取消请求期间换装仍完成");
+    await tick();
+    assert.ok(!h.plays.some((event) => event.id === "second"), "取消或暂停后不能启动排队舞台动作");
+    h.elements.l2dPause.click(); await tick();
+    assert.ok(!h.plays.some((event) => event.id === "second"), "恢复不能复活已取消的排队请求");
+  }
+  {
+    const h = await harness({ variants: true });
+    const first = await h.viewer.react({ emotion: "smile", source: "chat" });
+    const second = await h.viewer.react({ emotion: "smile", source: "chat" });
+    assert.equal(first.motion, "smile01"); assert.equal(first.expression, "smile01");
+    assert.equal(second.motion, "smile02"); assert.equal(second.expression, "smile02");
+    h.elements.l2dPause.click(); h.elements.l2dPause.click(); await tick();
+    assert.equal(h.plays.at(-1).name, "smile02", "恢复保持此前选中表情");
+    const third = await h.viewer.react({ emotion: "smile", source: "chat" });
+    assert.equal(third.motion, "smile03", "恢复不消耗下一候选");
+    assert.equal(third.expression, "smile03");
+    const manual = await h.viewer.react({ motion: "smile01" });
+    assert.equal(manual.motion, "smile01"); assert.equal(manual.expression, "smile01", "手动指定动作仍精确按默认配对");
+    const idle = await h.viewer.react({ emotion: "neutral", source: "control" });
+    assert.equal(idle.motion, "idle01"); assert.equal(idle.expression, "default");
+    const wink1 = await h.viewer.react({ emotion: "wink", source: "chat" });
+    const wink2 = await h.viewer.react({ emotion: "wink", source: "chat" });
+    assert.equal(wink1.motion, wink2.motion, "单一动作候选保持真实动作");
+    assert.notEqual(wink1.expression, wink2.expression, "单一动作仍轮换同语气表情");
+  }
+  {
+    const h = await harness({ variants: true });
+    const first = await h.viewer.react({ emotion: "smile", source: "chat" });
+    const before = h.plays.length;
+    const hold = await h.viewer.react({ emotion: "smile", source: "chat", continuation: true });
+    assert.equal(hold.motion, first.motion); assert.equal(hold.expression, first.expression);
+    assert.equal(h.plays.length, before, "续接不截断仍在播放的动作或换表情");
+    const manager = h.models[0].internalModel.motionManager;
+    manager.finished = true;
+    const next = await h.viewer.react({ emotion: "smile", source: "chat", continuation: true });
+    assert.equal(next.motion, "smile02"); assert.equal(next.expression, "smile02");
+    manager.state.currentGroup = "idle"; manager.state.currentIndex = 0;
+    const afterIdle = await h.viewer.react({ emotion: "smile", source: "chat", continuation: true });
+    assert.equal(afterIdle.motion, "smile03", "动作自动回idle后续接取下一候选");
+  }
+  {
+    const h = await harness({ variants: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    const cancelled = block(h.models[0], "motion:smile02");
+    const controller = new AbortController();
+    const pending = h.viewer.react({ emotion: "smile", source: "chat", signal: controller.signal });
+    controller.abort(); cancelled.resolve({});
+    assert.equal((await pending).ok, false);
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).motion, "smile02", "取消不推进轮换");
+    const failed = block(h.models[0], "motion:smile03");
+    const failedRequest = h.viewer.react({ emotion: "smile", source: "chat" });
+    failed.resolve(undefined);
+    assert.equal((await failedRequest).ok, false);
+    h.models[0].waiting.delete("motion:smile03");
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).motion, "smile03", "资源加载失败不推进轮换");
+  }
+  {
+    const h = await harness({ variants: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    const delayed = block(h.models[0], "motion:smile02");
+    const older = h.viewer.react({ emotion: "smile", source: "chat" });
+    const newer = h.viewer.react({ emotion: "smile", source: "chat" });
+    delayed.resolve({});
+    assert.equal((await older).ok, false);
+    assert.equal((await newer).motion, "smile02");
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).motion, "smile03", "迟到旧请求只让最新成功请求推进一次");
+    h.elements.l2dPause.click();
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).ok, false);
+    h.elements.l2dPause.click(); await tick();
+    const current = h.models[0].internalModel.motionManager;
+    assert.equal(current.state.currentIndex, 1, "暂停时请求在恢复后才选择下一个smile01");
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).motion, "smile02");
+  }
+  {
+    const h = await harness({ variants: true });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    await h.viewer.react({ emotion: "smile", source: "chat" });
+    h.elements.l2dCostumes.children.find((button) => button.dataset.value === "second").click();
+    await settle(() => h.plays.some((event) => event.id === "second"), "换装后重放此前选择");
+    assert.ok(h.plays.some((event) => event.id === "second" && event.name === "smile02.mtn"), "相容模型换装后保持同一动作变体");
+    assert.equal((await h.viewer.react({ emotion: "smile", source: "chat" })).motion, "smile03", "换装重放不会额外消耗候选");
+  }
+  {
+    const data = {};
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../assets/data/anon-live2d.js"), "utf8"), { window: data });
+    assert.equal(data.ANON_LIVE2D.costumes.length, 12);
+    for (const costume of data.ANON_LIVE2D.costumes) {
+      const h = await harness({ costume });
+      for (const emotion of Object.keys(actions.defaults)) {
+        const candidates = actions.variants(costume, { emotion });
+        const expected = candidates.map((choice) => `${choice.motion}|${choice.expression}`).sort();
+        assert.ok(expected.length, `${costume.id}/${emotion}应有真实候选`);
+        for (let cycle = 0; cycle < 3; cycle++) {
+          const actual = [];
+          for (let index = 0; index < candidates.length; index++) {
+            h.models[0].internalModel.motionManager.finished = true;
+            const result = await h.viewer.react({ emotion, source: "chat" });
+            assert.equal(result.ok, true);
+            actual.push(`${result.motion}|${result.expression}`);
+            if (index === 0 && emotion !== "neutral") {
+              const held = await h.viewer.react({ emotion, source: "chat", continuation: true });
+              assert.equal(`${held.motion}|${held.expression}`, actual[0], "保留当前动作的续接不消费候选");
+              h.elements.l2dPause.click(); h.elements.l2dPause.click(); await tick();
+            }
+          }
+          assert.deepEqual(actual.sort(), expected, `${costume.id}/${emotion}第${cycle + 1}轮必须覆盖全部候选，恢复和续接不消费名额`);
+        }
+      }
+    }
+  }
+  console.log("Live2D viewer 验证通过：19组播放/缩放/轮换回归，另验证真实12款×13语气×连续3轮全候选覆盖，共20组。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

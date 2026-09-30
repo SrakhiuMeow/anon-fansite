@@ -33,6 +33,14 @@ const PERFORMANCE_LABELS = {
   mtn_play01_01: "演奏一 · 1", mtn_play01_02: "演奏一 · 2", mtn_play01_03: "演奏一 · 3",
   mtn_play02_01: "演奏二 · 1", mtn_play02_02: "演奏二 · 2", mtn_play02_03: "演奏二 · 3",
 };
+// 舞台动作本身包含身体、吉他和部分脸部曲线，不依赖聊天中的动作关键词。
+// 这是语气到真实演奏动作的映射，不将它们冒充独立表情。
+const PERFORMANCE_REACTIONS = {
+  neutral: "mtn_idle_01", smile: "mtn_play01_02", wink: "mtn_play02_02",
+  shy: "mtn_play01_01", surprised: "mtn_action_01", thinking: "mtn_play01_01",
+  serious: "mtn_play02_01", sad: "mtn_play02_01", angry: "mtn_play02_01",
+  wave: "mtn_finish_01", cheer: "mtn_play02_03", cry: "mtn_play02_01", pose: "mtn_action_01",
+};
 const args = process.argv.slice(2);
 const proxyIndex = args.indexOf("--proxy");
 const proxy = proxyIndex >= 0 ? args[proxyIndex + 1] : process.env.HTTPS_PROXY;
@@ -229,8 +237,11 @@ function buildCostume({ base, id, label, catalogUrls }) {
     cheer: ["smile02", "smile02"], cry: ["cry01", "cry01"], pose: ["kime01", "kime01"],
   };
   const reactions = Object.fromEntries(Object.entries(pairs).map(([emotion, [m, e]]) => {
-    // 演奏模型没有独立情绪表情；聊天维持真实待机，演奏动作由用户主动选择。
-    if (performance) return [emotion, { motion: character.DefaultMotionName, expression: "" }];
+    if (performance) {
+      const motion = PERFORMANCE_REACTIONS[emotion];
+      assert(motionNames.includes(motion), `Missing mapped stage motion: ${motion}`);
+      return [emotion, { motion, expression: "" }];
+    }
     const motion = `mtn_${m}_C`, expression = `exp_${e}`;
     assert(motionNames.includes(motion), `Missing mapped motion: ${motion}`);
     assert(expressionNames.includes(expression), `Missing mapped expression: ${expression}`);

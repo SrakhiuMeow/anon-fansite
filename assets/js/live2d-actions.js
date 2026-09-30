@@ -50,5 +50,98 @@
     if ((!motion && !expression) || (motion && motionIndex(costume, motion) < 0) || (expression && !costume.expressions.includes(expression))) return null;
     return { emotion, motion, expression, index: motion ? motionIndex(costume, motion) : -1, group: costume.motionGroup || "reaction" };
   }
-  return { defaults, stem, motionIndex, resolve };
+
+  // 候选只来自模型实际提供的同类动作。nf/nnf 等用途不明的动作不参与聊天。
+  const legacyFamilies = Object.freeze({
+    smile: ["smile"], wink: ["wink"], shy: ["shame"], surprised: ["surprised"],
+    thinking: ["thinking"], serious: ["serious"], sad: ["sad"], angry: ["angry"],
+    wave: ["bye"], cheer: ["kandou"], cry: ["cry"], pose: ["kime"],
+  });
+  const storyMotionFamilies = Object.freeze({
+    smile: ["smile01", "smile02", "nod01", "nod02", "join01"],
+    wink: ["wink01"], shy: ["thinking01"], surprised: ["surprised01", "surprised02"],
+    thinking: ["thinking01", "check01", "check02", "question01", "look01", "look02"],
+    serious: ["serious01", "nod01", "nod02", "check01", "check02"],
+    sad: ["sad01"], angry: ["angry01"], wave: ["bye01"],
+    cheer: ["smile02", "join01", "nod02"], cry: ["cry01"], pose: ["kime01"],
+  });
+  const storyExpressionFamilies = Object.freeze({
+    smile: ["smile"], wink: ["smile"], shy: ["shy"], surprised: ["surprised"],
+    thinking: ["thinking"], serious: ["serious"], sad: ["sad"], angry: ["angry"],
+    wave: ["smile"], cheer: ["smile"], cry: ["cry"], pose: ["kime", "smile"],
+  });
+  // 舞台款的动作含自身面部曲线，但没有独立表情。轻奏用于平缓语气，
+  // 活跃演奏用于积极语气；这些是舞台回应，不宣称是哭泣/生气专属表情。
+  const performanceMotions = Object.freeze({
+    smile: ["mtn_play01_02", "mtn_play02_02", "mtn_play02_01", "mtn_play01_01"],
+    wink: ["mtn_play02_02", "mtn_action_01", "mtn_play01_02"],
+    shy: ["mtn_play01_01", "mtn_play02_01"],
+    surprised: ["mtn_action_01", "mtn_play01_03"],
+    thinking: ["mtn_play01_01", "mtn_play02_01"],
+    serious: ["mtn_play02_01", "mtn_play01_01"],
+    sad: ["mtn_play02_01", "mtn_play01_01"],
+    angry: ["mtn_play02_01", "mtn_play01_01"],
+    wave: ["mtn_finish_01"],
+    cheer: ["mtn_play02_03", "mtn_play01_03", "mtn_action_01", "mtn_play02_02"],
+    cry: ["mtn_play02_01", "mtn_play01_01"],
+    pose: ["mtn_action_01", "mtn_play01_03", "mtn_play02_03"],
+  });
+  const numbered = (name, prefix, families) => {
+    const match = new RegExp(`^${prefix}([a-z]+)(0[1-9])$`).exec(name);
+    return !!match && families.includes(match[1]);
+  };
+  function variants(costume, request = {}) {
+    const base = resolve(costume, request);
+    if (!base) return [];
+    const emotion = base.emotion;
+    // 初始/清空只用指定待机；手动表情、未知动作仍严格遵循 resolve。
+    if (!emotion || emotion === "neutral" || !base.motion) return [base];
+    const results = [base];
+    const seen = new Set([`${base.motion}\n${base.expression}`]);
+    const add = (motion, expression) => {
+      const index = motionIndex(costume, motion);
+      const motionOnly = costume.mode === "performance" && costume.expressions.length === 0;
+      if (index < 0 || (expression ? !costume.expressions.includes(expression) : !motionOnly)) return;
+      const key = `${motion}\n${expression}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push({ emotion, motion, expression, index, group: base.group });
+    };
+    if (costume.mode === "performance") {
+      for (const motion of performanceMotions[emotion] || []) add(motion, "");
+      return results;
+    }
+    const available = costume.motions.map(stem);
+    const isStory = available.some(name => /^mtn_[a-z]+\d{2}_[CLR]$/.test(name));
+    let motions;
+    let expressions;
+    if (isStory) {
+      motions = (storyMotionFamilies[emotion] || []).flatMap(family =>
+        ["C", "L", "R"].map(side => `mtn_${family}_${side}`)).filter(name => available.includes(name));
+      expressions = costume.expressions.filter(name => numbered(name, "exp_", storyExpressionFamilies[emotion] || [])).sort();
+    } else {
+      const families = legacyFamilies[emotion] || [];
+      motions = available.filter(name => numbered(name, "", families)).sort();
+      expressions = costume.expressions.filter(name => numbered(name, "", families)).sort();
+    }
+    // 平衡配对覆盖不同动作与同语气表情，不生成全笛卡尔积。旧版同编号
+    // 动作优先搭配同编号表情；Our Notes 的方向动作轮流搭配同语气表情。
+    if (base.expression) expressions = [base.expression, ...expressions.filter(name => name !== base.expression)];
+    if (!expressions.length) return results;
+    const orderedMotions = [base.motion, ...motions.filter(name => name !== base.motion)];
+    for (let i = 1; i < orderedMotions.length; i++) {
+      const motion = orderedMotions[i];
+      add(motion, !isStory && expressions.includes(motion) ? motion : expressions[i % expressions.length]);
+    }
+    const usedExpressions = new Set(results.map(choice => choice.expression));
+    let nextMotion = 0;
+    for (const expression of expressions) {
+      if (!usedExpressions.has(expression)) {
+        const matching = !isStory && orderedMotions.includes(expression) ? expression : orderedMotions[nextMotion++ % orderedMotions.length];
+        add(matching, expression);
+      }
+    }
+    return results;
+  }
+  return { defaults, stem, motionIndex, resolve, variants };
 });

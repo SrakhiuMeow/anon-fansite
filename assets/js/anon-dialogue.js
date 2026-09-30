@@ -144,8 +144,9 @@
       if (signal?.aborted || version !== reactionRequest || turn !== request) return;
       if (emotion) {
         const performance = outcome?.ok && outcome.mode === "performance" && outcome.expression === "";
-        emotion.textContent = performance ? "回应：演奏姿态" : outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
-        emotion.title = performance ? `本轮语气：${label}。当前演奏模型没有独立表情，已应用实际可用姿态。` : outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
+        const actionLabel = typeof outcome?.actionLabel === "string" && outcome.actionLabel.trim() ? outcome.actionLabel : "演奏姿态";
+        emotion.textContent = performance ? `回应：${actionLabel}` : outcome?.ok ? `回应：${label}` : `回应：${label} · 未播放`;
+        emotion.title = performance ? `本轮语气：${label}。已触发舞台动作：${actionLabel}；当前演奏模型没有独立表情。` : outcome?.ok ? "已应用对应的 Live2D 表情与动作" : outcome?.reason || "模型暂未就绪";
       }
     } catch {
       if (!signal?.aborted && version === reactionRequest && turn === request && emotion) {
@@ -157,7 +158,7 @@
   const cancel = () => {
     controller?.abort();
     ++reactionRequest;
-    if (root.AnonLive2D?.getState?.().ready) void react({ motion: "idle01", expression: "default", label: "平静待机" });
+    if (root.AnonLive2D?.getState?.().ready) void react({ motion: "idle01", expression: "default", label: "平静待机", source: "control" });
     else if (emotion) { emotion.textContent = "随对话变化"; emotion.title = "对话会自动选择对应表情与动作"; }
   };
   const submit = async (raw) => {
@@ -193,20 +194,23 @@
     }
     if (!useAI) {
       append("anon", result.text);
-      react(result);
+      react({ ...result, source: "chat" }, active.signal);
       setState(`本地互动：${result.label}。对话为本站原创同人内容。`);
       setBusy(false);
       controller = null;
       return;
     }
     setState("爱音正在想怎么回答…");
-    react({ motion: "thinking01", expression: "thinking01", label: "思考" }, active.signal);
+    react({ motion: "thinking01", expression: "thinking01", label: "思考", source: "chat" }, active.signal);
     let content = null;
     let answer = "";
     let complete = false;
     const reducedMotion = !!root.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     let segment = "";
     let segmentStarted = 0;
+    let lastReaction = null;
+    let lastReactionAt = 0;
+    let continuations = 0;
     const requireCurrent = () => { if (version !== request || active.signal.aborted) throw new Error("对话已取消"); };
     // 45 秒服务端期限之外，为最多 1000 字的渐进显示留出时间。
     const timeout = setTimeout(() => active.abort("timeout"), 75000);
@@ -228,17 +232,20 @@
       await api.readEvents(response.body, async (event) => {
         requireCurrent();
         if (event.type === "reaction") {
+          const reaction = { ...event, source: "chat" };
           const nextSegment = `${event.emotion || ""}|${event.motion}|${event.expression}`;
           if (nextSegment !== segment) {
             // 同一网络块中的多段情绪也依序播放；只在切换情绪时保证停留。
             const remaining = segment ? 700 - (Date.now() - segmentStarted) : 0;
             if (!reducedMotion && remaining > 0) await pausePlayback(remaining, active.signal);
             requireCurrent();
-            await react(event, active.signal);
+            await react(reaction, active.signal);
             requireCurrent();
             segment = nextSegment;
             segmentStarted = Date.now();
+            lastReactionAt = segmentStarted;
           }
+          lastReaction = reaction;
         }
         if (event.type === "delta" && typeof event.text === "string") {
           const text = event.text.slice(0, 1000 - answer.length);
@@ -251,7 +258,17 @@
             content.textContent = answer;
             log.scrollTop = log.scrollHeight;
             setState("爱音正在回复…");
-            if (!reducedMotion) await pausePlayback(20, active.signal);
+            if (!reducedMotion) {
+              await pausePlayback(20, active.signal);
+              requireCurrent();
+              // 长段落在自然句读处延续同一语气；无后台计时器，文字结束即停止续接。
+              if (lastReaction && continuations < 3 && Date.now() - lastReactionAt >= 4500 && /[。！？；，、….!?;,]/u.test(piece)) {
+                await react({ ...lastReaction, continuation: true }, active.signal);
+                requireCurrent();
+                lastReactionAt = Date.now();
+                continuations += 1;
+              }
+            }
           }
         }
         if (event.type === "done") complete = true;
@@ -274,7 +291,7 @@
         setState("AI 回复中断，已保留收到的文字；本次内容未加入对话记忆。");
       } else {
         append("anon", result.text);
-        react(result);
+        react({ ...result, source: "chat" });
         setState(`${active.signal.reason === "timeout" ? "AI 回复超时" : error.message.replace(/[。；;\s]+$/u, "")}；本次使用本地预设回复。`);
       }
     } finally {
