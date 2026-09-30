@@ -207,12 +207,23 @@
     const active = new AbortController();
     controller = active;
     // 手机将画面带回模型与最新回复，收起软键盘；两个面板不会互相遮挡。
-    if (root.matchMedia?.("(max-width: 700px)").matches) {
+    const mobileChatLayout = "(max-width: 700px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)";
+    if (root.matchMedia?.(mobileChatLayout).matches) {
       input.blur();
       const controls = root.document.querySelector(".l2d-controls");
       if (controls) controls.scrollTop = 0;
       root.document.getElementById("anonRoom")?.scrollIntoView({ block: "start", behavior: "instant" });
       await new Promise((resolve) => root.requestAnimationFrame(() => root.requestAnimationFrame(resolve)));
+      if (version === request && !active.signal.aborted && controls && root.matchMedia?.(mobileChatLayout).matches &&
+          root.matchMedia?.("(max-height: 600px)").matches && controls.scrollHeight > controls.clientHeight) {
+        const style = root.getComputedStyle(controls);
+        if (["auto", "scroll", "overlay"].includes(style.overflowY)) {
+          // 短屏只滚动聊天面板内部，把回复放到可见位置，避免全页滚动把模型带离视口。
+          const top = controls.scrollTop + log.getBoundingClientRect().top - controls.getBoundingClientRect().top -
+            (parseFloat(style.paddingTop) || 0);
+          controls.scrollTop = Math.max(0, Math.min(top, controls.scrollHeight - controls.clientHeight));
+        }
+      }
     }
     if (version !== request) return;
     if (active.signal.aborted) {

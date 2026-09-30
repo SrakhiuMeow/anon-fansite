@@ -80,6 +80,7 @@ class Element {
   constructor() {
     this.children = []; this.listeners = new Map(); this.attributes = {};
     this.textContent = ""; this.value = ""; this.hidden = false; this.disabled = false;
+    this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0;
   }
   addEventListener(type, handler) { this.listeners.set(type, handler); }
   dispatch(type, detail = {}) { this.listeners.get(type)?.({ preventDefault() {}, ...detail }); }
@@ -91,7 +92,8 @@ class Element {
   remove() { this.parent.children = this.parent.children.filter((child) => child !== this); }
   focus() { this.focused = true; }
   blur() {}
-  scrollIntoView() {}
+  scrollIntoView(options) { (this.scrollCalls ||= []).push(options); }
+  getBoundingClientRect() { return this.bounds || { top: 0, bottom: 0 }; }
   showModal() { this.open = true; }
   close() { this.open = false; this.dispatch("close"); }
 }
@@ -117,11 +119,11 @@ function playbackClock() {
   };
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, reducedMotion = true, clock, modelReact, modelReady = true } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelReady = true } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
-    "anonChatAccessDialog", "anonChatAccessForm", "anonChatAccessError", "anonChatAccessSubmit", "anonChatAccessCancel", "anonChatUnlock", "anonChatLock",
+    "anonChatAccessDialog", "anonChatAccessForm", "anonChatAccessError", "anonChatAccessSubmit", "anonChatAccessCancel", "anonChatUnlock", "anonChatLock", "anonRoom",
   ].map((id) => [id, new Element()]));
   const send = new Element();
   const aiOption = new Element(); aiOption.disabled = true;
@@ -132,16 +134,21 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, redu
   const unlocks = [];
   const reactions = [];
   const frames = [];
+  const controls = new Element();
+  controls.computedStyle = { overflowY: "auto", paddingTop: "16px" };
   let nextHttpError = null;
   const root = {
     document: {
       getElementById: (id) => ids[id],
       createElement: () => new Element(),
       querySelectorAll: () => [],
-      querySelector: () => null,
+      querySelector: (selector) => selector === ".l2d-controls" ? controls : null,
     },
     location: { protocol: "https:" },
-    matchMedia: (query) => ({ matches: query === "(prefers-reduced-motion: reduce)" ? reducedMotion : mobile }),
+    matchMedia: (query) => ({ matches: query === "(prefers-reduced-motion: reduce)" ? reducedMotion :
+      query === "(max-height: 600px)" ? shortViewport :
+      query === "(max-width: 700px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" ? mobile || landscapeMobile : false }),
+    getComputedStyle: (element) => element.computedStyle,
     requestAnimationFrame: (callback) => { frames.push(callback); },
     AnonLive2D: {
       react: (reaction) => { reactions.push(reaction); return modelReact ? modelReact(reaction) : Promise.resolve({ ok: true }); },
@@ -183,7 +190,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, redu
   }, { filename: "anon-dialogue.js" });
   await settle(() => !aiOption.disabled, "AI 配置应启用选项");
   return {
-    ids, requests, unlocks, reactions, send,
+    ids, requests, unlocks, reactions, send, controls,
     frame() { frames.splice(0).forEach((callback) => callback()); },
     submit(text) { ids.anonChatInput.value = text; ids.anonChatForm.dispatch("submit"); },
     select(value) { ids.anonChatMode.value = value; ids.anonChatMode.dispatch("change"); },
@@ -725,6 +732,58 @@ async function testReadingAndComposition() {
   await ui.complete('收到啦！');
 }
 
+async function testCompactMobileScroll() {
+  const prepare = (ui) => {
+    ui.controls.scrollHeight = 900; ui.controls.clientHeight = 240;
+    ui.controls.bounds = { top: 260, bottom: 500 };
+    ui.ids.anonChatLog.bounds = { top: 520, bottom: 680 };
+  };
+  for (const options of [{ mobile: true }, { landscapeMobile: true }]) {
+    for (const mode of ["local", "deepseek"]) {
+      const ui = await browserFixture({ ...options, shortViewport: true });
+      prepare(ui); ui.select(mode); ui.submit("你好");
+      assert.equal(ui.controls.scrollTop, 0, "先保持现有回到房间顶部逻辑");
+      assert.equal(ui.ids.anonRoom.scrollCalls.length, 1);
+      assert.equal(ui.ids.anonRoom.scrollCalls[0].block, "start");
+      assert.equal(ui.requests.length, 0, "两帧布局稳定前不发送请求");
+      ui.frame(); ui.controls.scrollTop = 30; ui.frame();
+      await settle(() => ui.controls.scrollTop === 274, "短屏仅滚动controls到日志顶附近，计入原scrollTop与padding");
+      assert.equal(ui.ids.anonChatLog.scrollCalls, undefined, "禁止log.scrollIntoView把模型推出视口");
+      assert.equal(ui.ids.anonRoom.scrollCalls.length, 1, "内部调整不增加外部页面跳转");
+      if (mode === "deepseek") { await settle(() => ui.requests.length === 1, "AI请求应继续"); await ui.complete("收到啦"); }
+      else await settle(() => !ui.send.disabled, "本地回复应继续");
+    }
+  }
+  for (const bounds of [{ top: -100, expected: 0 }, { top: 3000, expected: 660 }]) {
+    const ui = await browserFixture({ mobile: true, shortViewport: true });
+    prepare(ui); ui.ids.anonChatLog.bounds = { top: bounds.top }; ui.select("local"); ui.submit("你好");
+    ui.frame(); ui.frame(); await settle(() => !ui.send.disabled, "边界场景完成本地回复");
+    assert.equal(ui.controls.scrollTop, bounds.expected, "滚动位置限制在面板有效范围内");
+  }
+  for (const action of ["stop", "clear", "mode", "lock"]) {
+    const ui = await browserFixture({ mobile: true, shortViewport: true });
+    prepare(ui); ui.select("local"); ui.submit("你好");
+    if (action === "mode") ui.select("deepseek");
+    else ui.ids[{ stop: "anonChatStop", clear: "anonChatClear", lock: "anonChatLock" }[action]].dispatch("click");
+    ui.controls.scrollTop = 75;
+    ui.frame(); ui.frame(); await tick();
+    assert.equal(ui.controls.scrollTop, 75, `${action}后旧请求不得再次滚动面板`);
+    assert.equal(ui.requests.length, 0);
+    assert.equal(ui.send.disabled, false);
+  }
+  for (const option of ["tall", "fits", "visible", "desktop"]) {
+    const ui = await browserFixture({ mobile: option !== "desktop", shortViewport: option !== "tall" });
+    prepare(ui);
+    if (option === "fits") ui.controls.scrollHeight = ui.controls.clientHeight;
+    if (option === "visible") ui.controls.computedStyle.overflowY = "visible";
+    ui.select("local"); ui.submit("你好");
+    ui.controls.scrollTop = 25;
+    ui.frame(); ui.frame(); await tick();
+    assert.equal(ui.controls.scrollTop, 25, `${option}不进行短屏内部定位`);
+    if (option === "desktop") assert.equal(ui.ids.anonRoom.scrollCalls, undefined);
+  }
+}
+
 (async () => {
   await testParser();
   await testClient();
@@ -733,5 +792,6 @@ async function testReadingAndComposition() {
   await testSegmentPlayback();
   await testLongReplyContinuation();
   await testReadingAndComposition();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读与中文输入法防误发送。");
+  await testCompactMobileScroll();
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、长回复续接、取消隔离、上翻阅读、中文输入法防误发送与短屏聊天内部定位。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });
