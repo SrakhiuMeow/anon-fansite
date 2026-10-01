@@ -158,6 +158,7 @@
             if (response.status === 401) throw new Error("请重新解锁 AI 聊天后播放。");
             if (response.status === 429) throw new Error("语音请求较多，请稍后再试。");
             if (code === "VOICE_AUTH_FAILED") throw new Error("语音服务密钥不可用，请站长检查配置。");
+            if (code === "VOICE_ACCESS_DENIED") throw new Error("语音模型或音色访问受限，请站长检查权限。");
             if (code === "VOICE_CREDIT_REQUIRED") throw new Error("语音服务暂不满足免费调用条件，请站长检查账号状态。");
             if (code === "VOICE_NOT_FOUND") throw new Error("语音音色暂不可用，请站长检查音色配置。");
             if (response.status === 503) throw new Error("语音服务暂不可用，请稍后再试。");

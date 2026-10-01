@@ -167,7 +167,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   });
 
   await test("供应商失败返回安全消息，429 可重试，不自动切换付费模型", async () => {
-    const codes = { 401: "VOICE_AUTH_FAILED", 403: "VOICE_AUTH_FAILED", 402: "VOICE_CREDIT_REQUIRED", 404: "VOICE_NOT_FOUND", 429: "VOICE_RATE_LIMITED", 500: "VOICE_UNAVAILABLE", 503: "VOICE_UNAVAILABLE" };
+    const codes = { 401: "VOICE_AUTH_FAILED", 403: "VOICE_ACCESS_DENIED", 402: "VOICE_CREDIT_REQUIRED", 404: "VOICE_NOT_FOUND", 429: "VOICE_RATE_LIMITED", 500: "VOICE_UNAVAILABLE", 503: "VOICE_UNAVAILABLE" };
     for (const [statusText, code] of Object.entries(codes)) {
       const status = Number(statusText);
       const before = networkCalls;
@@ -175,6 +175,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       const res = await call(freshHandler());
       assert.equal(res.statusCode, status === 429 ? 429 : 503);
       assert.equal(JSON.parse(res.body).code, code);
+      if (status === 403) assert.equal(JSON.parse(res.body).error, "语音服务拒绝访问当前模型或音色，请站长检查权限。");
       assert.deepEqual(Object.keys(JSON.parse(res.body)).sort(), ["code", "error"]);
       if (status === 429) assert.equal(res.headers["retry-after"], "60");
       assert.ok(!res.body.toString().includes("SECRET"));

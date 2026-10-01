@@ -204,7 +204,7 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
       assert.equal(reply.button.disabled, false); assert.equal(f.clipPlays.length, 0); assert.ok(reply.element.isConnected);
     });
   }
-  for (const [code, pattern] of [["VOICE_AUTH_FAILED", /密钥不可用/], ["VOICE_CREDIT_REQUIRED", /免费调用条件/], ["VOICE_NOT_FOUND", /音色暂不可用/], ["UNKNOWN_PRIVATE", /服务暂不可用/]]) {
+  for (const [code, pattern] of [["VOICE_AUTH_FAILED", /密钥不可用/], ["VOICE_ACCESS_DENIED", /音色访问受限/], ["VOICE_CREDIT_REQUIRED", /免费调用条件/], ["VOICE_NOT_FOUND", /音色暂不可用/], ["UNKNOWN_PRIVATE", /服务暂不可用/]]) {
     await test(`语音服务错误码 ${code} 仅映射固定说明`, async () => {
       const f = fixture({ synthesize: () => new Response(JSON.stringify({ code, error: "PRIVATE provider details" }), { status: 503, headers: { "content-type": "application/json; charset=utf-8" } }) });
       await f.ready(); const reply = f.add(); await f.click(reply); assert.match(reply.state.textContent, pattern);

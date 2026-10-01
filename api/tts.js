@@ -126,7 +126,7 @@ module.exports = async function tts(req, res) {
       // 只根据状态码生成固定诊断，不读取或透传供应商错误正文。
       const failures = {
         401: ["VOICE_AUTH_FAILED", "语音服务认证失败，请站长检查 Fish Audio 密钥。"],
-        403: ["VOICE_AUTH_FAILED", "语音服务认证失败，请站长检查 Fish Audio 密钥。"],
+        403: ["VOICE_ACCESS_DENIED", "语音服务拒绝访问当前模型或音色，请站长检查权限。"],
         402: ["VOICE_CREDIT_REQUIRED", "语音服务要求账户额度或权限，请站长检查 Fish Audio 账户。"],
         404: ["VOICE_NOT_FOUND", "当前爱音音色或语音服务不可用，请站长检查音色配置。"],
         429: ["VOICE_RATE_LIMITED", "语音服务请求较多，请稍后再试。"],
