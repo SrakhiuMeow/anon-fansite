@@ -22,6 +22,9 @@
 
 - 只有成功完成的 AI 回复显示播放按钮，本地预设、失败或取消的半段回复不合成。
 - 点击“播放日语”后显示翻译与合成状态；“重播日语”使用已生成的日语音频。日语译文仅用于合成，不替换聊天原文或加入聊天历史。
+- 语音专用台词将人物全名“千早爱音／千早愛音／Chihaya Anon”固定为官方假名读法「ちはや あのん」，短名为「あのん」。服务端另做有边界的姓名纠正，避免改写普通词、网址和邮箱。
+- 日语转换同时按完整句子或自然话意转折生成 1–4 段朗读方案，依据实际含义选择语气，不默认开心，也不将否定、引用中的情绪直接当成说话者情绪。正常标点优先，必要时增加短停顿；整段最多一次长停顿，末尾不追加停顿。
+- 朗读方案只能提交受限的情绪和停顿字段，台词中的原始控制标记会被拒绝。服务端统一生成 Fish 支持的情绪与停顿标签；停顿长短由语音模型处理，不保证固定毫秒数。整条回复仍只进行一次日语转换和一次语音合成，避免多段音频拼接打断语流。
 - 默认手动点击播放；开启自动朗读后，后续完整回复在文字显示结束后开始生成并播放。流式文字和原 Live2D 表情动作机制保持原样，此版不增加口型同步。
 - 同时只播放一条。发送新消息、停止回复、锁定、切换模式、清空、页面转到后台都会停止当前播放或生成。
 - 首次播放受浏览器的音频策略影响；自动播放被拒绝时显示“语音已就绪，请点击重播”，再次点击会播放已生成音频。
@@ -38,10 +41,12 @@
 
 ## 验证
 
-运行 `node scripts/test-tts-api.cjs`、`node scripts/test-voice-client.cjs`、`node scripts/test-chat-client.cjs` 和 `node scripts/check-site.cjs`。这些检查使用模拟服务，不会消耗真实语音额度。部署后 `GET /api/tts` 返回 `language: "ja"`，音频响应带 `Content-Language: ja`；前端只接受已声明的日语能力和音频。`enabled` 只说明配置存在，不能代替真实翻译、合成及播放验证。
+运行 `node scripts/test-voice-performance.cjs`、`node scripts/test-tts-api.cjs`、`node scripts/test-voice-client.cjs`、`node scripts/test-chat-client.cjs` 和 `node scripts/check-site.cjs`。这些检查使用本地逻辑和模拟服务，不会消耗真实语音额度。部署后 `GET /api/tts` 返回 `language: "ja"`，音频响应带 `Content-Language: ja`；前端只接受已声明的日语能力和音频。`enabled` 只说明配置存在，不能代替真实翻译、合成及播放验证。语音规则更新后，刷新页面再生成语音；旧页面的重播缓存仍是原先的音频。
 
 ## 接口依据
 
 - [Fish Audio TTS API](https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech)
+- [Fish Audio 情绪与停顿控制](https://docs.fish.audio/developer-guide/core-features/emotions)
+- [官方角色页与姓名假名](https://anime.bang-dream.com/bandorichan/character/mygo/)
 - [公开音色 ID 的使用方式](https://docs.fish.audio/developer-guide/getting-started/quickstart)
 - [千早爱音社区音色与作者](https://fish.audio/zh-CN/m/c5c17c9709384ba9a4b294662a2af0b1/)

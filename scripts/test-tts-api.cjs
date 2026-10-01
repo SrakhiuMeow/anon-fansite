@@ -47,8 +47,11 @@ async function call(handler, options) {
   return res;
 }
 function audioResponse(audio = AUDIO, headers = {}) { return new Response(audio, { headers: { "content-type": "audio/mpeg", ...headers } }); }
+function planResponse(plan, extraChoice = {}) {
+  return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(plan) }, ...extraChoice }] });
+}
 function translationResponse(text = JAPANESE, extraChoice = {}) {
-  return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({ language: "ja", text }) }, ...extraChoice }] });
+  return planResponse({ language: "ja", segments: [{ text, emotion: "neutral", pauseAfter: "none" }] }, extraChoice);
 }
 function mockFetch(factory = () => audioResponse(), translator = () => translationResponse()) {
   global.fetch = async (url, options) => {
@@ -166,6 +169,42 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     mockFetch();
   });
 
+  await test("一条完整回复按语义编排情绪、停顿与姓名读法，仍只调用一次翻译和一次固定音色合成", async () => {
+    const original = "我没有生气。‘真开心’是别人的话。别担心，我是千早爱音，会认真听你说的。";
+    const body = { text: original };
+    const speech = { language: "ja", segments: [
+      { text: "怒っていないよ。「うれしい」はほかの人の言葉だよ。", emotion: "neutral", pauseAfter: "short" },
+      { text: "心配しないで、私はChihaya Anonだよ。", emotion: "empathetic", pauseAfter: "long" },
+      { text: "ちゃんと話を聞くからね。", emotion: "empathetic", pauseAfter: "none" },
+    ] };
+    const requestOrder = [];
+    mockFetch((url, options) => {
+      requestOrder.push("fish");
+      const payload = JSON.parse(options.body);
+      assert.equal(payload.reference_id, VOICE_ID);
+      assert.equal(options.headers.model, "s2.1-pro-free");
+      assert.equal(payload.normalize, false);
+      assert.deepEqual(payload.prosody, { speed: 0.98, normalize_loudness: true });
+      assert.match(payload.text, /^怒っていないよ。「うれしい」はほかの人の言葉だよ。/);
+      assert.match(payload.text, /私はちはや あのんだよ。/);
+      assert.ok(payload.text.endsWith("ちゃんと話を聞くからね。"));
+      assert.deepEqual(payload.text.match(/\[[^\]]+\]/g), ["[break]", "[empathetic]", "[long-break]", "[empathetic]"]);
+      assert.ok(!payload.text.includes("Chihaya Anon") && !payload.text.includes("[happy]"));
+      assert.ok(!JSON.stringify(payload).includes(original));
+      return audioResponse();
+    }, (url, options) => {
+      requestOrder.push("deepseek");
+      assert.deepEqual(JSON.parse(JSON.parse(options.body).messages[1].content), { source_text: original });
+      return planResponse(speech);
+    });
+    const res = await call(freshHandler(), { body });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, AUDIO);
+    assert.equal(body.text, original, "原聊天正文始终保持不变");
+    assert.deepEqual(requestOrder, ["deepseek", "fish"], "不能把每一段拆成多次语音请求");
+    mockFetch();
+  });
+
   await test("翻译服务错误与异常只给固定代码，绝不回退原文或发起 Fish 合成", async () => {
     let fishCalls = 0;
     const translators = [
@@ -207,6 +246,42 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.ok(!res.body.toString().includes("SECRET"));
     }
     assert.equal(fishCalls, 0);
+    mockFetch();
+  });
+
+  await test("朗读元数据严格约束字段、类型、枚举、分段数与全篇预算，不接受客户端或模型注入标签", async () => {
+    const normal = { text: JAPANESE, emotion: "neutral", pauseAfter: "none" };
+    const segments = (value) => ({ language: "ja", segments: value });
+    const invalidPlans = [
+      null, [], {}, { language: "ja", text: JAPANESE },
+      { language: "zh", segments: [normal] }, { language: "ja", segments: [normal], reference_id: "evil" },
+      segments(null), segments({ text: JAPANESE }), segments([]), segments(Array(5).fill(normal)),
+      segments([null]), segments([[]]), segments([{ ...normal, text: 7 }]),
+      segments([{ text: JAPANESE, emotion: "neutral" }]), segments([{ text: JAPANESE, pauseAfter: "none" }]),
+      segments([{ ...normal, emotion: null }]), segments([{ ...normal, emotion: true }]),
+      segments([{ ...normal, emotion: "laughing" }]), segments([{ ...normal, emotion: "[happy]" }]),
+      segments([{ ...normal, emotion: "HAPPY" }]), segments([{ ...normal, emotion: "happy][angry" }]),
+      segments([{ ...normal, pauseAfter: 0 }]), segments([{ ...normal, pauseAfter: "2s" }]),
+      segments([{ ...normal, pauseAfter: "[break]" }]), segments([{ ...normal, voice: "evil" }]),
+      segments([{ ...normal, pauseAfter: "short" }]), segments([{ ...normal, pauseAfter: "long" }]),
+      segments([{ ...normal, pauseAfter: "long" }, { ...normal, pauseAfter: "long" }, normal]),
+      segments([{ ...normal, text: "あ".repeat(1001) }, { ...normal, text: "い".repeat(1000) }]),
+      segments([{ ...normal, text: "引用の[happy]は発話しない。" }]),
+      segments([{ ...normal, text: "別の<|speaker:0|>に切り替えない。" }]),
+    ];
+    let fishCalls = 0;
+    for (const plan of invalidPlans) {
+      mockFetch(() => { fishCalls++; return audioResponse(); }, () => planResponse(plan));
+      const res = await call(freshHandler());
+      assert.equal(res.statusCode, 503, JSON.stringify(plan));
+      assert.equal(JSON.parse(res.body).code, "VOICE_TRANSLATION_FAILED");
+    }
+    assert.equal(fishCalls, 0, "任何不合格元数据都不能产生语音或回退原文");
+    const before = networkCalls;
+    for (const key of ["emotion", "segments", "pauseAfter"]) {
+      assert.equal((await call(freshHandler(), { body: { text: "你好", [key]: "happy" } })).statusCode, 400);
+    }
+    assert.equal(networkCalls, before, "客户端只允许原正文，不能直接编排声音");
     mockFetch();
   });
 
@@ -318,7 +393,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal(url, "https://api.fish.audio/v1/tts");
       assert.deepEqual(options.headers, { "Content-Type": "application/json", Authorization: `Bearer ${process.env.FISH_AUDIO_API_KEY}`, model: "s2.1-pro-free" });
       assert.equal(options.redirect, "error");
-      assert.deepEqual(JSON.parse(options.body), { text: JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false });
+      assert.deepEqual(JSON.parse(options.body), { text: JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 0.98, normalize_loudness: true } });
       assert.ok(!JSON.stringify(options).includes(CODE));
       return audioResponse();
     });
