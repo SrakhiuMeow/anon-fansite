@@ -147,23 +147,30 @@
     (wiki.posters || []).forEach((poster) => {
       const figure = make('figure', undefined, 'moe-poster reveal');
       const frame = make('div', undefined, 'moe-poster-frame');
-      const kicker = make('span', poster.year, 'moe-poster-year');
-      const event = make('strong', poster.event, 'moe-poster-event');
       const art = make('div', undefined, 'moe-poster-art');
       if (poster.art) {
         const image = make('img');
         image.src = poster.art;
+        // 海报本身就是画面主体，年份、赛事与成绩改由下方 figcaption 承担，避免读屏重复播报。
         image.alt = '';
         image.loading = 'lazy';
         image.decoding = 'async';
         image.setAttribute('aria-hidden', 'true');
         art.append(image);
       }
-      const badge = make('span', poster.result, 'moe-poster-badge');
-      const name = make('span', '千早 愛音', 'moe-poster-name');
-      frame.append(kicker, event, art, badge, name);
+      // 年份与成绩放在画面外的标签行：海报自带的版式文字也在上下缘，叠上去会撞字。
+      const stamp = make('div', undefined, 'moe-poster-stamp');
+      stamp.append(
+        make('span', poster.year, 'moe-poster-year'),
+        make('span', poster.result, 'moe-poster-badge')
+      );
+      frame.append(art, stamp);
       const caption = make('figcaption');
-      caption.append(make('span', poster.kicker, 'moe-poster-kicker'), make('p', poster.caption));
+      caption.append(
+        make('span', poster.kicker, 'moe-poster-kicker'),
+        make('strong', poster.event, 'moe-poster-event'),
+        make('p', poster.caption)
+      );
       const reference = link(poster.sourceLabel, poster.source);
       reference.className = 'moe-poster-source';
       caption.append(reference);
