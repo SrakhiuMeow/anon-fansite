@@ -142,7 +142,8 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     for (const [audio, mime] of [["", "audio/mpeg"], ["SECRET error", "audio/mpeg"], [AUDIO, "application/json"], ["<html>SECRET</html>", "text/html"], [Buffer.from("ID3"), "audio/mpeg"], [Buffer.from([255, 255, 255, 255]), "audio/mpeg"]]) {
       mockFetch(() => audioResponse(audio, { "content-type": mime }));
       const res = await call(freshHandler());
-      assert.equal(res.statusCode, 502);
+      assert.equal(res.statusCode, 503);
+      assert.equal(JSON.parse(res.body).code, "VOICE_INVALID_AUDIO");
       assert.ok(!res.body.toString().includes("SECRET"));
       assert.equal(res.headers["content-type"], "application/json; charset=utf-8");
     }
@@ -151,29 +152,43 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
 
   await test("音频在返回前完整校验；声明及实际字节数均限制 4 MB", async () => {
     mockFetch(() => audioResponse(AUDIO, { "content-length": String(4 * 1024 * 1024 + 1) }));
-    assert.equal((await call(freshHandler())).statusCode, 502);
+    assert.equal((await call(freshHandler())).statusCode, 503);
     let cancelled = false;
     mockFetch(() => new Response(new ReadableStream({
       start(controller) { controller.enqueue(new Uint8Array(4 * 1024 * 1024)); controller.enqueue(new Uint8Array(1)); },
       cancel() { cancelled = true; },
     }), { headers: { "content-type": "audio/mpeg" } }));
     const res = await call(freshHandler());
-    assert.equal(res.statusCode, 502);
+    assert.equal(res.statusCode, 503);
+    assert.equal(JSON.parse(res.body).code, "VOICE_INVALID_AUDIO");
     assert.equal(cancelled, true);
     assert.ok(res.body.length < 500);
     mockFetch();
   });
 
   await test("供应商失败返回安全消息，429 可重试，不自动切换付费模型", async () => {
-    for (const status of [401, 402, 429, 503]) {
+    const codes = { 401: "VOICE_AUTH_FAILED", 403: "VOICE_AUTH_FAILED", 402: "VOICE_CREDIT_REQUIRED", 404: "VOICE_NOT_FOUND", 429: "VOICE_RATE_LIMITED", 500: "VOICE_UNAVAILABLE", 503: "VOICE_UNAVAILABLE" };
+    for (const [statusText, code] of Object.entries(codes)) {
+      const status = Number(statusText);
       const before = networkCalls;
       mockFetch(() => new Response("SECRET upstream details", { status }));
       const res = await call(freshHandler());
-      assert.equal(res.statusCode, status === 429 ? 429 : 502);
+      assert.equal(res.statusCode, status === 429 ? 429 : 503);
+      assert.equal(JSON.parse(res.body).code, code);
+      assert.deepEqual(Object.keys(JSON.parse(res.body)).sort(), ["code", "error"]);
       if (status === 429) assert.equal(res.headers["retry-after"], "60");
       assert.ok(!res.body.toString().includes("SECRET"));
       assert.equal(networkCalls, before + 1);
     }
+    mockFetch();
+  });
+
+  await test("网络异常使用固定诊断码及 503，不泄露请求信息", async () => {
+    mockFetch(() => { throw new Error(`SECRET ${process.env.FISH_AUDIO_API_KEY} ${CODE}`); });
+    const res = await call(freshHandler());
+    assert.equal(res.statusCode, 503);
+    assert.deepEqual(JSON.parse(res.body), { code: "VOICE_NETWORK_ERROR", error: "暂时无法连接语音服务，请稍后重试；文字聊天仍可使用。" });
+    assert.equal(res.headers["cache-control"], "no-store");
     mockFetch();
   });
 
@@ -253,6 +268,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
         assert.equal(delaySeen, 60_000);
         assert.equal(signal.aborted, true);
         assert.equal(res.statusCode, 504);
+        assert.equal(JSON.parse(res.body).code, "VOICE_TIMEOUT");
         assert.ok(!res.body.toString().includes("SECRET"));
         mockFetch();
         assert.equal((await call(handler)).statusCode, 200);

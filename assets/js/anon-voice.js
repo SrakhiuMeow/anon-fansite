@@ -148,10 +148,18 @@
           });
           requireCurrent();
           if (!response.ok) {
-            // 服务端错误详情不进入 DOM，只显示固定的可恢复提示。
+            // 仅识别本站固定错误码，供应商正文和任意服务端文案不进入 DOM。
+            let code = "";
+            if (response.status === 503 && /^application\/json(?:;|$)/i.test(response.headers.get("content-type") || "")) {
+              try { code = (await response.json())?.code; } catch {}
+              requireCurrent();
+            }
             await response.body?.cancel().catch(() => {});
             if (response.status === 401) throw new Error("请重新解锁 AI 聊天后播放。");
             if (response.status === 429) throw new Error("语音请求较多，请稍后再试。");
+            if (code === "VOICE_AUTH_FAILED") throw new Error("语音服务密钥不可用，请站长检查配置。");
+            if (code === "VOICE_CREDIT_REQUIRED") throw new Error("语音服务暂不满足免费调用条件，请站长检查账号状态。");
+            if (code === "VOICE_NOT_FOUND") throw new Error("语音音色暂不可用，请站长检查音色配置。");
             if (response.status === 503) throw new Error("语音服务暂不可用，请稍后再试。");
             throw new Error("语音生成失败，请重试。");
           }

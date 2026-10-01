@@ -109,6 +109,7 @@ module.exports = async function tts(req, res) {
   res.on?.("close", onClose);
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, TIMEOUT_MS);
   const canReply = () => !disconnected && !res.writableEnded && !res.destroyed;
+  let failureCode = "VOICE_NETWORK_ERROR";
   try {
     const upstream = await fetch(ENDPOINT, {
       method: "POST",
@@ -119,13 +120,24 @@ module.exports = async function tts(req, res) {
     });
     if (controller.signal.aborted) { await upstream.body?.cancel(); throw new Error("aborted"); }
     const mime = upstream.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
-    if (!upstream.ok || !upstream.body || !["audio/mpeg", "audio/mp3", "audio/x-mp3", "application/octet-stream"].includes(mime)) {
+    if (!upstream.ok) {
       await upstream.body?.cancel();
       if (!canReply()) return;
-      const status = upstream.status === 429 ? 429 : 502;
+      // 只根据状态码生成固定诊断，不读取或透传供应商错误正文。
+      const failures = {
+        401: ["VOICE_AUTH_FAILED", "语音服务认证失败，请站长检查 Fish Audio 密钥。"],
+        403: ["VOICE_AUTH_FAILED", "语音服务认证失败，请站长检查 Fish Audio 密钥。"],
+        402: ["VOICE_CREDIT_REQUIRED", "语音服务要求账户额度或权限，请站长检查 Fish Audio 账户。"],
+        404: ["VOICE_NOT_FOUND", "当前爱音音色或语音服务不可用，请站长检查音色配置。"],
+        429: ["VOICE_RATE_LIMITED", "语音服务请求较多，请稍后再试。"],
+      };
+      const [code, error] = failures[upstream.status] || ["VOICE_UNAVAILABLE", "爱音语音暂时不可用，请稍后重试；文字聊天仍可使用。"];
+      const status = upstream.status === 429 ? 429 : 503;
       if (status === 429) res.setHeader("Retry-After", "60");
-      return json(res, status, { error: "爱音语音暂时不可用，请稍后重试；文字聊天仍可使用。" });
+      return json(res, status, { code, error });
     }
+    failureCode = "VOICE_INVALID_AUDIO";
+    if (!upstream.body || !["audio/mpeg", "audio/mp3", "audio/x-mp3", "application/octet-stream"].includes(mime)) { await upstream.body?.cancel(); throw new Error("invalid-audio"); }
     reader = upstream.body.getReader();
     if (Number(upstream.headers.get("content-length")) > MAX_AUDIO_BYTES) throw new Error("audio-limit");
     const chunks = [];
@@ -146,7 +158,10 @@ module.exports = async function tts(req, res) {
     res.setHeader("Content-Length", String(audio.length));
     res.end(audio);
   } catch {
-    if (canReply()) json(res, timedOut ? 504 : 502, { error: timedOut ? "语音生成等待较久，请稍后重试。" : "语音生成中断了，请稍后重试；文字聊天仍可使用。" });
+    if (canReply()) json(res, timedOut ? 504 : 503, {
+      code: timedOut ? "VOICE_TIMEOUT" : failureCode,
+      error: timedOut ? "语音生成等待较久，请稍后重试。" : failureCode === "VOICE_INVALID_AUDIO" ? "语音服务返回的音频无效或不完整，请稍后重试。" : "暂时无法连接语音服务，请稍后重试；文字聊天仍可使用。",
+    });
   } finally {
     clearTimeout(timeout);
     controller.abort();
