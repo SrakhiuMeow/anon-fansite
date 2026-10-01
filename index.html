@@ -9,8 +9,8 @@
 <script src="assets/js/theme-init.js?v=20260930-7"></script>
 <link rel="icon" href="assets/favicon.svg" />
 <link rel="stylesheet" href="assets/fonts/noto-sans-sc/700.css?v=20260930-5" />
-<link rel="stylesheet" href="assets/css/style.css?v=20261001-1" />
-<link rel="stylesheet" href="assets/css/mobile-room.css?v=20261001-1" />
+<link rel="stylesheet" href="assets/css/style.css?v=20261001-3" />
+<link rel="stylesheet" href="assets/css/mobile-room.css?v=20261001-3" />
 </head>
 <body>
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -162,7 +162,7 @@
           <div class="room-chat-panel" id="roomChatPanel">
           <div class="chat-heading"><h3>和爱音聊聊天</h3><span class="small-badge" id="anonChatEmotion" role="status">随对话变化</span></div>
           <details class="chat-preferences" id="chatPreferences" open><summary class="mobile-room-only">对话设置与说明</summary>
-          <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip" id="anonChatUnlock" type="button" aria-label="解锁 AI 聊天" hidden><span class="full-label">解锁 AI 聊天</span><span class="compact-label" aria-hidden="true">解锁 AI</span></button><button class="chip" id="anonChatLock" type="button" aria-label="重新锁定 AI 聊天" hidden><span class="full-label">重新锁定</span><span class="compact-label" aria-hidden="true">锁定 AI</span></button><button class="chip" id="anonChatClear" type="button" aria-label="清空对话"><span class="full-label">清空对话</span><span class="compact-label" aria-hidden="true">清空</span></button></div>
+          <div class="chat-options"><label for="anonChatMode">对话模式</label><select id="anonChatMode"><option value="local">本地互动</option><option value="deepseek" disabled>DeepSeek AI</option></select><button class="chip chat-search-toggle" id="anonChatWebSearch" type="button" role="switch" aria-checked="false" aria-label="联网搜索" title="开启后爱音按需检索，结合事实表达自己的看法；刷新后默认关闭" hidden>联网搜索：关</button><button class="chip" id="anonChatUnlock" type="button" aria-label="解锁 AI 聊天" hidden><span class="full-label">解锁 AI 聊天</span><span class="compact-label" aria-hidden="true">解锁 AI</span></button><button class="chip" id="anonChatLock" type="button" aria-label="重新锁定 AI 聊天" hidden><span class="full-label">重新锁定</span><span class="compact-label" aria-hidden="true">锁定 AI</span></button><button class="chip" id="anonChatClear" type="button" aria-label="清空对话"><span class="full-label">清空对话</span><span class="compact-label" aria-hidden="true">清空</span></button></div>
           <p class="chat-disclosure" id="chatDisclosure">本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。</p>
           </details>
           <dialog class="chat-access-dialog" id="anonChatAccessDialog" aria-labelledby="anonChatAccessTitle" aria-describedby="anonChatAccessHint">
@@ -926,6 +926,6 @@
 <script src="assets/js/live2d-actions.js?v=20260930-17"></script>
 <script src="assets/js/live2d-viewer.js?v=20261001-2"></script>
 <script src="assets/js/mobile-room.js?v=20260930-14"></script>
-<script src="assets/js/anon-dialogue.js?v=20260930-17"></script>
+<script src="assets/js/anon-dialogue.js?v=20260930-19"></script>
 </body>
 </html>

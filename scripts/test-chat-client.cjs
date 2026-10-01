@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { readEvents } = require("../assets/js/anon-dialogue.js");
+const { readEvents, normalizeSources } = require("../assets/js/anon-dialogue.js");
 const encoder = new TextEncoder();
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -89,6 +89,7 @@ class Element {
   appendChild(child) { child.parent = this; this.children.push(child); return child; }
   replaceChildren() { this.children = []; }
   get firstElementChild() { return this.children[0]; }
+  get parentElement() { return this.parent; }
   remove() { this.parent.children = this.parent.children.filter((child) => child !== this); }
   focus() { this.focused = true; }
   blur() {}
@@ -122,7 +123,7 @@ function playbackClock() {
 async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelState, modelReady = true, mobileRoom } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
-    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest",
+    "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest", "anonChatWebSearch",
     "anonChatAccessDialog", "anonChatAccessForm", "anonChatAccessError", "anonChatAccessSubmit", "anonChatAccessCancel", "anonChatUnlock", "anonChatLock", "anonRoom",
   ].map((id) => [id, new Element()]));
   const send = new Element();
@@ -140,7 +141,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
   const root = {
     document: {
       getElementById: (id) => ids[id],
-      createElement: () => new Element(),
+      createElement: (tagName) => Object.assign(new Element(), { tagName }),
       querySelectorAll: () => [],
       querySelector: (selector) => selector === ".l2d-controls" ? controls : null,
     },
@@ -168,7 +169,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
         // 特意不响应 abort，以验证过期验证结果也不能误解锁。
         return new Promise((resolve) => { attempt.resolve = (status = 200, body = { unlocked: true }) => resolve({ ok: status === 200, status, json: async () => body }); });
       }
-      const request = { options, messages: payload.messages };
+      const request = { options, messages: payload.messages, webSearch: payload.webSearch };
       requests.push(request);
       if (nextHttpError) {
         const error = nextHttpError; nextHttpError = null;
@@ -186,7 +187,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
     },
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../assets/js/anon-dialogue.js"), "utf8"), {
-    window: root, AbortController, AbortSignal, TextDecoder,
+    window: root, AbortController, AbortSignal, TextDecoder, URL,
     setTimeout: clock ? clock.setTimeout : setTimeout, clearTimeout: clock ? clock.clearTimeout : clearTimeout,
     ...(clock ? { Date: { now: clock.now } } : {}),
   }, { filename: "anon-dialogue.js" });
@@ -661,6 +662,162 @@ async function testActualMotionCompletion() {
   }
 }
 
+async function testWebSearch() {
+  const ui = await browserFixture();
+  const toggle = ui.ids.anonChatWebSearch;
+  assert.equal(toggle.hidden, false, "DeepSeek 模式显示联网开关");
+  assert.equal(toggle.attributes["aria-checked"], "false", "默认关闭联网");
+  assert.equal(toggle.textContent, "联网搜索：关");
+  assert.match(ui.ids.chatDisclosure.textContent, /事实和自己的看法/);
+  ui.submit("你好");
+  assert.equal(ui.requests.at(-1).webSearch, false, "未主动开启不能请求搜索");
+  assert.equal(toggle.disabled, true, "回复中禁用联网开关");
+  toggle.dispatch("click");
+  assert.equal(toggle.attributes["aria-checked"], "false", "忙碌中即使派发事件也不能切换");
+  await ui.complete("你好呀！");
+  assert.equal(ui.ids.anonChatState.textContent, "DeepSeek 回复完成 · 非官方同人演绎");
+  assert.equal(toggle.disabled, false);
+
+  toggle.dispatch("click");
+  assert.equal(toggle.attributes["aria-checked"], "true");
+  ui.select("local");
+  assert.equal(toggle.hidden, true, "本地互动隐藏联网开关");
+  assert.equal(toggle.disabled, true);
+  const beforeLocal = ui.requests.length;
+  ui.submit("你好");
+  assert.equal(ui.requests.length, beforeLocal, "本地互动无联网请求");
+  toggle.dispatch("click");
+  assert.equal(toggle.attributes["aria-checked"], "true", "本地模式不能修改选择");
+  ui.select("deepseek");
+  assert.equal(toggle.attributes["aria-checked"], "true", "本页切换模式保留联网选择");
+  ui.submit("最近有什么演出？");
+  const searched = ui.requests.at(-1);
+  assert.equal(searched.webSearch, true);
+  const reactionCount = ui.reactions.length;
+  searched.write({ type: "search", status: "searching" });
+  await settle(() => /正在联网搜索/.test(ui.ids.anonChatState.textContent), "显示服务端真实搜索状态");
+  searched.write({ type: "search", status: "completed" });
+  await settle(() => /正在阅读搜索结果/.test(ui.ids.anonChatState.textContent), "完成检索后显示阅读状态");
+  searched.write({ type: "sources", sources: [
+    { title: "<img src=x onerror=alert(1)>", url: "https://bang-dream.com/events" },
+    { title: "同一页面重复", url: "https://bang-dream.com/events" },
+    { title: "脚本", url: "javascript:alert(1)" },
+    { title: "数据", url: "data:text/html,x" },
+    { title: "不可信认证链接", url: "https://user:pass@example.com/" },
+    { title: "HTTP 来源", url: "http://example.com/news" },
+  ] });
+  await tick();
+  assert.equal(ui.reactions.length, reactionCount, "搜索和来源事件不驱动 Live2D");
+  assert.equal(ui.ids.anonChatLog.children.at(-1).children.length, 2, "尚未完成不能提前附加来源");
+  await ui.complete("我查到最新演出安排了，我自己很期待！");
+  const message = ui.ids.anonChatLog.children.at(-1);
+  assert.equal(message.tagName, "div", "来源 details 使用合法块级容器");
+  const details = message.children[2];
+  assert.equal(details.tagName, "details");
+  assert.equal(details.children[0].textContent, "资料来源（2）");
+  const links = details.children[1].children.map((item) => item.children[0]);
+  assert.equal(links[0].textContent, "<img src=x onerror=alert(1)>", "来源标题只写入 textContent");
+  assert.equal(links[0].innerHTML, undefined);
+  assert.equal(links[0].href, "https://bang-dream.com/events");
+  assert.equal(links[0].target, "_blank");
+  assert.equal(links[0].rel, "noopener noreferrer");
+  assert.equal(links[1].href, "http://example.com/news");
+  assert.match(ui.ids.anonChatState.textContent, /已联网检索/);
+  ui.submit("继续聊");
+  assert.equal(ui.requests.at(-1).messages[1].content, "我查到最新演出安排了，我自己很期待！", "来源不写入后续对话记忆");
+  await ui.complete("一起期待吧。https://example.com/from-model");
+  assert.equal(ui.ids.anonChatLog.children.at(-1).children.length, 2, "不从模型正文抽取来源链接");
+  assert.match(ui.ids.anonChatState.textContent, /未触发检索/);
+
+  for (const test of [
+    { status: "unavailable", expected: /联网搜索暂不可用/ },
+    { status: "completed", expected: /未找到可用来源/ },
+    { status: "searching", expected: /检索结果未确认/ },
+  ]) {
+    ui.submit("请看看最新消息");
+    ui.requests.at(-1).write({ type: "search", status: test.status });
+    await ui.complete("这次没有可核实的新消息。 ");
+    assert.match(ui.ids.anonChatState.textContent, test.expected);
+    assert.equal(ui.ids.anonChatLog.children.at(-1).children.length, 2);
+  }
+  ui.submit("部分搜索失败仍保留已核实来源");
+  ui.requests.at(-1).writeChunk([
+    { type: "search", status: "unavailable" },
+    { type: "search", status: "completed" },
+    { type: "sources", sources: [{ title: "可用来源", url: "https://example.com/usable" }] },
+  ]);
+  await ui.complete("这部分消息已核实，其余暂时没查到。");
+  assert.match(ui.ids.anonChatState.textContent, /已联网检索，部分搜索不可用/);
+  assert.equal(ui.ids.anonChatLog.children.at(-1).children[2].children[0].textContent, "资料来源（1）");
+  ui.submit("搜索后中途断开");
+  ui.requests.at(-1).writeChunk([
+    { type: "search", status: "searching" },
+    { type: "delta", text: "目前收到部分文字" },
+    { type: "sources", sources: [{ title: "未确认来源", url: "https://example.com/unconfirmed" }] },
+    { type: "error", message: "上游中断" },
+  ]);
+  await settle(() => !ui.send.disabled, "中断时恢复发送");
+  assert.match(ui.ids.anonChatState.textContent, /AI 回复中断/);
+  assert.equal(ui.ids.anonChatLog.children.at(-1).children.length, 2, "中断不能展示未完成来源");
+  toggle.dispatch("click");
+  ui.submit("关闭联网后继续");
+  assert.equal(ui.requests.at(-1).webSearch, false);
+  ui.requests.at(-1).writeChunk([
+    { type: "search", status: "completed" },
+    { type: "sources", sources: [{ title: "意外来源", url: "https://example.com/" }] },
+  ]);
+  await ui.complete("聊点别的吧。");
+  assert.equal(ui.ids.anonChatState.textContent, "DeepSeek 回复完成 · 非官方同人演绎");
+  assert.equal(ui.ids.anonChatLog.children.at(-1).children.length, 2, "关闭时忽略意外来源事件");
+  const refreshed = await browserFixture();
+  assert.equal(refreshed.ids.anonChatWebSearch.attributes["aria-checked"], "false", "新页面默认仍关闭");
+
+  assert.deepEqual(normalizeSources(null), []);
+  assert.deepEqual(normalizeSources([{ url: "/relative" }, { url: "https://example.com/a\n" }, { url: `https://example.com/${"a".repeat(2048)}` }]), []);
+  const limited = normalizeSources(Array.from({ length: 8 }, (_, n) => ({ title: "长".repeat(200), url: `https://example.com/${n}` })));
+  assert.equal(limited.length, 6);
+  assert.equal(limited[0].title.length, 160);
+  assert.equal(normalizeSources([{ title: " ", url: "https://example.com/" }])[0].title, "example.com");
+
+  // 搜索结果在动作等待队列后到达；停止、清空、切换或锁定都不能复活旧来源。
+  for (const action of ["stop", "clear", "mode", "lock"]) {
+    let release;
+    const cancelled = await browserFixture({ modelReact: (reaction) => reaction.type === "reaction"
+      ? new Promise((resolve) => { release = resolve; }) : Promise.resolve({ ok: true }) });
+    cancelled.ids.anonChatWebSearch.dispatch("click");
+    cancelled.submit("等搜索结果");
+    cancelled.requests.at(-1).writeChunk([
+      { type: "search", status: "searching" },
+      { type: "reaction", motion: "thinking01", expression: "thinking01" },
+      { type: "search", status: "completed" },
+      { type: "sources", sources: [{ title: "迟到来源", url: "https://example.com/late" }] },
+      { type: "delta", text: "迟到正文" }, { type: "done" },
+    ]);
+    await settle(() => !!release, "等待队列阻挡后续来源");
+    if (action === "mode") cancelled.select("local");
+    else cancelled.ids[{ stop: "anonChatStop", clear: "anonChatClear", lock: "anonChatLock" }[action]].dispatch("click");
+    await settle(() => !cancelled.send.disabled, "取消后恢复可发送");
+    const stable = cancelled.lastText();
+    release({ ok: true }); await tick(); await tick();
+    assert.equal(cancelled.lastText(), stable, `${action} 后不得出现迟到正文`);
+    assert.ok(cancelled.ids.anonChatLog.children.every((message) => message.children.length <= 2), `${action} 后不得出现迟到来源`);
+    assert.doesNotMatch(cancelled.ids.anonChatState.textContent, /已联网检索/);
+  }
+
+  for (const enabled of [false, true]) {
+    const clock = playbackClock();
+    const timed = await browserFixture({ clock });
+    if (enabled) timed.ids.anonChatWebSearch.dispatch("click");
+    timed.submit("静默请求超时");
+    const limit = enabled ? 180000 : 120000;
+    await clock.advance(limit - 1);
+    assert.equal(timed.send.disabled, true, "各模式超时前保留请求");
+    await clock.advance(1);
+    assert.equal(timed.send.disabled, false, "普通120秒、联网180秒超时释放请求");
+    assert.match(timed.ids.anonChatState.textContent, /超时/);
+  }
+}
+
 async function testLongReplyContinuation() {
   const reaction = { type: "reaction", emotion: "smile", motion: "smile01", expression: "smile01", label: "微笑" };
   const paragraph = `${"这".repeat(224)}。`;
@@ -997,6 +1154,7 @@ async function testMobileOverlayChat() {
 (async () => {
   await testParser();
   await testClient();
+  await testWebSearch();
   await testPasswordLock();
   await testEmotionFeedback();
   await testSegmentPlayback();
@@ -1006,5 +1164,5 @@ async function testMobileOverlayChat() {
   await testReadingAndComposition();
   await testCompactMobileScroll();
   await testMobileOverlayChat();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、按真实80%进度续接、取消隔离、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、联网开关与真实检索状态、安全来源与取消隔离、分模式超时、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、按真实80%进度续接、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

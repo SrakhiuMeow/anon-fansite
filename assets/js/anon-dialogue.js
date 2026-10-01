@@ -22,6 +22,7 @@
   const unlock = root.document.getElementById("anonChatUnlock");
   const lock = root.document.getElementById("anonChatLock");
   const emotion = root.document.getElementById("anonChatEmotion");
+  const searchToggle = root.document.getElementById("anonChatWebSearch");
   const send = form.querySelector('[type="submit"]');
   const prompts = [...root.document.querySelectorAll("[data-chat-prompt]")];
   const latest = root.document.getElementById("anonChatLatest");
@@ -56,6 +57,8 @@
   let controller = null;
   let busy = false;
   let modeChosen = false;
+  // 联网选择仅对本页有效，默认关闭，刷新后需重新开启。
+  let webSearch = false;
   let requiresCode = false;
   // 口令只保留在当前页面闭包中，不写入浏览器存储或页面文本。
   let accessCode = "";
@@ -64,21 +67,37 @@
   let reactionRequest = 0;
   let chatReactionTail = Promise.resolve();
   const setState = (text) => { if (state) state.textContent = text; };
+  const syncSearch = () => {
+    if (!searchToggle) return;
+    const ai = mode?.value === "deepseek";
+    searchToggle.hidden = !ai;
+    searchToggle.disabled = busy || !ai;
+    searchToggle.setAttribute("aria-checked", String(webSearch));
+    searchToggle.textContent = `联网搜索：${webSearch ? "开" : "关"}`;
+  };
   const setBusy = (value) => {
     busy = value;
     if (send) send.disabled = value;
     prompts.forEach((button) => { button.disabled = value; });
     if (stop) stop.hidden = !value;
     log.setAttribute("aria-busy", String(value));
+    syncSearch();
   };
   const syncMode = () => {
     const ai = mode?.value === "deepseek";
     if (disclosure) disclosure.textContent = ai
-      ? "DeepSeek 驱动的非官方角色扮演。发送后，本条消息与最近几轮 AI 对话将经服务端交给 DeepSeek；本页不持久保存，刷新或清空即可重置。"
+      ? "DeepSeek 驱动的非官方角色扮演。消息与最近几轮 AI 对话将经服务端交给 DeepSeek；开启联网后，爱音会按需检索，区分查到的事实和自己的看法，并附上可用来源。聊天与联网选择仅本页有效，刷新后联网默认关闭。"
       : "本站原创的本地关键词互动，非官方台词。此模式不上传聊天内容，刷新即清空。";
     if (unlock) unlock.hidden = !ai || !requiresCode || !!accessCode;
     if (lock) lock.hidden = !ai || !requiresCode || !accessCode;
+    syncSearch();
   };
+  searchToggle?.addEventListener("click", () => {
+    if (busy || mode?.value !== "deepseek") return;
+    webSearch = !webSearch;
+    syncSearch();
+    setState(webSearch ? "联网搜索已开启，AI 会按问题需要决定是否检索。" : "联网搜索已关闭，后续回答不检索网页。");
+  });
   const resetUnlock = () => {
     ++unlockRequest;
     unlockController?.abort(); unlockController = null;
@@ -134,7 +153,7 @@
   accessDialog?.addEventListener("close", () => { if (!accessDialog.open) resetUnlock(); });
   unlock?.addEventListener("click", () => openUnlock());
   const append = (role, text) => {
-    const item = root.document.createElement("p");
+    const item = root.document.createElement("div");
     item.className = `chat-message chat-message--${role}`;
     const label = root.document.createElement("strong");
     label.textContent = role === "user" ? "你 · " : "爱音 · ";
@@ -145,6 +164,28 @@
     while (log.children.length > 40) log.firstElementChild.remove();
     updateChatScroll();
     return content;
+  };
+  const appendSources = (content, sources) => {
+    if (!content?.parentElement || !sources.length) return;
+    const details = root.document.createElement("details");
+    details.className = "chat-sources";
+    const summary = root.document.createElement("summary");
+    summary.textContent = `资料来源（${sources.length}）`;
+    const list = root.document.createElement("ol");
+    for (const source of sources) {
+      const item = root.document.createElement("li");
+      const link = root.document.createElement("a");
+      link.textContent = source.title;
+      link.href = source.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      item.appendChild(link);
+      list.appendChild(item);
+    }
+    details.append(summary, list);
+    details.addEventListener("toggle", updateChatScroll);
+    content.parentElement.appendChild(details);
+    updateChatScroll();
   };
   const abortable = (task, signal) => {
     if (!signal) return Promise.resolve(task);
@@ -205,6 +246,7 @@
     const result = api.reply(raw);
     if (!result) { input.focus(); return; }
     const useAI = mode?.value === "deepseek";
+    const searchEnabled = useAI && webSearch;
     if (useAI && requiresCode && !accessCode) {
       setState("AI 聊天已锁定，请先输入密码解锁。");
       openUnlock();
@@ -258,14 +300,18 @@
     let content = null;
     let answer = "";
     let complete = false;
+    let searchStarted = false;
+    let searchCompleted = false;
+    let searchUnavailable = false;
+    let sources = [];
     const reducedMotion = !!root.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     let segment = "";
     let segmentStarted = 0;
     let lastReaction = null;
     let lastReactionAt = 0;
     const requireCurrent = () => { if (version !== request || active.signal.aborted) throw new Error("对话已取消"); };
-    // 服务端最多 45 秒；另为正文和完整动作衔接预留播放时间。
-    const timeout = setTimeout(() => active.abort("timeout"), 120000);
+    // 普通请求服务端最多45秒，联网请求90秒；另预留正文与动作衔接时间。
+    const timeout = setTimeout(() => active.abort("timeout"), searchEnabled ? 180000 : 120000);
     try {
       const context = history.slice(-10);
       // 按服务端预算保留完整轮次；极长回答时可少于五轮。
@@ -273,7 +319,7 @@
       const response = await root.fetch("/api/chat", {
         method: "POST", signal: active.signal,
         headers: { "Content-Type": "application/json", ...(requiresCode ? { "X-Chat-Access-Code": encodeURIComponent(accessCode) } : {}) },
-        body: JSON.stringify({ messages: [...context, { role: "user", content: text }] }),
+        body: JSON.stringify({ messages: [...context, { role: "user", content: text }], webSearch: searchEnabled }),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -283,6 +329,19 @@
       if (!response.headers.get("content-type")?.includes("application/x-ndjson") || !response.body) throw new Error("AI 服务返回格式异常");
       await api.readEvents(response.body, async (event) => {
         requireCurrent();
+        if (searchEnabled && event.type === "search") {
+          if (event.status === "searching") {
+            searchStarted = true;
+            setState("爱音正在联网搜索…");
+          } else if (event.status === "completed") {
+            searchCompleted = true;
+            setState("爱音正在阅读搜索结果…");
+          } else if (event.status === "unavailable") {
+            searchUnavailable = true;
+            setState("联网搜索暂不可用，爱音正在尝试回答…");
+          }
+        }
+        if (searchEnabled && event.type === "sources") sources = api.normalizeSources(event.sources);
         if (event.type === "reaction") {
           const reaction = { ...event, source: "chat" };
           const nextSegment = `${event.emotion || ""}|${event.motion}|${event.expression}`;
@@ -336,7 +395,13 @@
       if (active.signal.aborted || !complete || !answer.trim()) throw new Error("AI 回复未完成");
       history.push({ role: "user", content: text }, { role: "assistant", content: answer });
       history = history.slice(-10);
-      setState("DeepSeek 回复完成 · 非官方同人演绎");
+      // 来源只在本轮完整结束后附加，不进入正文、历史或 Live2D 情绪流。
+      if (searchCompleted) appendSources(content, sources);
+      const searchState = !searchEnabled ? "" : searchUnavailable
+        ? searchCompleted && sources.length ? "已联网检索，部分搜索不可用" : "联网搜索暂不可用"
+        : searchCompleted && sources.length ? "已联网检索"
+        : searchCompleted ? "未找到可用来源" : searchStarted ? "检索结果未确认" : "未触发检索";
+      setState(`DeepSeek 回复完成${searchState ? ` · ${searchState}` : ""} · 非官方同人演绎`);
     } catch (error) {
       if (version !== request) return;
       if (error.accessDenied && !active.signal.aborted) {
@@ -392,6 +457,23 @@
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
   const normalize = (value) => String(value ?? "").normalize("NFKC").trim().slice(0, 200);
+  const normalizeSources = (value) => {
+    if (!Array.isArray(value)) return [];
+    const sources = [];
+    const seen = new Set();
+    for (const source of value.slice(0, 30)) {
+      if (!source || typeof source.url !== "string" || source.url.length > 2048 || /[\u0000-\u0020\u007f]/u.test(source.url)) continue;
+      try {
+        const url = new URL(source.url);
+        if (!/^https?:$/.test(url.protocol) || url.href.length > 2048 || url.username || url.password || seen.has(url.href)) continue;
+        const title = typeof source.title === "string" ? source.title.trim().slice(0, 160) : "";
+        sources.push({ title: title || url.hostname, url: url.href });
+        seen.add(url.href);
+        if (sources.length === 6) break;
+      } catch { /* 忽略无效来源，不从模型正文提取链接。 */ }
+    }
+    return sources;
+  };
   const response = (text, motion, expression, label) => ({ text, motion, expression, label });
   const commands = [
     [/微笑|笑一[个下]|笑笑|smile/i, "笑一下的话，气氛是不是就轻松多了？", "smile01", "微笑"],
@@ -457,5 +539,5 @@
       }
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   };
-  return { normalize, reply, readEvents };
+  return { normalize, normalizeSources, reply, readEvents };
 });

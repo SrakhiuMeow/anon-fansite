@@ -90,6 +90,10 @@
   .mobile-room .l2d-controls .chat-message{flex-shrink:0;font-size:13px;line-height:1.55;padding:.3rem .45rem;max-width:97%;background:color-mix(in srgb,var(--card) 42%,transparent)}
   .mobile-room .l2d-controls .chat-message strong{font-size:11px}
   .mobile-room .l2d-controls .chat-message--user{background:color-mix(in srgb,var(--coral-soft) 48%,transparent)}
+  .mobile-room .chat-sources{font-size:11px;line-height:1.5;margin-top:.25rem;padding-top:.2rem}
+  .mobile-room .chat-sources summary{min-height:32px}
+  .mobile-room .chat-sources a{padding:.25rem 0}
+  .mobile-room .chat-search-toggle[aria-checked="true"]{background:color-mix(in srgb,var(--coral-soft) 48%,transparent)}
   .mobile-room .chat-latest-row{position:absolute;right:.4rem;bottom:.35rem;margin:0}
   .mobile-room .chat-latest-row:has(button[hidden]){display:none}
   .mobile-room .chat-latest-row .chip{min-height:32px;font-size:12px;padding:.2rem .55rem}
