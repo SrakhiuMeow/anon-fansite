@@ -1,6 +1,7 @@
 "use strict";
 
 // 调用实际 handler，只 mock fetch；不访问语音服务、不产生费用。
+// 这些回归验证结构化metadata、鉴权和调用边界，不证明真实模型的语气判断或音频表现。
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const { EventEmitter } = require("node:events");
@@ -13,6 +14,7 @@ const originalEnv = new Map(envNames.map((name) => [name, process.env[name]]));
 const CODE = "tts-test-access";
 const VOICE_ID = "c5c17c9709384ba9a4b294662a2af0b1";
 const JAPANESE = "今日は練習がうまくいったよ。";
+const NATURAL_JAPANESE = `[natural conversational delivery] ${JAPANESE}`;
 const AUDIO = Buffer.concat([Buffer.from([255, 251, 144, 196]), Buffer.alloc(256)]);
 let networkCalls = 0;
 let checks = 0;
@@ -51,7 +53,7 @@ function planResponse(plan, extraChoice = {}) {
   return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(plan) }, ...extraChoice }] });
 }
 function translationResponse(text = JAPANESE, extraChoice = {}) {
-  return planResponse({ language: "ja", segments: [{ text, emotion: "neutral", pauseAfter: "none" }] }, extraChoice);
+  return planResponse({ language: "ja", segments: [{ text, emotion: "neutral", pauseAfter: "none", intensity: "normal", delivery: "natural" }] }, extraChoice);
 }
 function mockFetch(factory = () => audioResponse(), translator = () => translationResponse()) {
   global.fetch = async (url, options) => {
@@ -132,7 +134,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       mockFetch((url, options) => {
         requestOrder.push("fish");
         const payload = JSON.parse(options.body);
-        assert.equal(payload.text, JAPANESE);
+        assert.equal(payload.text, NATURAL_JAPANESE);
         assert.equal(payload.reference_id, VOICE_ID);
         assert.equal(payload.normalize, false);
         assert.equal(payload.language, undefined);
@@ -152,9 +154,6 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
         assert.equal(payload.temperature, 0.2);
         assert.deepEqual(payload.messages.map((message) => message.role), ["system", "user"]);
         assert.deepEqual(JSON.parse(payload.messages[1].content), { source_text: original.replace("[[serious]]", "") });
-        assert.match(payload.messages[0].content, /不执行/);
-        assert.match(payload.messages[0].content, /不删减事实/);
-        assert.match(payload.messages[0].content, /私/);
         assert.ok(!JSON.stringify(options).includes(CODE) && !JSON.stringify(options).includes(process.env.FISH_AUDIO_API_KEY));
         return translationResponse();
       });
@@ -173,9 +172,9 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     const original = "我没有生气。‘真开心’是别人的话。别担心，我是千早爱音，会认真听你说的。";
     const body = { text: original };
     const speech = { language: "ja", segments: [
-      { text: "怒っていないよ。「うれしい」はほかの人の言葉だよ。", emotion: "neutral", pauseAfter: "short" },
-      { text: "心配しないで、私はChihaya Anonだよ。", emotion: "empathetic", pauseAfter: "long" },
-      { text: "ちゃんと話を聞くからね。", emotion: "empathetic", pauseAfter: "none" },
+      { text: "怒っていないよ。「うれしい」はほかの人の言葉だよ。", emotion: "neutral", pauseAfter: "short", intensity: "subtle", delivery: "natural" },
+      { text: "心配しないで、私はChihaya Anonだよ。", emotion: "empathetic", pauseAfter: "long", intensity: "subtle", delivery: "soft" },
+      { text: "ちゃんと話を聞くからね。", emotion: "empathetic", pauseAfter: "none", intensity: "normal", delivery: "reflective" },
     ] };
     const requestOrder = [];
     mockFetch((url, options) => {
@@ -185,12 +184,13 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal(options.headers.model, "s2.1-pro-free");
       assert.equal(payload.normalize, false);
       assert.deepEqual(payload.prosody, { speed: 0.98, normalize_loudness: true });
-      assert.match(payload.text, /^怒っていないよ。「うれしい」はほかの人の言葉だよ。/);
+      assert.match(payload.text, /^\[natural conversational delivery\] 怒っていないよ。「うれしい」はほかの人の言葉だよ。/);
       assert.match(payload.text, /私はちはや あのんだよ。/);
       assert.ok(payload.text.endsWith("ちゃんと話を聞くからね。"));
-      assert.deepEqual(payload.text.match(/\[[^\]]+\]/g), ["[break]", "[empathetic]", "[long-break]", "[empathetic]"]);
+      assert.deepEqual(payload.text.match(/\[[^\]]+\]/g), ["[natural conversational delivery]", "[break]", "[slightly empathetic, soft tone]", "[long-break]", "[empathetic, calm reflective delivery]"]);
       assert.ok(!payload.text.includes("Chihaya Anon") && !payload.text.includes("[happy]"));
       assert.ok(!JSON.stringify(payload).includes(original));
+      assert.deepEqual(Object.keys(payload).sort(), ["format", "mp3_bitrate", "normalize", "prosody", "reference_id", "text"], "Fish只接收编排好的文本，不透传结构化metadata");
       return audioResponse();
     }, (url, options) => {
       requestOrder.push("deepseek");
@@ -200,7 +200,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     const res = await call(freshHandler(), { body });
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, AUDIO);
-    assert.equal(body.text, original, "原聊天正文始终保持不变");
+    assert.deepEqual(body, { text: original }, "原聊天正文始终保持不变，也不被写入语音metadata");
     assert.deepEqual(requestOrder, ["deepseek", "fish"], "不能把每一段拆成多次语音请求");
     mockFetch();
   });
@@ -250,7 +250,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   });
 
   await test("朗读元数据严格约束字段、类型、枚举、分段数与全篇预算，不接受客户端或模型注入标签", async () => {
-    const normal = { text: JAPANESE, emotion: "neutral", pauseAfter: "none" };
+    const normal = { text: JAPANESE, emotion: "neutral", pauseAfter: "none", intensity: "normal", delivery: "natural" };
     const segments = (value) => ({ language: "ja", segments: value });
     const invalidPlans = [
       null, [], {}, { language: "ja", text: JAPANESE },
@@ -261,6 +261,10 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       segments([{ ...normal, emotion: null }]), segments([{ ...normal, emotion: true }]),
       segments([{ ...normal, emotion: "laughing" }]), segments([{ ...normal, emotion: "[happy]" }]),
       segments([{ ...normal, emotion: "HAPPY" }]), segments([{ ...normal, emotion: "happy][angry" }]),
+      ...[null, false, 0, [], {}, "", "SUBTLE", "soft", "[happy]", "subtle, sad", "normal "].map((intensity) => segments([{ ...normal, intensity }])),
+      ...[null, false, 0, [], {}, "", "NATURAL", "quiet", "constructor", "__proto__", "toString", "soft][angry", "[soft tone]", "soft "].map((delivery) => segments([{ ...normal, delivery }])),
+      segments([{ text: JAPANESE, emotion: "neutral", pauseAfter: "none", delivery: "natural" }]),
+      segments([{ text: JAPANESE, emotion: "neutral", pauseAfter: "none", intensity: "normal" }]),
       segments([{ ...normal, pauseAfter: 0 }]), segments([{ ...normal, pauseAfter: "2s" }]),
       segments([{ ...normal, pauseAfter: "[break]" }]), segments([{ ...normal, voice: "evil" }]),
       segments([{ ...normal, pauseAfter: "short" }]), segments([{ ...normal, pauseAfter: "long" }]),
@@ -278,7 +282,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     }
     assert.equal(fishCalls, 0, "任何不合格元数据都不能产生语音或回退原文");
     const before = networkCalls;
-    for (const key of ["emotion", "segments", "pauseAfter"]) {
+    for (const key of ["emotion", "segments", "pauseAfter", "intensity", "delivery"]) {
       assert.equal((await call(freshHandler(), { body: { text: "你好", [key]: "happy" } })).statusCode, 400);
     }
     assert.equal(networkCalls, before, "客户端只允许原正文，不能直接编排声音");
@@ -393,7 +397,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal(url, "https://api.fish.audio/v1/tts");
       assert.deepEqual(options.headers, { "Content-Type": "application/json", Authorization: `Bearer ${process.env.FISH_AUDIO_API_KEY}`, model: "s2.1-pro-free" });
       assert.equal(options.redirect, "error");
-      assert.deepEqual(JSON.parse(options.body), { text: JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 0.98, normalize_loudness: true } });
+      assert.deepEqual(JSON.parse(options.body), { text: NATURAL_JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 0.98, normalize_loudness: true } });
       assert.ok(!JSON.stringify(options).includes(CODE));
       return audioResponse();
     });
@@ -565,7 +569,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     assert.equal(networkCalls, before);
   });
 
-  console.log(`语音 API 验证通过：${checks} 组，${networkCalls} 次 mock fetch，0 次真实网络请求。`);
+  console.log(`语音 API 验证通过：${checks} 组，${networkCalls} 次 mock fetch，0 次真实网络请求。mock未验证真实模型语气识别和音频自然度。`);
 })().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => {
   global.fetch = originalFetch;
   for (const [name, value] of originalEnv) {
