@@ -205,6 +205,46 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     mockFetch();
   });
 
+  await test("五类表达及混合回复的语速由服务端加权传给 Fish，每条回复仍只合成一次", async () => {
+    const segment = (text, delivery, pauseAfter = "none") => ({ text, emotion: "neutral", pauseAfter, intensity: "normal", delivery });
+    const fixtures = [
+      ...[["natural", 1], ["lively", 1.04], ["soft", 0.97], ["hesitant", 0.98], ["reflective", 0.96]].map(([delivery, speed]) => ({
+        name: delivery, speed, speech: { language: "ja", segments: [segment(JAPANESE, delivery)] },
+      })),
+      { name: "正文长度加权", speed: 0.98, speech: { language: "ja", segments: [segment("あ".repeat(10), "lively", "short"), segment("い".repeat(30), "reflective")] } },
+      ...["千早愛音", "Chihaya Anon"].map((name) => ({
+        name: `${name}纠音后长度`, speed: 0.99, speech: { language: "ja", segments: [segment(name, "lively", "short"), segment("あ".repeat(10), "reflective")] },
+      })),
+    ];
+    for (const { name, speed, speech } of fixtures) {
+      const body = Object.freeze({ text: "请读出这条完整回复。" });
+      const requestOrder = [];
+      mockFetch((url, options) => {
+        requestOrder.push("fish");
+        const payload = JSON.parse(options.body);
+        assert.deepEqual(payload.prosody, { speed, normalize_loudness: true }, name);
+        assert.equal(payload.reference_id, VOICE_ID);
+        assert.equal(options.headers.model, "s2.1-pro-free");
+        assert.equal(payload.normalize, false);
+        assert.equal(payload.format, "mp3");
+        assert.equal(payload.mp3_bitrate, 128);
+        assert.deepEqual(Object.keys(payload).sort(), ["format", "mp3_bitrate", "normalize", "prosody", "reference_id", "text"]);
+        assert.ok(!payload.text.includes(body.text));
+        if (name.includes("纠音")) {
+          assert.ok(payload.text.includes("ちはや あのん"));
+          assert.ok(!payload.text.includes("千早愛音") && !payload.text.includes("Chihaya Anon"));
+        }
+        return audioResponse();
+      }, () => { requestOrder.push("deepseek"); return planResponse(speech); });
+      const res = await call(freshHandler(), { body });
+      assert.equal(res.statusCode, 200, name);
+      assert.deepEqual(res.body, AUDIO);
+      assert.deepEqual(requestOrder, ["deepseek", "fish"], name);
+      assert.deepEqual(body, { text: "请读出这条完整回复。" });
+    }
+    mockFetch();
+  });
+
   await test("翻译服务错误与异常只给固定代码，绝不回退原文或发起 Fish 合成", async () => {
     let fishCalls = 0;
     const translators = [
@@ -255,6 +295,8 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     const invalidPlans = [
       null, [], {}, { language: "ja", text: JAPANESE },
       { language: "zh", segments: [normal] }, { language: "ja", segments: [normal], reference_id: "evil" },
+      { language: "ja", segments: [normal], prosody: { speed: 1.04 } },
+      segments([{ ...normal, speed: 1.04 }]), segments([{ ...normal, normalize_loudness: false }]),
       segments(null), segments({ text: JAPANESE }), segments([]), segments(Array(5).fill(normal)),
       segments([null]), segments([[]]), segments([{ ...normal, text: 7 }]),
       segments([{ text: JAPANESE, emotion: "neutral" }]), segments([{ text: JAPANESE, pauseAfter: "none" }]),
@@ -282,7 +324,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     }
     assert.equal(fishCalls, 0, "任何不合格元数据都不能产生语音或回退原文");
     const before = networkCalls;
-    for (const key of ["emotion", "segments", "pauseAfter", "intensity", "delivery"]) {
+    for (const key of ["emotion", "segments", "pauseAfter", "intensity", "delivery", "speed", "normalize_loudness", "prosody"]) {
       assert.equal((await call(freshHandler(), { body: { text: "你好", [key]: "happy" } })).statusCode, 400);
     }
     assert.equal(networkCalls, before, "客户端只允许原正文，不能直接编排声音");
@@ -387,7 +429,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   await test("拒绝非法、超长、超大输入和客户端模型/地址/音色覆盖", async () => {
     const handler = freshHandler();
     const before = networkCalls;
-    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", voiceId: "1234567890abcdef1234567890abcdef" }, { text: "你好", url: "https://evil.example" }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
+    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", voiceId: "1234567890abcdef1234567890abcdef" }, { text: "你好", url: "https://evil.example" }, { text: "你好", prosody: { speed: 4, normalize_loudness: false } }, { text: "你好", speed: 1.04 }, { text: "你好", normalize_loudness: false }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
     assert.equal((await call(handler, { headers: { "content-length": "12001" } })).statusCode, 400);
     assert.equal(networkCalls, before);
   });
@@ -397,7 +439,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       assert.equal(url, "https://api.fish.audio/v1/tts");
       assert.deepEqual(options.headers, { "Content-Type": "application/json", Authorization: `Bearer ${process.env.FISH_AUDIO_API_KEY}`, model: "s2.1-pro-free" });
       assert.equal(options.redirect, "error");
-      assert.deepEqual(JSON.parse(options.body), { text: NATURAL_JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 0.98, normalize_loudness: true } });
+      assert.deepEqual(JSON.parse(options.body), { text: NATURAL_JAPANESE, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 1, normalize_loudness: true } });
       assert.ok(!JSON.stringify(options).includes(CODE));
       return audioResponse();
     });

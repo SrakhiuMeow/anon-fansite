@@ -3,7 +3,7 @@
 // 调用真实朗读准备逻辑，不联网、不使用模型或语音额度。
 // 验证结构、编排和安全边界；不能据此判断真实模型对语气的理解或合成音频的自然度。
 const assert = require("node:assert/strict");
-const { validateSpeechPlan, buildSpeechText, correctAnonPronunciation } = require("../lib/voice-delivery.cjs");
+const { validateSpeechPlan, buildSpeechText, buildSpeechProsody, correctAnonPronunciation } = require("../lib/voice-delivery.cjs");
 let checks = 0;
 const segment = (text, emotion = "neutral", pauseAfter = "none", intensity = "normal", delivery = "natural") => ({ text, emotion, pauseAfter, intensity, delivery });
 const plan = (...segments) => ({ language: "ja", segments });
@@ -80,8 +80,50 @@ test("完整句子的标点和语义保留，编排仅添加需要的段落标�
   assert.equal(JSON.stringify(original), snapshot, "不能在准备声音时改写调用方原对象");
 });
 
+test("五类表达方式使用明确的整次合成语速预设，统一启用响度归一化", () => {
+  for (const [delivery, speed] of [["natural", 1], ["lively", 1.04], ["soft", 0.97], ["hesitant", 0.98], ["reflective", 0.96]]) {
+    const actual = buildSpeechProsody(plan(segment("こんにちは。", "neutral", "none", "normal", delivery)));
+    assert.deepEqual(actual, { speed, normalize_loudness: true }, delivery);
+    assert.ok(Number.isFinite(actual.speed) && actual.speed >= 0.96 && actual.speed <= 1.04);
+  }
+});
+
+test("混合表达按正文长度加权并保留两位小数，标签、停顿与首尾空白不参与权重", () => {
+  // 10 字轻快 + 30 字沉思：(10 × 1.04 + 30 × 0.96) / 40 = 0.98；段均值则错误地得到 1。
+  const mixed = plan(segment("あ".repeat(10), "happy", "short", "subtle", "lively"), segment("い".repeat(30), "worried", "none", "normal", "reflective"));
+  assert.deepEqual(buildSpeechProsody(mixed), { speed: 0.98, normalize_loudness: true });
+  const alternateCues = plan(segment(`  ${"あ".repeat(10)}  `, "neutral", "long", "normal", "lively"), segment("い".repeat(30), "empathetic", "none", "subtle", "reflective"));
+  assert.deepEqual(buildSpeechProsody(alternateCues), { speed: 0.98, normalize_loudness: true });
+  // 1 字轻快 + 2 字沉思 = 0.98666…，须四舍五入至 0.99。
+  assert.deepEqual(buildSpeechProsody(plan(segment("あ", "neutral", "none", "normal", "lively"), segment("いう", "neutral", "none", "normal", "reflective"))), { speed: 0.99, normalize_loudness: true });
+});
+
+test("姓名使用纠音后的假名长度加权，不按原始汉字或Latin姓名长度估算", () => {
+  // 三种写法均变成 7 字符的「ちはや あのん」。加上 10 字沉思段得 0.99294… → 0.99。
+  // 原始汉字长 4、Latin 长 12，如错误使用原文权重，会分别得到 0.98 与 1.00。
+  for (const name of ["千早愛音", "千早爱音", "Chihaya Anon", "Anon Chihaya"]) {
+    assert.deepEqual(buildSpeechProsody(plan(segment(name, "neutral", "none", "normal", "lively"), segment("あ".repeat(10), "neutral", "none", "normal", "reflective"))), { speed: 0.99, normalize_loudness: true }, name);
+  }
+});
+
+test("语速计算接受冻结输入且不改写调用方文本、数组或metadata", () => {
+  const original = Object.freeze({ language: "ja", segments: Object.freeze([
+    Object.freeze(segment("  千早愛音  ", "happy", "short", "subtle", "lively")),
+    Object.freeze(segment("あ".repeat(10), "neutral", "none", "normal", "reflective")),
+  ]) });
+  const snapshot = JSON.stringify(original);
+  const actual = buildSpeechProsody(original);
+  assert.deepEqual(actual, { speed: 0.99, normalize_loudness: true });
+  assert.equal(JSON.stringify(original), snapshot);
+  actual.speed = 7;
+  assert.deepEqual(buildSpeechProsody(original), { speed: 0.99, normalize_loudness: true }, "返回结果不共享可变状态");
+});
+
 test("控制标签只来自白名单编排，原始台词中的标签、额外字段与非法暂停均拒绝", () => {
   const invalid = [
+    null, false, [], {}, { language: "ja", segments: [] },
+    { ...plan(segment("こんにちは。")), prosody: { speed: 1.04 } },
+    plan({ ...segment("こんにちは。"), speed: 1.04 }),
     plan(segment("[happy]こんにちは。")), plan(segment("こんにちは<break/>。")),
     plan(segment("[[smile]]こんにちは。")), plan(segment("こんにちは\u0000。")),
     plan(segment("こんにちは\u200b。")), plan(segment("こんにちは\n。")),
@@ -97,6 +139,7 @@ test("控制标签只来自白名单编排，原始台词中的标签、额外�
   for (const value of invalid) {
     assert.throws(() => validateSpeechPlan(value));
     assert.throws(() => buildSpeechText(value), "builder也必须验证，不能借导出绕过边界");
+    assert.throws(() => buildSpeechProsody(value), (error) => error.code === "VOICE_TRANSLATION_FAILED", "语速builder也必须拒绝非法metadata，不能绕过验证");
   }
 });
 
@@ -105,6 +148,7 @@ test("长短回复均使用有限段落，正文总长度包含所有段而非�
   assert.ok(validateSpeechPlan(plan(segment("あ。"), segment("い。"), segment("う。"), segment("え。"))));
   for (const value of [plan(), plan(...Array(5).fill(segment("あ。"))), plan(segment("あ".repeat(1001)), segment("い".repeat(1000))), plan(segment(`${"あ".repeat(1996)}千早愛音`))]) {
     assert.throws(() => validateSpeechPlan(value));
+    assert.throws(() => buildSpeechProsody(value));
   }
 });
 

@@ -4,7 +4,7 @@
 const { clientKey } = require("../lib/chat-access.cjs");
 const { verifyAccess } = require("./chat.js");
 const { translateToJapanese } = require("../lib/voice-japanese.cjs");
-const { buildSpeechText } = require("../lib/voice-delivery.cjs");
+const { buildSpeechText, buildSpeechProsody } = require("../lib/voice-delivery.cjs");
 const ENDPOINT = "https://api.fish.audio/v1/tts";
 const MODEL = "s2.1-pro-free";
 // 站长指定的千早爱音音色，固定使用，避免历史环境变量覆盖。
@@ -119,11 +119,12 @@ module.exports = async function tts(req, res) {
   try {
     const plan = await translateToJapanese(text, { key: translationKey, model: translationModel, signal: controller.signal });
     const japanese = buildSpeechText(plan);
+    const prosody = buildSpeechProsody(plan);
     if (controller.signal.aborted) throw new Error("aborted");
     const upstream = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, model: MODEL },
-      body: JSON.stringify({ text: japanese, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody: { speed: 0.98, normalize_loudness: true } }),
+      body: JSON.stringify({ text: japanese, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false, prosody }),
       signal: controller.signal,
       redirect: "error",
     });
