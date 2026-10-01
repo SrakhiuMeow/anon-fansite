@@ -82,8 +82,9 @@
   .mobile-room .chat-preferences::details-content{display:block}
   .mobile-room .chat-preferences>summary{display:none}
   .mobile-room .chat-options{margin:.25rem 0;gap:.35rem}
-  .mobile-room .chat-options select{max-width:11rem;background:var(--room-glass-soft)}
+  .mobile-room .chat-options select{min-width:136px;max-width:11rem;background:var(--room-glass-soft)}
   .mobile-room .l2d-controls .chat-options .chip{font-size:12px;min-height:44px}
+  .mobile-room .l2d-controls .chat-options :is(#anonChatWebSearch,#anonVoiceAuto,#anonChatUnlock,#anonChatLock){min-height:30px;padding:3px 8px;font-size:11px;line-height:1.35}
   .mobile-room .l2d-controls .chat-disclosure{font-size:11px;line-height:1.5;margin:.3rem 0 .5rem}
   .mobile-room .mobile-chat-history{position:relative;display:flex;flex:1 1 100px;min-height:64px;overflow:hidden}
   .mobile-room .chat-log{flex:1;height:auto;min-height:0;padding:.35rem;gap:.35rem;border-radius:10px;background:color-mix(in srgb,var(--bg) 12%,transparent)}
@@ -91,7 +92,7 @@
   .mobile-room .l2d-controls .chat-message strong{font-size:11px}
   .mobile-room .l2d-controls .chat-message--user{background:color-mix(in srgb,var(--coral-soft) 48%,transparent)}
   .mobile-room .chat-voice{gap:.3rem;margin-top:.2rem;font-size:11px;line-height:1.4}
-  .mobile-room .chat-voice-button{min-height:32px;padding:.15rem .5rem;background:var(--room-glass-soft)}
+  .mobile-room .l2d-controls .chat-voice-button{min-height:28px;padding:3px 8px;font-size:11px;line-height:1.35;background:var(--room-glass-soft)}
   .mobile-room .chat-voice-toggle[aria-checked="true"]{background:color-mix(in srgb,var(--coral-soft) 48%,transparent)}
   .mobile-room .chat-sources{font-size:11px;line-height:1.5;margin-top:.25rem;padding-top:.2rem}
   .mobile-room .chat-sources summary{min-height:32px}
