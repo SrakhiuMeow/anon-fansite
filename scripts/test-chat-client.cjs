@@ -255,6 +255,8 @@ async function testVoiceIntegration() {
   assert.deepEqual(voice.events.at(-1), { type: "sync", ai: true, unlocked: true, busy: false }, "退出busy后播放器才有机会自动朗读");
 
   ui.submit("这次中断");
+  assert.equal(ui.requests.at(-1).messages[1].content, "这是我读完后的看法。", "日语语音接入仍保留AI原文作为后续对话历史");
+  assert.equal(voice.replies[0].element.children[1].textContent, "这是我读完后的看法。", "语音附加不改写联网回复的聊天原文");
   ui.requests.at(-1).write({ type: "delta", text: "半句话" });
   await settle(() => ui.lastText() === "半句话", "中断测试收到半句");
   ui.ids.anonChatStop.dispatch("click");

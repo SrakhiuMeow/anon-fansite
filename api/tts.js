@@ -3,6 +3,7 @@
 // 无依赖的语音代理。只使用免费开发模型，不自动回退到计费模型。
 const { clientKey } = require("../lib/chat-access.cjs");
 const { verifyAccess } = require("./chat.js");
+const { translateToJapanese } = require("../lib/voice-japanese.cjs");
 const ENDPOINT = "https://api.fish.audio/v1/tts";
 const MODEL = "s2.1-pro-free";
 // 站长指定的千早爱音音色，固定使用，避免历史环境变量覆盖。
@@ -81,15 +82,19 @@ module.exports = async function tts(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   const key = process.env.FISH_AUDIO_API_KEY?.trim();
-  const enabled = Boolean(key);
-  if (req.method === "GET") return json(res, 200, { enabled, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID });
+  const translationKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const translationModel = process.env.DEEPSEEK_MODEL?.trim() || "deepseek-flash";
+  const translationReady = Boolean(translationKey && /^[a-zA-Z0-9._-]{1,80}$/.test(translationModel));
+  const enabled = Boolean(key && translationReady);
+  if (req.method === "GET") return json(res, 200, { enabled, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID, language: "ja" });
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return json(res, 405, { error: "请求方式不支持。" }); }
   if (!sameOrigin(req)) return json(res, 403, { error: "请从本站播放语音。" });
   if (header(req, "content-type").split(";")[0].trim().toLowerCase() !== "application/json") return json(res, 415, { error: "请使用 JSON 发送朗读内容。" });
   const accessStatus = verifyAccess(req, process.env.CHAT_ACCESS_CODE?.trim() || "");
   if (accessStatus === 429) { res.setHeader("Retry-After", "60"); return json(res, 429, { error: "密码尝试过于频繁，请一分钟后重试。" }); }
   if (accessStatus !== 200) return json(res, 401, { error: "请先解锁 AI 聊天后再播放语音。" });
-  if (!enabled) return json(res, 503, { error: "爱音语音尚未配置，请联系站长；文字聊天仍可使用。" });
+  if (!key) return json(res, 503, { error: "爱音语音尚未配置，请联系站长；文字聊天仍可使用。" });
+  if (!translationReady) return json(res, 503, { code: "VOICE_TRANSLATION_UNAVAILABLE", error: "日语语音转换尚未接通，请站长检查 DeepSeek 配置；聊天原文不受影响。" });
   let text;
   try { text = readText(req); } catch { return json(res, 400, { error: "朗读内容格式有误、为空或超过 1000 字，请重试。" }); }
   if (req.aborted || res.destroyed) return;
@@ -111,10 +116,12 @@ module.exports = async function tts(req, res) {
   const canReply = () => !disconnected && !res.writableEnded && !res.destroyed;
   let failureCode = "VOICE_NETWORK_ERROR";
   try {
+    const japanese = await translateToJapanese(text, { key: translationKey, model: translationModel, signal: controller.signal });
+    if (controller.signal.aborted) throw new Error("aborted");
     const upstream = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, model: MODEL },
-      body: JSON.stringify({ text, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: true }),
+      body: JSON.stringify({ text: japanese, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: false }),
       signal: controller.signal,
       redirect: "error",
     });
@@ -155,12 +162,14 @@ module.exports = async function tts(req, res) {
     if (!canReply()) return;
     res.statusCode = 200;
     res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Content-Language", "ja");
     res.setHeader("Content-Length", String(audio.length));
     res.end(audio);
-  } catch {
+  } catch (error) {
+    if (["VOICE_TRANSLATION_FAILED", "VOICE_TRANSLATION_UNAVAILABLE"].includes(error?.code)) failureCode = error.code;
     if (canReply()) json(res, timedOut ? 504 : 503, {
       code: timedOut ? "VOICE_TIMEOUT" : failureCode,
-      error: timedOut ? "语音生成等待较久，请稍后重试。" : failureCode === "VOICE_INVALID_AUDIO" ? "语音服务返回的音频无效或不完整，请稍后重试。" : "暂时无法连接语音服务，请稍后重试；文字聊天仍可使用。",
+      error: timedOut ? "语音生成等待较久，请稍后重试。" : failureCode === "VOICE_TRANSLATION_UNAVAILABLE" ? "日语语音转换暂时不可用，请稍后重试；聊天原文不受影响。" : failureCode === "VOICE_TRANSLATION_FAILED" ? "日语语音转换未完成，请稍后重试；聊天原文不受影响。" : failureCode === "VOICE_INVALID_AUDIO" ? "语音服务返回的音频无效或不完整，请稍后重试。" : "暂时无法连接语音服务，请稍后重试；文字聊天仍可使用。",
     });
   } finally {
     clearTimeout(timeout);

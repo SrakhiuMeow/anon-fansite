@@ -1,4 +1,4 @@
-/* 爱音合成语音：只朗读完整 AI 回复，音频和开关仅保留在当前页面。 */
+/* 爱音日语合成语音：完整 AI 正文由服务端转为日语朗读，聊天原文保持不变。 */
 (function (root, factory) {
   const api = factory(root);
   if (typeof module === "object" && module.exports) module.exports = api;
@@ -45,13 +45,13 @@
         status.hidden = !context.ai;
         status.textContent = !audio ? "此浏览器暂不支持语音播放。" : !checked ? "正在检查语音服务…"
           : !available ? "爱音语音服务待配置，文字聊天仍可使用。"
-          : "千早爱音 · AI合成音色。播放时仅将这条回复发送给 Fish Audio，自动朗读默认关闭。";
+          : "千早爱音 · 日语 AI合成音色。仅将这条 AI 回复交给 DeepSeek 转成日语，再由 Fish Audio 合成；聊天原文不变，自动朗读默认关闭。";
       }
       for (const record of records) {
         const current = active?.record === record;
         record.button.disabled = !current && !allowed();
-        record.button.textContent = current ? "停止语音" : cache.has(record.text) ? "重播语音" : "播放语音";
-        record.button.setAttribute("aria-label", current ? "停止本条语音" : "以爱音合成音色朗读本条回复");
+        record.button.textContent = current ? "停止语音" : cache.has(record.text) ? "重播日语" : "播放日语";
+        record.button.setAttribute("aria-label", current ? "停止本条日语语音" : "以爱音合成音色用日语朗读本条回复，保留聊天原文");
         record.button.setAttribute("aria-pressed", String(current));
       }
     };
@@ -106,6 +106,7 @@
     const readAudio = async (response, signal) => {
       if (Number(response.headers.get("content-length")) > MAX_AUDIO_BYTES) throw new Error("语音文件过大，请重试。");
       if (!/^audio\/(?:mpeg|mp3)(?:;|$)/i.test(response.headers.get("content-type") || "")) throw new Error("语音返回格式异常，请重试。");
+      if (!/^ja(?:-|$)/i.test(response.headers.get("content-language") || "")) throw new Error("语音语言未确认，请刷新后重试。");
       if (!response.body?.getReader) throw new Error("语音返回格式异常，请重试。");
       const reader = response.body.getReader();
       const pieces = [];
@@ -132,7 +133,7 @@
       controller = task;
       active = { record };
       if (gesture) prime();
-      record.state.textContent = cache.has(record.text) ? "准备播放…" : "正在生成语音…";
+      record.state.textContent = cache.has(record.text) ? "准备播放日语…" : "正在翻译并生成日语语音…";
       draw();
       const timeout = host.setTimeout(() => task.abort("timeout"), 70000);
       const requireCurrent = () => {
@@ -150,13 +151,15 @@
           if (!response.ok) {
             // 仅识别本站固定错误码，供应商正文和任意服务端文案不进入 DOM。
             let code = "";
-            if (response.status === 503 && /^application\/json(?:;|$)/i.test(response.headers.get("content-type") || "")) {
+            if (/^application\/json(?:;|$)/i.test(response.headers.get("content-type") || "")) {
               try { code = (await response.json())?.code; } catch {}
               requireCurrent();
             }
             await response.body?.cancel().catch(() => {});
             if (response.status === 401) throw new Error("请重新解锁 AI 聊天后播放。");
             if (response.status === 429) throw new Error("语音请求较多，请稍后再试。");
+            if (code === "VOICE_TRANSLATION_UNAVAILABLE") throw new Error("日语翻译服务暂不可用，请站长检查配置。聊天原文已保留。");
+            if (code === "VOICE_TRANSLATION_FAILED") throw new Error("日语翻译失败，请重试语音。聊天原文已保留。");
             if (code === "VOICE_AUTH_FAILED") throw new Error("语音服务密钥不可用，请站长检查配置。");
             if (code === "VOICE_ACCESS_DENIED") throw new Error("语音模型或音色访问受限，请站长检查权限。");
             if (code === "VOICE_CREDIT_REQUIRED") throw new Error("语音服务暂不满足免费调用条件，请站长检查账号状态。");
@@ -186,13 +189,13 @@
         await audio.play();
         if (current !== version || active?.record !== record) return;
         requireCurrent();
-        record.state.textContent = "正在播放 · AI合成";
+        record.state.textContent = "正在播放 · 日语 · AI合成";
       } catch (error) {
         if (current !== version) return;
         record.state.textContent = error?.name === "NotAllowedError" ? "语音已就绪，请点击重播。"
           : task.signal.reason === "timeout" ? "语音生成超时，请重试。"
           : task.signal.aborted ? "已停止"
-          : error.message === "cancelled" ? "已停止" : /^语音|^请重新|^没有收到/.test(error.message) ? error.message : "语音播放失败，请重试。";
+          : error.message === "cancelled" ? "已停止" : /^语音|^日语|^请重新|^没有收到/.test(error.message) ? error.message : "语音播放失败，请重试。";
         task.abort();
         active = null; controller = null;
         resetAudio(); draw();
@@ -245,7 +248,7 @@
       const timer = host.setTimeout(() => check.abort(), 5000);
       host.fetch("/api/tts", { cache: "no-store", signal: check.signal })
         .then((response) => response.ok ? response.json() : null)
-        .then((data) => { available = data?.enabled === true; })
+        .then((data) => { available = data?.enabled === true && data.language === "ja"; })
         .catch(() => {})
         .finally(() => { checked = true; host.clearTimeout(timer); draw(); });
     } else { checked = true; draw(); }

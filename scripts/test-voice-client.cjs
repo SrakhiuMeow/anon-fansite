@@ -34,7 +34,7 @@ class Element extends Events {
 const settle = async () => { for (let i = 0; i < 6; ++i) await new Promise((resolve) => setImmediate(resolve)); };
 const deferred = () => { let resolve; let reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const mp3 = (size = 128, options = {}) => new Response(new Uint8Array(size), {
-  headers: { "content-type": "audio/mpeg", ...options.headers }, status: options.status || 200,
+  headers: { "content-type": "audio/mpeg", "content-language": "ja", ...options.headers }, status: options.status || 200,
 });
 function fixture(options = {}) {
   const host = new Events();
@@ -74,7 +74,7 @@ function fixture(options = {}) {
     const request = { url, ...init };
     if (init.method === "POST") { posts.push(request); return options.synthesize ? options.synthesize(request, posts.length) : mp3(options.audioSize); }
     gets.push(request);
-    return options.capability ? options.capability(request) : new Response(JSON.stringify({ enabled: options.enabled !== false }), { headers: { "content-type": "application/json" } });
+    return options.capability ? options.capability(request) : new Response(JSON.stringify({ enabled: options.enabled !== false, language: "ja" }), { headers: { "content-type": "application/json" } });
   };
   const player = create({ host, getAccessCode: () => ACCESS_CODE });
   player.sync({ ai: true, unlocked: true, busy: false });
@@ -100,6 +100,18 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
     assert.equal(f.gets.length, 1); assert.equal(f.gets[0].url, "/api/tts"); assert.equal(f.gets[0].cache, "no-store");
     assert.equal(f.toggle.attributes["aria-checked"], "false"); assert.match(f.toggle.textContent, /关/);
     assert.equal(f.posts.length, 0); assert.equal(reply.button.disabled, false); assert.equal(f.clipPlays.length, 0);
+    assert.match(reply.button.textContent, /日语/); assert.match(reply.button.attributes["aria-label"], /日语.*保留聊天原文/);
+    assert.match(f.status.textContent, /DeepSeek.*日语.*Fish Audio.*聊天原文不变/);
+  });
+  await test("单条中文正文送服务端转日语，播放和重播均不改写气泡原文", async () => {
+    const original = "今天的练习好累，不过我觉得自己进步了！";
+    const f = fixture(); await f.ready(); const reply = f.add(original);
+    const content = new Element("span"); content.textContent = original; reply.element.appendChild(content);
+    await f.click(reply);
+    assert.deepEqual(JSON.parse(f.posts[0].body), { text: original });
+    assert.equal(content.textContent, original); assert.match(reply.state.textContent, /正在播放.*日语/);
+    f.audio.dispatch("ended"); await f.click(reply);
+    assert.equal(content.textContent, original); assert.equal(f.posts.length, 1);
   });
   await test("手动播放、停止、结束与同页缓存重播", async () => {
     const f = fixture(); await f.ready(); const reply = f.add(); await f.click(reply);
@@ -167,10 +179,10 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
     const pending = deferred(); const f = fixture({ synthesize: () => pending.promise });
     await f.ready(); const reply = f.add(); await f.click(reply);
     const source = f.audio.src; const plays = [...f.audio.plays]; const pauses = f.audio.pauses;
-    assert.match(reply.state.textContent, /正在生成/); f.toggle.click(); await settle();
+    assert.match(reply.state.textContent, /正在翻译并生成日语/); f.toggle.click(); await settle();
     assert.equal(f.toggle.attributes["aria-checked"], "true"); assert.equal(f.audio.src, source);
     assert.deepEqual(f.audio.plays, plays); assert.equal(f.audio.pauses, pauses);
-    assert.equal(reply.button.attributes["aria-pressed"], "true"); assert.match(reply.state.textContent, /正在生成/);
+    assert.equal(reply.button.attributes["aria-pressed"], "true"); assert.match(reply.state.textContent, /正在翻译并生成日语/);
     assert.equal(f.posts.length, 1); assert.equal(f.posts[0].signal.aborted, false);
     pending.resolve(mp3()); await settle(); assert.equal(f.posts.length, 1); assert.equal(f.clipPlays.length, 1);
     assert.match(reply.state.textContent, /正在播放/); assert.equal(reply.button.attributes["aria-pressed"], "true");
@@ -211,8 +223,20 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
       assert.ok(!reply.state.textContent.includes("PRIVATE")); assert.equal(reply.button.disabled, false); assert.equal(f.clipPlays.length, 0);
     });
   }
+  for (const [status, code, pattern] of [[502, "VOICE_TRANSLATION_FAILED", /日语翻译失败.*聊天原文已保留/], [503, "VOICE_TRANSLATION_UNAVAILABLE", /日语翻译服务暂不可用.*聊天原文已保留/]]) {
+    await test(`${code}保留原文并提示翻译失败，不回退原文朗读`, async () => {
+      const f = fixture({ synthesize: () => new Response(JSON.stringify({ code, error: "PRIVATE translation details" }), { status, headers: { "content-type": "application/json; charset=utf-8" } }) });
+      await f.ready(); const reply = f.add("原文还是中文");
+      const content = new Element("span"); content.textContent = "原文还是中文"; reply.element.appendChild(content);
+      await f.click(reply); assert.match(reply.state.textContent, pattern);
+      assert.equal(content.textContent, "原文还是中文"); assert.ok(!reply.state.textContent.includes("PRIVATE"));
+      assert.equal(f.posts.length, 1); assert.equal(f.clipPlays.length, 0); assert.equal(f.generated.length, 0); assert.equal(reply.button.disabled, false);
+    });
+  }
   for (const [name, response, pattern] of [
     ["非 MP3 MIME", () => mp3(128, { headers: { "content-type": "text/html" } }), /格式异常/],
+    ["未确认日语", () => mp3(128, { headers: { "content-language": "" } }), /语言未确认/],
+    ["非日语音频", () => mp3(128, { headers: { "content-language": "zh" } }), /语言未确认/],
     ["空音频", () => mp3(0), /没有收到/],
     ["Content-Length 超限", () => mp3(128, { headers: { "content-length": String(4 * MB + 1) } }), /过大/],
     ["无长度流式音频超限", () => mp3(4 * MB + 1), /过大/],
@@ -273,6 +297,13 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
     const f = fixture({ enabled: false }); await f.ready(); const reply = f.add();
     assert.match(f.status.textContent, /待配置/); assert.equal(f.toggle.disabled, true); assert.equal(reply.button.disabled, true);
     reply.button.click(); assert.equal(f.posts.length, 0); assert.ok(reply.element.isConnected);
+  });
+  await test("旧版未声明日语能力时不启用，避免部署切换中播放中文", async () => {
+    for (const language of [undefined, "zh"]) {
+      const f = fixture({ capability: () => new Response(JSON.stringify({ enabled: true, language }), { headers: { "content-type": "application/json" } }) });
+      await f.ready(); const reply = f.add("保留中文文字"); reply.button.click();
+      assert.equal(reply.button.disabled, true); assert.equal(f.posts.length, 0); assert.ok(reply.element.isConnected);
+    }
   });
   await test("能力检查失败和本地文件环境均安全降级", async () => {
     const a = fixture({ capability: () => Promise.reject(new Error("network")) }); await a.ready();
