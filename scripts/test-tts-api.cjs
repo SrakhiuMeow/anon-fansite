@@ -11,6 +11,7 @@ const originalFetch = global.fetch;
 const envNames = ["FISH_AUDIO_API_KEY", "FISH_AUDIO_VOICE_ID", "CHAT_ACCESS_CODE", "DEEPSEEK_API_KEY", "VERCEL"];
 const originalEnv = new Map(envNames.map((name) => [name, process.env[name]]));
 const CODE = "tts-test-access";
+const VOICE_ID = "c5c17c9709384ba9a4b294662a2af0b1";
 const AUDIO = Buffer.concat([Buffer.from([255, 251, 144, 196]), Buffer.alloc(256)]);
 let networkCalls = 0;
 let checks = 0;
@@ -71,29 +72,42 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     assert.match(fs.readFileSync(handlerPath, "utf8"), /const \{ verifyAccess \} = require\("\.\/chat\.js"\)/);
   });
 
-  await test("GET 仅公布启用状态与 AI 合成名称，密钥和音色配置不泄漏", async () => {
+  await test("GET 公布启用状态、AI 合成名称和固定音色 ID，不泄漏密钥或聊天口令", async () => {
     const before = networkCalls;
     const res = await call(freshHandler(), { method: "GET" });
-    assert.deepEqual(JSON.parse(res.body), { enabled: true, voiceName: "千早爱音 · AI合成" });
+    assert.deepEqual(JSON.parse(res.body), { enabled: true, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID });
     assert.equal(res.headers["cache-control"], "no-store");
     assert.equal(res.headers["x-content-type-options"], "nosniff");
     assert.equal(networkCalls, before);
-    for (const secret of [process.env.FISH_AUDIO_API_KEY, CODE, "c5c17c9709384ba9a4b294662a2af0b1"]) assert.ok(!res.body.toString().includes(secret));
+    for (const secret of [process.env.FISH_AUDIO_API_KEY, CODE]) assert.ok(!res.body.toString().includes(secret));
   });
 
-  await test("未配置密钥或配置非法音色时禁用，错误密码仍不能绕过解锁", async () => {
+  await test("未配置密钥时禁用并保留固定音色状态，错误密码仍不能绕过解锁", async () => {
     const key = process.env.FISH_AUDIO_API_KEY;
     delete process.env.FISH_AUDIO_API_KEY;
-    let handler = freshHandler();
-    assert.equal(JSON.parse((await call(handler, { method: "GET" })).body).enabled, false);
+    const handler = freshHandler();
+    assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), { enabled: false, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID });
     assert.equal((await call(handler)).statusCode, 503);
     assert.equal((await call(handler, { headers: { "x-chat-access-code": "wrong" } })).statusCode, 401);
     process.env.FISH_AUDIO_API_KEY = key;
-    process.env.FISH_AUDIO_VOICE_ID = "https://evil.example";
-    handler = freshHandler();
-    assert.equal(JSON.parse((await call(handler, { method: "GET" })).body).enabled, false);
-    assert.equal((await call(handler)).statusCode, 503);
+  });
+
+  await test("旧音色环境变量不能更改指定音色或禁用服务，包括其他有效 ID 与非法 URL", async () => {
+    mockFetch((url, options) => {
+      assert.equal(url, "https://api.fish.audio/v1/tts");
+      assert.equal(JSON.parse(options.body).reference_id, VOICE_ID);
+      return audioResponse();
+    });
+    for (const oldVoice of ["1234567890abcdef1234567890abcdef", "https://evil.example", " "]) {
+      process.env.FISH_AUDIO_VOICE_ID = oldVoice;
+      const handler = freshHandler();
+      const before = networkCalls;
+      assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), { enabled: true, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID });
+      assert.equal((await call(handler)).statusCode, 200);
+      assert.equal(networkCalls, before + 1);
+    }
     delete process.env.FISH_AUDIO_VOICE_ID;
+    mockFetch();
   });
 
   await test("拒绝跨站、缺失 Origin、错误类型与请求方法", async () => {
@@ -108,19 +122,17 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   await test("拒绝非法、超长、超大输入和客户端模型/地址/音色覆盖", async () => {
     const handler = freshHandler();
     const before = networkCalls;
-    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", url: "https://evil.example" }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
+    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", voiceId: "1234567890abcdef1234567890abcdef" }, { text: "你好", url: "https://evil.example" }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
     assert.equal((await call(handler, { headers: { "content-length": "12001" } })).statusCode, 400);
     assert.equal(networkCalls, before);
   });
 
-  await test("固定免费模型和官方地址，只将正文与站长音色发送给服务端", async () => {
-    const voice = "1234567890abcdef1234567890abcdef";
-    process.env.FISH_AUDIO_VOICE_ID = voice;
+  await test("固定免费模型、官方地址和用户指定音色，只将正文发送给服务端", async () => {
     mockFetch((url, options) => {
       assert.equal(url, "https://api.fish.audio/v1/tts");
       assert.deepEqual(options.headers, { "Content-Type": "application/json", Authorization: `Bearer ${process.env.FISH_AUDIO_API_KEY}`, model: "s2.1-pro-free" });
       assert.equal(options.redirect, "error");
-      assert.deepEqual(JSON.parse(options.body), { text: "今天练琴很顺利。[[普通内容]]", reference_id: voice, format: "mp3", mp3_bitrate: 128, normalize: true });
+      assert.deepEqual(JSON.parse(options.body), { text: "今天练琴很顺利。[[普通内容]]", reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: true });
       assert.ok(!JSON.stringify(options).includes(CODE));
       return audioResponse();
     });

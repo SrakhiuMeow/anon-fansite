@@ -5,7 +5,8 @@ const { clientKey } = require("../lib/chat-access.cjs");
 const { verifyAccess } = require("./chat.js");
 const ENDPOINT = "https://api.fish.audio/v1/tts";
 const MODEL = "s2.1-pro-free";
-const DEFAULT_VOICE = "c5c17c9709384ba9a4b294662a2af0b1";
+// 站长指定的千早爱音音色，固定使用，避免历史环境变量覆盖。
+const VOICE_ID = "c5c17c9709384ba9a4b294662a2af0b1";
 const WINDOW_MS = 60_000;
 const TIMEOUT_MS = 60_000;
 const MAX_BODY_BYTES = 12_000;
@@ -80,9 +81,8 @@ module.exports = async function tts(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   const key = process.env.FISH_AUDIO_API_KEY?.trim();
-  const voice = process.env.FISH_AUDIO_VOICE_ID?.trim() || DEFAULT_VOICE;
-  const enabled = Boolean(key && /^[a-f0-9]{32}$/i.test(voice));
-  if (req.method === "GET") return json(res, 200, { enabled, voiceName: "千早爱音 · AI合成" });
+  const enabled = Boolean(key);
+  if (req.method === "GET") return json(res, 200, { enabled, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID });
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return json(res, 405, { error: "请求方式不支持。" }); }
   if (!sameOrigin(req)) return json(res, 403, { error: "请从本站播放语音。" });
   if (header(req, "content-type").split(";")[0].trim().toLowerCase() !== "application/json") return json(res, 415, { error: "请使用 JSON 发送朗读内容。" });
@@ -114,7 +114,7 @@ module.exports = async function tts(req, res) {
     const upstream = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, model: MODEL },
-      body: JSON.stringify({ text, reference_id: voice, format: "mp3", mp3_bitrate: 128, normalize: true }),
+      body: JSON.stringify({ text, reference_id: VOICE_ID, format: "mp3", mp3_bitrate: 128, normalize: true }),
       signal: controller.signal,
       redirect: "error",
     });
