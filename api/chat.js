@@ -1,7 +1,11 @@
 "use strict";
 
 // 无依赖的 Vercel Node Function。密钥只从服务端环境变量读取。
-const { createHash, scryptSync, timingSafeEqual } = require("node:crypto");
+const { clientKey, createAccessVerifier } = require("../lib/chat-access.cjs");
+// 校验材料只留在 Vercel 服务端函数中；根目录的 lib 会作为静态资源发布。
+const ACCESS_SALT = "9d7fd8b9c6001828a37c583c58f05203";
+const ACCESS_HASH = Buffer.from("479d3e7ff2ddb8ae141bee66c9b4ef134765e2a1bb2aa11db4b0ae36ddde999b", "hex");
+const verifyAccess = createAccessVerifier(ACCESS_SALT, ACCESS_HASH);
 const search = require("../lib/deepseek-search.cjs");
 const ENDPOINT = "https://api.deepseek.com/chat/completions";
 const WINDOW_MS = 60_000;
@@ -12,13 +16,6 @@ const MAX_TEXT = 1000;
 const clients = new Map();
 let windowStart = 0;
 let windowCount = 0;
-// 站长指定口令的加盐摘要，仅用于服务端验证；明文不进入仓库和浏览器资源。
-const ACCESS_SALT = "9d7fd8b9c6001828a37c583c58f05203";
-const ACCESS_HASH = Buffer.from("479d3e7ff2ddb8ae141bee66c9b4ef134765e2a1bb2aa11db4b0ae36ddde999b", "hex");
-const accessFailures = new Map();
-let accessWindowStart = 0;
-let accessWindowCount = 0;
-
 const REACTIONS = Object.freeze({
   smile: ["smile01", "smile01", "微笑"],
   wink: ["wink01", "wink01", "眨眼"],
@@ -165,38 +162,6 @@ function json(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
-}
-
-function hasAccess(req, expected) {
-  const encoded = header(req, "x-chat-access-code");
-  if (!encoded || encoded.length > 1800) return false;
-  let supplied;
-  try { supplied = decodeURIComponent(encoded); } catch { return false; }
-  if (!supplied || supplied.length > 200) return false;
-  return expected
-    ? timingSafeEqual(createHash("sha256").update(supplied).digest(), createHash("sha256").update(expected).digest())
-    : timingSafeEqual(scryptSync(supplied, ACCESS_SALT, 32), ACCESS_HASH);
-}
-
-function clientKey(req) {
-  // Vercel 覆盖 x-forwarded-for；本地测试优先使用真实 socket 地址。
-  const ip = (process.env.VERCEL ? header(req, "x-forwarded-for").split(",")[0].trim() : req.socket?.remoteAddress) || "unknown";
-  return createHash("sha256").update(ip).digest("hex");
-}
-
-function verifyAccess(req, expected) {
-  const now = Date.now();
-  if (now - accessWindowStart >= WINDOW_MS) { accessWindowStart = now; accessWindowCount = 0; }
-  for (const [key, entry] of accessFailures) if (now - entry.start >= WINDOW_MS) accessFailures.delete(key);
-  const key = clientKey(req);
-  const entry = accessFailures.get(key) || { start: now, count: 0 };
-  // 在密码计算前拒绝连续猜测；仅热实例内生效，不代替持久防火墙限流。
-  if (entry.count >= 5 || accessWindowCount >= 100) return 429;
-  if (hasAccess(req, expected)) { accessFailures.delete(key); return 200; }
-  entry.count += 1;
-  accessWindowCount += 1;
-  accessFailures.set(key, entry);
-  return 401;
 }
 
 function readBody(req) {
@@ -443,3 +408,6 @@ module.exports = async function chat(req, res) {
     release();
   }
 };
+
+// 同实例内的语音代理复用相同验证器，避免另建一套口令或静态暴露校验材料。
+module.exports.verifyAccess = verifyAccess;

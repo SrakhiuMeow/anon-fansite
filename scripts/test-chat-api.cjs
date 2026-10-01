@@ -12,7 +12,8 @@ const originalEnv = { key: process.env.DEEPSEEK_API_KEY, model: process.env.DEEP
 let checks = 0;
 let networkCalls = 0;
 
-function freshHandler() { delete require.cache[handlerPath]; return require(handlerPath); }
+// 每组独立实例同时重载共享鉴权模块，生产代码不提供清空限流的入口。
+function freshHandler() { delete require.cache[handlerPath]; delete require.cache[require.resolve("../lib/chat-access.cjs")]; return require(handlerPath); }
 function request(options = {}) {
   const req = new EventEmitter();
   req.method = options.method || "POST";

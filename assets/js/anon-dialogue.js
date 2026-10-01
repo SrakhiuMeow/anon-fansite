@@ -62,11 +62,13 @@
   let requiresCode = false;
   // 口令只保留在当前页面闭包中，不写入浏览器存储或页面文本。
   let accessCode = "";
+  const voice = root.AnonVoice?.create?.({ getAccessCode: () => accessCode });
   let unlockRequest = 0;
   let unlockController = null;
   let reactionRequest = 0;
   let chatReactionTail = Promise.resolve();
   const setState = (text) => { if (state) state.textContent = text; };
+  const syncVoice = () => voice?.sync({ ai: mode?.value === "deepseek", unlocked: !requiresCode || !!accessCode, busy });
   const syncSearch = () => {
     if (!searchToggle) return;
     const ai = mode?.value === "deepseek";
@@ -82,6 +84,7 @@
     if (stop) stop.hidden = !value;
     log.setAttribute("aria-busy", String(value));
     syncSearch();
+    syncVoice();
   };
   const syncMode = () => {
     const ai = mode?.value === "deepseek";
@@ -91,6 +94,7 @@
     if (unlock) unlock.hidden = !ai || !requiresCode || !!accessCode;
     if (lock) lock.hidden = !ai || !requiresCode || !accessCode;
     syncSearch();
+    syncVoice();
   };
   searchToggle?.addEventListener("click", () => {
     if (busy || mode?.value !== "deepseek") return;
@@ -237,6 +241,7 @@
   };
   const cancel = () => {
     controller?.abort();
+    voice?.stop();
     ++reactionRequest;
     if (root.AnonLive2D?.getState?.().ready) void react({ motion: "idle01", expression: "default", label: "平静待机", source: "control" });
     else if (emotion) { emotion.textContent = "随对话变化"; emotion.title = "对话会自动选择对应表情与动作"; }
@@ -252,6 +257,7 @@
       openUnlock();
       return;
     }
+    voice?.stop();
     const version = ++request;
     const text = api.normalize(raw);
     followingLatest = true;
@@ -397,6 +403,8 @@
       history = history.slice(-10);
       // 来源只在本轮完整结束后附加，不进入正文、历史或 Live2D 情绪流。
       if (searchCompleted) appendSources(content, sources);
+      // 只朗读完整 AI 回复的正文快照，来源、按钮及中断片段不进入语音。
+      voice?.addReply(content.parentElement, answer);
       const searchState = !searchEnabled ? "" : searchUnavailable
         ? searchCompleted && sources.length ? "已联网检索，部分搜索不可用" : "联网搜索暂不可用"
         : searchCompleted && sources.length ? "已联网检索"
@@ -405,7 +413,7 @@
     } catch (error) {
       if (version !== request) return;
       if (error.accessDenied && !active.signal.aborted) {
-        accessCode = ""; requiresCode = true; history = []; cancel();
+        accessCode = ""; requiresCode = true; history = []; cancel(); voice?.clear();
         input.value = text; syncMode(); setState(error.message); openUnlock(error.message);
       } else if (active.signal.aborted && active.signal.reason !== "timeout") {
         if (!answer) append("anon", "（已停止本次回复）");
@@ -427,17 +435,17 @@
   prompts.forEach((button) => button.addEventListener("click", () => { void submit(button.dataset.chatPrompt); }));
   stop?.addEventListener("click", cancel);
   clear?.addEventListener("click", () => {
-    ++request; cancel(); controller = null; history = []; log.replaceChildren(); setBusy(false);
+    ++request; cancel(); voice?.clear(); controller = null; history = []; log.replaceChildren(); setBusy(false);
     followingLatest = true;
     append("anon", "从这里重新开始吧！今天想聊什么？");
     setState("已清空本页聊天记录与对话记忆。");
   });
   lock?.addEventListener("click", () => {
-    ++request; cancel(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
+    ++request; cancel(); voice?.clear(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
     setState("AI 聊天已重新锁定，对话记忆已清空。本地互动仍可使用。");
   });
   mode?.addEventListener("change", () => {
-    modeChosen = true; ++request; cancel(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
+    modeChosen = true; ++request; cancel(); voice?.clear(); controller = null; history = []; accessCode = ""; closeUnlock(); setBusy(false); syncMode();
     setState("已切换模式，对话记忆已重置。");
     if (mode.value === "deepseek") openUnlock();
   });

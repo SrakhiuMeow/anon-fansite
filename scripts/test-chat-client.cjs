@@ -120,7 +120,7 @@ function playbackClock() {
   };
 }
 
-async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelState, modelReady = true, mobileRoom } = {}) {
+async function browserFixture({ accessCodeRequired = false, mobile = false, landscapeMobile = false, shortViewport = false, reducedMotion = true, clock, modelReact, modelWait, modelState, modelReady = true, mobileRoom, voice } = {}) {
   const ids = Object.fromEntries([
     "anonChatForm", "anonChatInput", "anonChatLog", "anonChatState", "anonChatMode",
     "chatDisclosure", "anonChatStop", "anonChatClear", "anonChatAccessCode", "anonChatEmotion", "anonChatLatest", "anonChatWebSearch",
@@ -157,6 +157,7 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
       getState: () => ({ ready: modelReady, ...modelState?.() }),
     },
     ...(mobileRoom ? { AnonMobileRoom: mobileRoom } : {}),
+    ...(voice ? { AnonVoice: { create(options) { voice.options = options; return voice; } } } : {}),
     fetch: async (url, options = {}) => {
       assert.equal(url, "/api/chat");
       if (options.method !== "POST") return { ok: true, json: async () => ({ enabled: true, accessCodeRequired }) };
@@ -207,6 +208,82 @@ async function browserFixture({ accessCodeRequired = false, mobile = false, land
       await settle(() => !send.disabled, "完成后应恢复发送");
     },
   };
+}
+
+function voiceRecorder() {
+  return {
+    events: [], replies: [], stops: 0, clears: 0,
+    sync(value) { this.state = { ...value }; this.events.push({ type: "sync", ...value }); },
+    addReply(element, text) { this.replies.push({ element, text }); this.events.push({ type: "reply", text }); },
+    stop() { this.stops++; this.events.push({ type: "stop" }); },
+    clear() { this.clears++; this.events.push({ type: "clear" }); },
+  };
+}
+
+async function testVoiceIntegration() {
+  const voice = voiceRecorder();
+  const ui = await browserFixture({ voice, accessCodeRequired: true });
+  assert.equal(voice.options.getAccessCode(), "", "播放器不持有或自行保存口令");
+  assert.deepEqual(voice.state, { ai: true, unlocked: false, busy: false });
+  ui.submit("先解锁");
+  assert.equal(voice.stops, 0, "未解锁不创建新一轮播放生命周期");
+  ui.unlock("test-voice-key"); ui.unlocks.at(-1).resolve();
+  await settle(() => !ui.ids.anonChatAccessDialog.open, "语音复用已解锁口令");
+  assert.equal(voice.options.getAccessCode(), "test-voice-key");
+  assert.equal(voice.state.unlocked, true);
+  ui.ids.anonChatWebSearch.dispatch("click");
+  ui.submit("请搜索再谈谈");
+  assert.equal(voice.stops, 1, "有效新一轮必须先停止旧语音");
+  assert.equal(voice.state.busy, true);
+  ui.submit("忙碌时重复发送");
+  assert.equal(voice.stops, 1, "被拒绝的重复提交不重复取消");
+  const request = ui.requests.at(-1);
+  request.writeChunk([
+    { type: "search", status: "completed" },
+    { type: "sources", sources: [{ title: "官方说明", url: "https://example.org/source" }] },
+    { type: "delta", text: "这是我读完后的看法。" },
+  ]);
+  await settle(() => ui.lastText() === "这是我读完后的看法。", "未完成正文已显示");
+  assert.equal(voice.replies.length, 0, "流式片段不生成语音");
+  request.write({ type: "done" }); request.close();
+  await settle(() => !ui.send.disabled, "完整回复结束后才生成语音按钮");
+  assert.equal(voice.replies.length, 1);
+  assert.equal(voice.replies[0].text, "这是我读完后的看法。", "只传正文快照，不含来源或角色标签");
+  assert.equal(voice.replies[0].element, ui.ids.anonChatLog.children.at(-1));
+  assert.equal(voice.replies[0].element.children.at(-1).className, "chat-sources", "语音可与来源详情同时存在");
+  assert.equal(voice.events.at(-2).type, "reply", "完整正文先注册到播放器");
+  assert.deepEqual(voice.events.at(-1), { type: "sync", ai: true, unlocked: true, busy: false }, "退出busy后播放器才有机会自动朗读");
+
+  ui.submit("这次中断");
+  ui.requests.at(-1).write({ type: "delta", text: "半句话" });
+  await settle(() => ui.lastText() === "半句话", "中断测试收到半句");
+  ui.ids.anonChatStop.dispatch("click");
+  await settle(() => !ui.send.disabled, "停止本轮");
+  assert.equal(voice.replies.length, 1, "停止后的半句不能转为语音");
+  assert.equal(voice.stops, 3, "新一轮和停止均取消语音");
+  ui.failNext("服务暂不可用"); ui.submit("眨眼");
+  await settle(() => !ui.send.disabled, "本地降级完成");
+  assert.equal(voice.replies.length, 1, "AI故障后的本地回复不调用音色服务");
+
+  ui.ids.anonChatClear.dispatch("click");
+  assert.equal(voice.clears, 1, "清空记录释放音频缓存和已挂接按钮");
+  ui.ids.anonChatLock.dispatch("click");
+  assert.equal(voice.clears, 2, "重新锁定同时清理音频");
+  assert.equal(voice.options.getAccessCode(), "", "重新锁定后不能从旧闭包取到口令");
+  assert.equal(voice.state.unlocked, false);
+  ui.select("local");
+  assert.equal(voice.clears, 3, "切换模式清理语音");
+  assert.equal(voice.state.ai, false);
+  ui.submit("你好");
+  assert.equal(voice.replies.length, 1, "本地模式保持离线、不附音频生成");
+  ui.select("deepseek"); ui.unlock("test-voice-key"); ui.unlocks.at(-1).resolve();
+  await settle(() => !ui.ids.anonChatAccessDialog.open, "重新解锁验证401清理");
+  ui.failNext("密码失效", 401); ui.submit("口令已失效");
+  await settle(() => !ui.send.disabled, "401不保留旧语音鉴权状态");
+  assert.equal(voice.clears, 5, "模式切换与401均清空语音");
+  assert.equal(voice.options.getAccessCode(), "");
+  assert.equal(voice.state.unlocked, false);
+  assert.equal(voice.replies.length, 1);
 }
 
 async function testClient() {
@@ -1154,6 +1231,7 @@ async function testMobileOverlayChat() {
 (async () => {
   await testParser();
   await testClient();
+  await testVoiceIntegration();
   await testWebSearch();
   await testPasswordLock();
   await testEmotionFeedback();
@@ -1164,5 +1242,5 @@ async function testMobileOverlayChat() {
   await testReadingAndComposition();
   await testCompactMobileScroll();
   await testMobileOverlayChat();
-  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、联网开关与真实检索状态、安全来源与取消隔离、分模式超时、生命周期竞争、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、按真实80%进度续接、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
+  console.log("聊天前端验证通过：UTF-8/NDJSON 异步保序、联网开关与真实检索状态、安全来源与取消隔离、分模式超时、完整回复语音与鉴权生命周期、历史预算、故障降级、密码鉴权、分段情绪、渐进播放、按真实80%进度续接、上翻阅读、中文输入法防误发送、短屏内部定位与手机浮层接管。");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

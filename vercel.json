@@ -6,7 +6,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
-    "api/chat.js": { "maxDuration": 120, "supportsCancellation": true }
+    "api/chat.js": { "maxDuration": 120, "supportsCancellation": true },
+    "api/tts.js": { "maxDuration": 90, "supportsCancellation": true }
   },
   "headers": [
     {
