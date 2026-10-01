@@ -180,16 +180,24 @@ async function harness(options = {}) {
   let nativeTime = 0;
   const media = { matches: !!options.mobile, addEventListener(type, callback) { this.changed = callback; } };
   let renderCount = 0;
-  const document = { hidden: !!options.hidden, getElementById: (id) => elements[id], createElement: () => new Element(), addEventListener: (type, handler) => { if (type === "visibilitychange") visibility = handler; } };
+  // 可控时钟：帧率档位取决于「距上次操作多久」，需要能推进时间而不真的等待。
+  const clock = { now: 1000 };
+  const handlers = new Map();
+  const document = {
+    hidden: !!options.hidden, getElementById: (id) => elements[id], createElement: () => new Element(),
+    addEventListener: (type, handler) => { handlers.set(type, handler); if (type === "visibilitychange") visibility = handler; },
+  };
   const window = {
     ANON_LIVE2D: { defaultCostume: "first", costumes }, AnonLive2DActions: actions,
     Live2D: {}, Live2DCubismCore: { Version: { csmGetVersion: () => 83951616 } },
+    devicePixelRatio: options.devicePixelRatio,
     PIXI: {
       Application: class {
-        constructor() {
+        constructor(options) {
           application = this;
-          this.ticker = { deltaMS: 16, add(callback) { advance = (milliseconds = 16, render = true) => { this.deltaMS = milliseconds; callback(); if (render) application.render(); }; } };
-          this.renderer = { resize() {}, plugins: { interaction: {} } };
+          this.options = options;
+          this.ticker = { maxFPS: 0, deltaMS: 16, add(callback) { advance = (milliseconds = 16, render = true) => { this.deltaMS = milliseconds; callback(); if (render) application.render(); }; } };
+          this.renderer = { resolution: options?.resolution, resizes: [], resize(width, height) { this.resizes.push([width, height]); }, plugins: { interaction: {} } };
           this.stage = { current: null, addChild(model) { this.current = model; }, removeChild(model) { if (this.current === model) this.current = null; } };
         }
         start() {} stop() {} render() { renderCount += 1; this.stage.current?.renderFrame(); }
@@ -207,12 +215,13 @@ async function harness(options = {}) {
   vm.runInNewContext(source, {
     window, document, console, CustomEvent: class {}, IntersectionObserver: window.IntersectionObserver,
     localStorage: { getItem: () => null, setItem() {} },
+    performance: { now: () => clock.now },
     setTimeout: (callback) => { queueMicrotask(callback); return 1; }, clearTimeout() {},
   }, { filename: "live2d-viewer.js" });
   if (!options.hidden && options.visible !== false) await settle(() => window.AnonLive2D.getState().ready && !window.AnonLive2D.getState().loading, "初始模型应可用");
   await tick();
   plays.length = 0;
-  return { viewer: window.AnonLive2D, models, plays, resources, networkLoads, factory, modelLoads, textures, elements, pendingModels, buildModel, document, setNativeTime: (milliseconds) => { nativeTime = milliseconds; }, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
+  return { viewer: window.AnonLive2D, models, plays, resources, networkLoads, factory, modelLoads, textures, elements, pendingModels, buildModel, document, app: () => application, advanceClock: (milliseconds) => { clock.now += milliseconds; }, fire: (type, event = {}) => handlers.get(type)?.(event), setNativeTime: (milliseconds) => { nativeTime = milliseconds; }, advance: (milliseconds, render) => advance(milliseconds, render), render: () => application.render(), mobile: (matches) => { media.matches = matches; media.changed?.(); }, visibility: () => visibility(), intersect: (visible) => intersection([{ isIntersecting: visible }]), renders: () => renderCount, resize: (width, height) => { elements.l2dStage.clientWidth = width; elements.l2dStage.clientHeight = height; resize(); } };
 }
 const block = (model, resource) => { const pending = deferred(); model.waiting.set(resource, pending); return pending; };
 
@@ -258,6 +267,42 @@ const block = (model, resource) => { const pending = deferred(); model.waiting.s
     if (suspension === "hidden") { h.document.hidden = false; h.visibility(); }
     await settle(() => h.resources.includes("motion:smile01"), `${suspension}恢复后接着预热`);
     assert.equal(h.resources.filter((name) => name === "motion:thinking01").length, 1, "恢复沿用进度，不从头下载");
+  }
+  {
+    // 渲染开销：关闭 MSAA、按像素预算压低分辨率、按设备档位限帧。
+    const mobile = await harness({ mobile: true, devicePixelRatio: 3 });
+    const mobileApp = mobile.app();
+    assert.equal(mobileApp.options.antialias, false, "关闭 MSAA，省下成倍的片元采样");
+    assert.equal(mobileApp.options.powerPreference, "low-power", "请求省电 GPU 偏好");
+    assert.ok(mobileApp.renderer.resolution <= 1.75, `手机分辨率受上限约束：${mobileApp.renderer.resolution}`);
+    assert.ok(600 * 700 * mobileApp.renderer.resolution ** 2 <= 1000000 * 1.1,
+      "后备存储像素总量不超过手机预算");
+    assert.equal(mobileApp.ticker.maxFPS, 60, "启动播放首个动作时给足帧率");
+
+    mobile.advanceClock(9000);
+    assert.equal(mobile.viewer.getState().frameCap, 30, "动作播完回到手机待机档 30fps");
+    mobile.advanceClock(91000);
+    assert.equal(mobile.viewer.getState().frameCap, 15, "长时间无操作进入省电待机");
+    mobile.fire("pointerdown");
+    assert.equal(mobileApp.ticker.maxFPS, 30, "一次操作即退出省电待机并同步到 ticker");
+    mobile.advanceClock(9000);
+    assert.equal(mobile.viewer.getState().frameCap, 30, "普通操作只回到待机档，不长期占高帧率");
+    assert.equal((await mobile.viewer.react({ emotion: "smile" })).ok, true, "手机档位下动作可正常播放");
+    assert.equal(mobile.viewer.getState().frameCap, 60, "播放动作时临时提升帧率");
+
+    const desktop = await harness({ devicePixelRatio: 3 });
+    const desktopApp = desktop.app();
+    assert.ok(mobileApp.renderer.resolution < desktopApp.renderer.resolution, "手机档位分辨率低于桌面");
+    desktop.advanceClock(9000);
+    assert.equal(desktop.viewer.getState().frameCap, 60, "桌面待机档为 60fps");
+    desktop.advanceClock(91000);
+    assert.equal(desktop.viewer.getState().frameCap, 30, "桌面长时间无操作降到 30fps");
+
+    const before = desktopApp.renderer.resizes.length;
+    desktop.resize(600, 700);
+    assert.equal(desktopApp.renderer.resizes.length, before, "尺寸未变化时不重建绘图缓冲");
+    desktop.resize(390, 844);
+    assert.equal(desktopApp.renderer.resizes.length, before + 1, "尺寸变化后同步绘图缓冲");
   }
   {
     const h = await harness();

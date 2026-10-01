@@ -29,6 +29,53 @@
   const FOLLOW_MOUSE_STORAGE = "anon-live2d-follow-mouse";
   const hosts = { costume: byId("l2dCostumes"), motion: byId("l2dMotions"), expression: byId("l2dExpressions") };
 
+  /* ---------- 渲染开销控制 ----------
+     手机竖屏一打开就是全屏舞台，画布会一直占着 GPU。这里做三件事：
+     1) 限制后备存储像素总量，避免高 DPR 设备按 2× 全屏超采样；
+     2) 关闭 MSAA：Live2D 是 alpha 混合贴图，抗锯齿对轮廓几乎无改善，却按采样数成倍放大填充开销；
+     3) 按交互强度分档限帧，长时间没人操作时进入省电待机，任何操作立刻恢复。
+     分档只改绘制频率：PIXI 节流跳帧时不会推进 lastTime，下一帧的 deltaMS 会累积，
+     因此降帧不会让动画变慢。 */
+  // 复用上面的 mobileViewport，保证「手机档位」和「手机默认缩放」用同一个断点。
+  const isMobileLayout = () => !!mobileViewport?.matches;
+  // 后备存储像素上限：手机约 100 万，桌面 260 万（够 560px 舞台按 2× 渲染）。
+  const PIXEL_BUDGET = { mobile: 1000000, desktop: 2600000 };
+  const MAX_RESOLUTION = { mobile: 1.75, desktop: 2 };
+  const FRAME_RATES = {
+    mobile: { rest: 15, idle: 30, active: 60 },
+    desktop: { rest: 30, idle: 60, active: 60 },
+  };
+  const ACTIVE_HOLD_MS = 8000; // 播放动作/表情后维持高帧率的时长
+  const REST_AFTER_MS = 90000; // 完全无操作多久后进入省电待机
+  const ANTIALIAS = false;
+  const now = () => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now());
+  let lastActivityAt = now();
+  let activeUntil = 0;
+
+  // 分辨率按「CSS 面积 × resolution² ≤ 像素预算」反推；量化到 0.05，避免尺寸微动就重建绘图缓冲。
+  const pickResolution = () => {
+    const mobile = isMobileLayout();
+    const width = Math.max(1, stage.clientWidth || window.innerWidth || 1);
+    const height = Math.max(1, stage.clientHeight || window.innerHeight || 1);
+    const budget = mobile ? PIXEL_BUDGET.mobile : PIXEL_BUDGET.desktop;
+    const limit = mobile ? MAX_RESOLUTION.mobile : MAX_RESOLUTION.desktop;
+    const fit = Math.sqrt(budget / (width * height));
+    return Math.round(Math.max(1, Math.min(window.devicePixelRatio || 1, limit, fit)) * 20) / 20;
+  };
+  const frameCap = () => {
+    const plan = FRAME_RATES[isMobileLayout() ? "mobile" : "desktop"];
+    const time = now();
+    if (time < activeUntil) return plan.active;
+    return time - lastActivityAt >= REST_AFTER_MS ? plan.rest : plan.idle;
+  };
+  const syncFrameRate = () => {
+    if (!app) return;
+    const cap = frameCap();
+    if (app.ticker.maxFPS !== cap) app.ticker.maxFPS = cap;
+  };
+  const markActivity = () => { lastActivityAt = now(); syncFrameRate(); };
+  const holdActive = () => { activeUntil = now() + ACTIVE_HOLD_MS; markActivity(); };
+
   // 两代 Core 使用各自专有许可；新版官方 Core 随站点保存，详见 vendor 许可。
   const cubismReady = () => {
     try { return window.Live2DCubismCore?.Version.csmGetVersion() > 0; } catch { return false; }
@@ -76,7 +123,7 @@
   };
   const setHint = (text) => { if (hintEl) hintEl.textContent = text; };
   const emitState = () => window.dispatchEvent(new CustomEvent("anon:live2d-state", { detail: getState() }));
-  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, zoomPercent, costume: current?.id || null,
+  const getState = () => ({ ready: !!model, loading, paused, failed, followMouse, zoomPercent, frameCap: frameCap(), costume: current?.id || null,
     reactionReady: !!activeReaction && !loading && !paused && inView && !document.hidden && reactionComplete(activeReaction) });
   const syncZoomControls = () => {
     if (zoomValueEl) zoomValueEl.textContent = `${zoomPercent}%`;
@@ -184,6 +231,7 @@
     const running = !!model && !paused && inView && !document.hidden;
     // Live2D 默认使用共享 ticker；显式关闭并由 app ticker 更新，保证离屏真正停止。
     if (app) running ? app.start() : app.stop();
+    syncFrameRate();
     if (running) void warmReactions(model, current);
     if (pauseEl) {
       pauseEl.disabled = !model;
@@ -254,11 +302,18 @@
     }
   };
 
+  let fittedViewport = { width: 0, height: 0, resolution: 0 };
   const fitModel = () => {
     if (!app) return;
     const width = Math.max(1, stage.clientWidth);
     const height = Math.max(1, stage.clientHeight);
-    app.renderer.resize(width, height);
+    const resolution = pickResolution();
+    // 手机上 visualViewport 会随地址栏伸缩频繁触发这里；尺寸与分辨率都没变时不要重建绘图缓冲。
+    if (fittedViewport.width !== width || fittedViewport.height !== height || fittedViewport.resolution !== resolution) {
+      fittedViewport = { width, height, resolution };
+      if (app.renderer.resolution !== resolution) app.renderer.resolution = resolution;
+      app.renderer.resize(width, height);
+    }
     if (!model) return;
     const bounds = model.getLocalBounds();
     const nativeW = bounds.width || model.internalModel.width || 2000;
@@ -491,18 +546,22 @@
     if (starting) return starting;
     if (model && !failed) return Promise.resolve(true);
     loading = true;
+    // 开始加载模型本身就是一次使用，避免页面闲置很久后才进入视口时直接落在省电待机档。
+    markActivity();
     emitState();
     starting = (async () => {
       try {
         await loadRuntime();
         if (!app) {
           app = new window.PIXI.Application({
-            view: canvas, backgroundAlpha: 0, antialias: true, autoStart: false,
-            resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
+            view: canvas, backgroundAlpha: 0, antialias: ANTIALIAS, autoStart: false,
+            resolution: pickResolution(), autoDensity: true, powerPreference: "low-power",
           });
           app.ticker.add(() => {
             if (model) model.update(app.ticker.deltaMS);
+            syncFrameRate();
           });
+          syncFrameRate();
         }
         return await mountModel(requested);
       } catch (error) {
@@ -596,6 +655,7 @@
       && !reactionComplete(activeReaction)) {
       // 尚未达到80%衔接点时保留实际姿态，不打断，也不消耗下一候选。
       rememberSelection(request, costume, activeChoice, activeReaction.ordinal);
+      holdActive();
       return responseFor(costume, activeChoice);
     }
     const selection = chooseReaction(costume, request, replay);
@@ -640,6 +700,7 @@
         motionDone: !motion || motion === idleMotion };
       flushReactionWaiters();
       rememberSelection(request, costume, choice, ordinal);
+      holdActive();
       if (request.source === "chat") {
         const key = `${costume.id}:${choice.emotion}`;
         const used = new Set(selection.resetCycle ? [] : variantHistory.get(key)?.used || []);
@@ -684,14 +745,20 @@
   });
   document.addEventListener("visibilitychange", () => {
     syncPlayback();
-    if (!document.hidden && inView && !desiredReaction.signal?.aborted) void react(desiredReaction, true);
+    if (!document.hidden && inView && !desiredReaction.signal?.aborted) { markActivity(); void react(desiredReaction, true); }
   });
+  // 指针、键盘、滚轮都算「正在使用」：退出省电待机并立即恢复档位帧率。
+  for (const type of ["pointerdown", "keydown", "wheel"]) {
+    document.addEventListener(type, markActivity, { passive: true, capture: true });
+  }
   if ("ResizeObserver" in window) new ResizeObserver(fitModel).observe(stage);
   else window.addEventListener("resize", fitModel);
   if ("IntersectionObserver" in window) {
     const observer = new IntersectionObserver((entries) => {
       const wasInView = inView;
       inView = entries.some((entry) => entry.isIntersecting);
+      // 重新进入视口视为一次使用，避免刚滚回来就处于省电待机。
+      if (inView && !wasInView) markActivity();
       if (inView && !document.hidden && !model && !failed) void start();
       syncPlayback();
       if (!wasInView && inView && model && !desiredReaction.signal?.aborted) void react(desiredReaction, true);

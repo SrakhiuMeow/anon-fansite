@@ -8,8 +8,12 @@
   #live2d:has(.mobile-room)>.wrap>.section-head{display:none}
   #live2d:has(.mobile-room)>.wrap>.source-note{margin:1rem .8rem 0;padding:.7rem .5rem 1.5rem}
   .l2d-layout.mobile-room{
-    --room-glass:color-mix(in srgb,var(--card) 58%,transparent);
-    --room-glass-soft:color-mix(in srgb,var(--card) 52%,transparent);
+    /* 这些浮层直接叠在每帧重绘的 WebGL 画布上。backdrop-filter 会让浏览器每帧重算高斯模糊
+       （Chromium 只在背景内容无变化时才复用模糊结果），是手机长时间运行最大的一笔额外开销。
+       浮层底色改到接近实色后观感几乎没有变化，却省掉了整个画布上方逐帧的模糊重算；
+       面板内部的半透明分层（聊天记录、气泡、标签）保留，观感不变。 */
+    --room-glass:color-mix(in srgb,var(--card) 97%,transparent);
+    --room-glass-soft:color-mix(in srgb,var(--card) 90%,transparent);
     --room-zoom-top:calc(max(.7rem,env(safe-area-inset-top)) + 54px);
     --room-panel-limit:calc(100% - var(--room-zoom-top) - 170px - max(.6rem,env(safe-area-inset-bottom)));
     position:relative;isolation:isolate;display:block;width:100%;height:100svh;min-height:360px;
@@ -36,7 +40,7 @@
   .mobile-room-title strong{font-size:17px;letter-spacing:.08em}
   .mobile-room-title span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .mobile-room-icon,.mobile-room-action,.mobile-panel-close,.mobile-panel-settings,.mobile-panel-tabs button,.mobile-room-prompt{color:var(--ink);font-family:var(--font);font-weight:700;cursor:pointer;touch-action:manipulation}
-  .mobile-room-icon{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--room-glass-soft);backdrop-filter:blur(12px);font-size:28px;line-height:1}
+  .mobile-room-icon{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--room-glass-soft);font-size:28px;line-height:1}
   .mobile-room-browse{display:flex;flex-direction:column;gap:2px;border-radius:14px;font-size:10px}
   .mobile-room-browse svg{width:18px;height:18px}
   .mobile-room svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
@@ -44,17 +48,17 @@
   .mobile-room-rail{position:absolute;z-index:6;right:max(.6rem,env(safe-area-inset-right));top:max(var(--room-zoom-top),calc(50% - 240px));bottom:max(80px,calc(env(safe-area-inset-bottom) + 64px));width:50px;flex-direction:column;gap:5px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;pointer-events:auto}
   .mobile-room-dock{position:static;width:50px;flex:0 0 auto;flex-direction:column;gap:5px;pointer-events:none}
   .mobile-room:not([data-panel="closed"]) .mobile-room-rail{top:var(--room-zoom-top);bottom:auto;max-height:calc(100% - var(--room-zoom-top) - max(.6rem,env(safe-area-inset-bottom)))}
-  .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25;pointer-events:auto}
+  .mobile-room-action{min-width:46px;min-height:48px;flex-shrink:0;padding:4px 3px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:15px;background:var(--room-glass-soft);box-shadow:0 4px 18px #241b2d0a;font-size:11px;line-height:1.25;pointer-events:auto}
   .mobile-room-action svg{width:20px;height:20px}
   .mobile-room-arrow{font-size:21px;line-height:20px}
-  .mobile-room-prompt{position:absolute;z-index:3;left:max(1rem,env(safe-area-inset-left));right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));min-height:48px;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border:1px solid var(--line);border-radius:99px;background:var(--room-glass-soft);backdrop-filter:blur(14px);font-size:14px;text-align:left}
+  .mobile-room-prompt{position:absolute;z-index:3;left:max(1rem,env(safe-area-inset-left));right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));min-height:48px;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border:1px solid var(--line);border-radius:99px;background:var(--room-glass-soft);font-size:14px;text-align:left}
   .mobile-room-prompt span:last-child{font-size:22px;line-height:1}
   .mobile-room:not([data-panel="closed"]) :is(.mobile-room-dock,.mobile-room-prompt){display:none}
   .mobile-room .l2d-controls{
     position:absolute;z-index:5;inset:auto max(.6rem,env(safe-area-inset-right)) max(.6rem,env(safe-area-inset-bottom)) max(.6rem,env(safe-area-inset-left));
     display:flex;flex-direction:column;gap:0;width:auto;height:min(350px,50%);max-height:var(--room-panel-limit);min-height:0;
     margin:0;padding:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;overscroll-behavior:contain;
-    background:var(--room-glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 8px 28px #241b2d18;
+    background:var(--room-glass);box-shadow:0 8px 28px #241b2d18;
   }
   .mobile-room[data-panel="closed"] .l2d-controls{display:none}
   .mobile-room:is([data-panel="tools"],[data-panel="expressions"],[data-panel="motions"]) .l2d-controls{height:auto;max-height:min(350px,46%,var(--room-panel-limit))}
@@ -105,7 +109,7 @@
   .mobile-room[data-panel="expressions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dMotionGroup),
   .mobile-room[data-panel="motions"] :is(#mobileRoomPlayback,#l2dCostumeGroup,#l2dExpressionGroup){display:none}
   .mobile-room .mobile-room-zoom-host{position:static;display:flex;flex:0 0 auto;align-items:center;margin:0;width:50px;pointer-events:auto}
-  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:column;align-items:center;gap:0;width:50px;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px #241b2d0a}
+  .mobile-room .l2d-zoom{position:static;display:flex;flex-direction:column;align-items:center;gap:0;width:50px;padding:2px;border:1px solid var(--line);border-radius:16px;background:var(--room-glass-soft);box-shadow:0 4px 18px #241b2d0a}
   .mobile-room .l2d-zoom output{order:0;min-width:36px;height:24px;line-height:24px;text-align:center;font-size:12px}
   .mobile-room .l2d-zoom #l2dZoomOut{order:1}
   .mobile-room .l2d-zoom #l2dZoomIn{order:-1}
@@ -123,15 +127,14 @@
   .mobile-room .l2d-controls .chip:not(.is-active){background:color-mix(in srgb,var(--card) 32%,transparent)}
   .mobile-room .l2d-controls .chip.is-active{background:color-mix(in srgb,var(--coral-deep) 85%,transparent)}
   .mobile-room .l2d-hint{font-size:11px;line-height:1.6;margin:.5rem 0 0}
-  .mobile-room .chat-access-dialog{position:fixed;inset:auto .6rem auto;top:calc(var(--room-viewport-top,0px) + var(--room-viewport-height,100dvh) - max(.6rem,env(safe-area-inset-bottom)));transform:translateY(-100%);margin:0 auto;max-height:calc(var(--room-viewport-height,100dvh) - 2rem);padding:1rem;font-size:13px;background:color-mix(in srgb,var(--card) 66%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-  .mobile-room .chat-access-dialog::backdrop{background:#23182726;-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px)}
+  .mobile-room .chat-access-dialog{position:fixed;inset:auto .6rem auto;top:calc(var(--room-viewport-top,0px) + var(--room-viewport-height,100dvh) - max(.6rem,env(safe-area-inset-bottom)));transform:translateY(-100%);margin:0 auto;max-height:calc(var(--room-viewport-height,100dvh) - 2rem);padding:1rem;font-size:13px;background:var(--room-glass)}
+  .mobile-room .chat-access-dialog::backdrop{background:#23182726}
   .mobile-room .chat-access-dialog h3{font-size:18px;margin:.3rem 0}
   .mobile-room .chat-access-dialog .eyebrow,.mobile-room .chat-access-dialog .chat-access-error:empty{display:none}
   .mobile-room .l2d-controls .chat-access-dialog :is(p,label){font-size:12px;line-height:1.6}
   .mobile-room .chat-access-dialog label{margin-top:.75rem}
   .mobile-room .chat-access-dialog input{padding:.55rem;background:var(--room-glass-soft)}
   .mobile-room .chat-access-actions .btn{font-size:13px;min-height:44px;padding:.4rem .75rem}
-  .mobile-room :is(.mobile-room-icon,.mobile-room-action,.mobile-room-prompt){-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
   /* 键盘展开后为右侧竖向缩放留出独立空间，避免盖住聊天操作。 */
   .mobile-room.is-keyboard-open .l2d-controls{right:calc(max(.6rem,env(safe-area-inset-right)) + 58px);height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)));max-height:calc(100% - max(76px,calc(env(safe-area-inset-top) + 66px)))}
   .mobile-room.is-keyboard-open .mobile-panel-tabs{flex:1}
