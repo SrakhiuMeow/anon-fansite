@@ -36,15 +36,27 @@ const deferred = () => { let resolve; let reject; const promise = new Promise((y
 const mp3 = (size = 128, options = {}) => new Response(new Uint8Array(size), {
   headers: { "content-type": "audio/mpeg", "content-language": "ja", ...options.headers }, status: options.status || 200,
 });
+const wav = (size = 64, options = {}) => new Response(new Uint8Array(size), {
+  headers: { "content-type": "audio/x-wav", "content-language": "ja", ...options.headers }, status: options.status || 200,
+});
+const bothProviders = [
+  { id: "fish", name: "Fish Audio", language: "ja", auto: true, available: true },
+  { id: "vits2", name: "Bangstarlight VITS2", language: "ja", auto: false, available: true },
+];
 function fixture(options = {}) {
   const host = new Events();
   const document = new Events();
   const root = new Element(); root.root = true;
-  const toggle = new Element("button"); const status = new Element("span");
-  root.append(toggle, status);
-  document.getElementById = (id) => ({ anonVoiceAuto: toggle, anonVoiceStatus: status })[id] || null;
+  const toggle = new Element("button"); const status = new Element("span"); const provider = new Element("select");
+  root.append(toggle, status, provider);
+  document.getElementById = (id) => ({ anonVoiceAuto: toggle, anonVoiceStatus: status, anonVoiceProvider: provider })[id] || null;
   document.createElement = (tag) => new Element(tag);
   document.hidden = false;
+  const storage = new Map();
+  host.localStorage = {
+    getItem: (name) => storage.has(name) ? storage.get(name) : (options.storedProvider ?? null),
+    setItem: (name, value) => storage.set(name, String(value)),
+  };
   const audioInstances = []; const posts = []; const gets = []; const generated = []; const revoked = [];
   const timers = new Map(); let timerId = 0;
   class Audio extends Events {
@@ -74,7 +86,11 @@ function fixture(options = {}) {
     const request = { url, ...init };
     if (init.method === "POST") { posts.push(request); return options.synthesize ? options.synthesize(request, posts.length) : mp3(options.audioSize); }
     gets.push(request);
-    return options.capability ? options.capability(request) : new Response(JSON.stringify({ enabled: options.enabled !== false, language: "ja" }), { headers: { "content-type": "application/json" } });
+    return options.capability ? options.capability(request) : new Response(JSON.stringify({
+      enabled: options.enabled !== false,
+      language: "ja",
+      providers: options.providers || [{ id: "fish", name: "Fish Audio", language: "ja", auto: true, available: options.enabled !== false }],
+    }), { headers: { "content-type": "application/json" } });
   };
   const player = create({ host, getAccessCode: () => ACCESS_CODE });
   player.sync({ ai: true, unlocked: true, busy: false });
@@ -84,7 +100,7 @@ function fixture(options = {}) {
     const row = element.children[0];
     return { element, row, button: row?.children[0], state: row?.children[1] };
   }
-  return { host, document, root, toggle, status, posts, gets, generated, revoked, timers, player, add,
+  return { host, document, root, toggle, status, provider, storage, posts, gets, generated, revoked, timers, player, add,
     get audio() { return audioInstances[0]; },
     get clipPlays() { return audioInstances.flatMap((audio) => audio.plays.filter((src) => src.startsWith("blob:"))); },
     async ready() { await settle(); },
@@ -108,10 +124,45 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
     const f = fixture(); await f.ready(); const reply = f.add(original);
     const content = new Element("span"); content.textContent = original; reply.element.appendChild(content);
     await f.click(reply);
-    assert.deepEqual(JSON.parse(f.posts[0].body), { text: original });
+    assert.deepEqual(JSON.parse(f.posts[0].body), { text: original, provider: "fish" });
     assert.equal(content.textContent, original); assert.match(reply.state.textContent, /正在播放.*日语/);
     f.audio.dispatch("ended"); await f.click(reply);
     assert.equal(content.textContent, original); assert.equal(f.posts.length, 1);
+  });
+  await test("语音方案来自服务端白名单，默认 Fish，选择存本机且单块方案禁用自动朗读", async () => {
+    const f = fixture({ providers: bothProviders }); await f.ready();
+    assert.equal(f.provider.hidden, false);
+    assert.equal(f.provider.value, "fish");
+    assert.deepEqual(f.provider.children.map((option) => option.value), ["fish", "vits2"]);
+    assert.equal(f.toggle.disabled, false);
+    f.provider.value = "vits2"; f.provider.dispatch("change"); await settle();
+    assert.equal(f.provider.value, "vits2");
+    assert.equal(f.storage.get("anon-voice-provider"), "vits2");
+    assert.equal(f.toggle.disabled, true);
+    assert.match(f.status.textContent, /VITS2.*只朗读开头/);
+  });
+  await test("单块方案按 provider 请求、接受 wav，截断时说明只朗读开头", async () => {
+    const f = fixture({ providers: bothProviders, storedProvider: "vits2", synthesize: () => wav(64, { headers: { "x-voice-truncated": "1" } }) });
+    await f.ready();
+    assert.equal(f.provider.value, "vits2");
+    const reply = f.add(); await f.click(reply);
+    assert.deepEqual(JSON.parse(f.posts[0].body), { text: "今天练琴也有进步！", provider: "vits2" });
+    assert.match(reply.state.textContent, /正在播放/);
+    f.audio.dispatch("ended");
+    assert.match(reply.state.textContent, /只朗读开头/);
+  });
+  await test("切换方案作废旧缓存并按新方案重新请求同一条回复", async () => {
+    const seen = [];
+    const f = fixture({
+      providers: bothProviders,
+      synthesize: (request, index) => { seen.push(JSON.parse(request.body).provider); return index === 1 ? mp3() : wav(); },
+    });
+    await f.ready();
+    const reply = f.add(); await f.click(reply); f.audio.dispatch("ended");
+    assert.equal(f.posts.length, 1);
+    f.provider.value = "vits2"; f.provider.dispatch("change"); await settle();
+    await f.click(reply);
+    assert.deepEqual(seen, ["fish", "vits2"]);
   });
   await test("手动播放、停止、结束与同页缓存重播", async () => {
     const f = fixture(); await f.ready(); const reply = f.add(); await f.click(reply);
@@ -247,7 +298,7 @@ async function test(name, run) { await run(); ++checks; console.log(`通过：${
   await test("口令仅放入请求头，正文与 URL 不包含口令", async () => {
     const f = fixture(); await f.ready(); const reply = f.add("本条回复正文"); await f.click(reply);
     assert.equal(f.posts[0].headers["X-Chat-Access-Code"], encodeURIComponent(ACCESS_CODE));
-    assert.deepEqual(JSON.parse(f.posts[0].body), { text: "本条回复正文" }); assert.equal(f.posts[0].url, "/api/tts");
+    assert.deepEqual(JSON.parse(f.posts[0].body), { text: "本条回复正文", provider: "fish" }); assert.equal(f.posts[0].url, "/api/tts");
     assert.ok(!f.posts[0].body.includes(ACCESS_CODE)); assert.ok(!f.posts[0].url.includes(ACCESS_CODE));
   });
   await test("缓存最多五条，淘汰和清空均撤销对象 URL", async () => {

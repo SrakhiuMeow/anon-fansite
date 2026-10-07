@@ -16,8 +16,23 @@ const VOICE_ID = "c5c17c9709384ba9a4b294662a2af0b1";
 const JAPANESE = "今日は練習がうまくいったよ。";
 const NATURAL_JAPANESE = `[natural conversational delivery] ${JAPANESE}`;
 const AUDIO = Buffer.concat([Buffer.from([255, 251, 144, 196]), Buffer.alloc(256)]);
+// 最小合法 wav：RIFF 头 + WAVE 标记，长度过 44 字节。
+const WAV = Buffer.alloc(64);
+WAV.write("RIFF", 0, "ascii"); WAV.write("WAVE", 8, "ascii");
+const SPACE = "https://mahiruoshi-bangstarlight-vits2.hf.space";
 let networkCalls = 0;
 let checks = 0;
+
+// 服务端下发的方案清单固定按白名单顺序。
+function providerList(fish, vits2 = true) {
+  return [
+    { id: "fish", name: "Fish Audio", language: "ja", auto: true, available: fish },
+    { id: "vits2", name: "Bangstarlight VITS2", language: "ja", auto: false, available: vits2 },
+  ];
+}
+function capability(fish = true, vits2 = true) {
+  return { enabled: fish || vits2, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID, language: "ja", providers: providerList(fish, vits2) };
+}
 
 function freshHandler() {
   delete require.cache[handlerPath];
@@ -49,16 +64,33 @@ async function call(handler, options) {
   return res;
 }
 function audioResponse(audio = AUDIO, headers = {}) { return new Response(audio, { headers: { "content-type": "audio/mpeg", ...headers } }); }
+function wavResponse(audio = WAV, headers = {}) { return new Response(audio, { headers: { "content-type": "audio/x-wav", ...headers } }); }
+// 模拟 Gradio 队列三段式：join → SSE 完成事件 → 下载 wav。calls 记录每次请求。
+function spaceFetch(calls = [], options = {}) {
+  return async (url, init = {}) => {
+    calls.push({ url, options: init });
+    if (url.endsWith("/queue/join")) return Response.json({ event_id: "event-1" });
+    if (url.includes("/queue/data")) {
+      const message = options.failure
+        ? { msg: "process_completed", success: false, output: { error: null } }
+        : { msg: "process_completed", success: true, output: { data: [{ path: "/tmp/gradio/abc/audio.wav" }] } };
+      return new Response(`data: ${JSON.stringify(message)}\n\n`, { headers: { "content-type": "text/event-stream" } });
+    }
+    if (url.includes("/file=")) return options.badAudio ? new Response(Buffer.alloc(64), { headers: { "content-type": "audio/x-wav" } }) : wavResponse();
+    throw new Error(`未预期的 Space 请求：${url}`);
+  };
+}
 function planResponse(plan, extraChoice = {}) {
   return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(plan) }, ...extraChoice }] });
 }
 function translationResponse(text = JAPANESE, extraChoice = {}) {
   return planResponse({ language: "ja", segments: [{ text, emotion: "neutral", pauseAfter: "none", intensity: "normal", delivery: "natural" }] }, extraChoice);
 }
-function mockFetch(factory = () => audioResponse(), translator = () => translationResponse()) {
+function mockFetch(factory = () => audioResponse(), translator = () => translationResponse(), space = () => wavResponse()) {
   global.fetch = async (url, options) => {
     networkCalls += 1;
     if (url === "https://api.deepseek.com/chat/completions") return translator(url, options);
+    if (typeof url === "string" && url.startsWith(SPACE)) return space(url, options);
     assert.equal(url, "https://api.fish.audio/v1/tts");
     return factory(url, options);
   };
@@ -91,19 +123,22 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   await test("GET 公布启用状态、AI 合成名称和固定音色 ID，不泄漏密钥或聊天口令", async () => {
     const before = networkCalls;
     const res = await call(freshHandler(), { method: "GET" });
-    assert.deepEqual(JSON.parse(res.body), { enabled: true, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID, language: "ja" });
+    assert.deepEqual(JSON.parse(res.body), capability());
     assert.equal(res.headers["cache-control"], "no-store");
     assert.equal(res.headers["x-content-type-options"], "nosniff");
     assert.equal(networkCalls, before);
     for (const secret of [process.env.FISH_AUDIO_API_KEY, process.env.DEEPSEEK_API_KEY, CODE]) assert.ok(!res.body.toString().includes(secret));
   });
 
-  await test("未配置密钥时禁用并保留固定音色状态，错误密码仍不能绕过解锁", async () => {
+  await test("未配置 Fish 密钥时只禁用该方案，公开方案仍可用，错误密码仍不能绕过解锁", async () => {
     const key = process.env.FISH_AUDIO_API_KEY;
     delete process.env.FISH_AUDIO_API_KEY;
     const handler = freshHandler();
-    assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), { enabled: false, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID, language: "ja" });
-    assert.equal((await call(handler)).statusCode, 503);
+    assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), capability(false, true));
+    // 默认方案是 Fish，因此缺密钥时默认调用仍失败，但换公开方案即可用。
+    const res = await call(handler);
+    assert.equal(res.statusCode, 503);
+    assert.equal(JSON.parse(res.body).code, "VOICE_NOT_CONFIGURED");
     assert.equal((await call(handler, { headers: { "x-chat-access-code": "wrong" } })).statusCode, 401);
     process.env.FISH_AUDIO_API_KEY = key;
   });
@@ -409,7 +444,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
       process.env.FISH_AUDIO_VOICE_ID = oldVoice;
       const handler = freshHandler();
       const before = networkCalls;
-      assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), { enabled: true, voiceName: "千早爱音 · AI合成", voiceId: VOICE_ID, language: "ja" });
+      assert.deepEqual(JSON.parse((await call(handler, { method: "GET" })).body), capability());
       assert.equal((await call(handler)).statusCode, 200);
       assert.equal(networkCalls, before + 2);
     }
@@ -429,7 +464,7 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
   await test("拒绝非法、超长、超大输入和客户端模型/地址/音色覆盖", async () => {
     const handler = freshHandler();
     const before = networkCalls;
-    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", voiceId: "1234567890abcdef1234567890abcdef" }, { text: "你好", url: "https://evil.example" }, { text: "你好", prosody: { speed: 4, normalize_loudness: false } }, { text: "你好", speed: 1.04 }, { text: "你好", normalize_loudness: false }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
+    for (const body of [null, [], "broken-json", { text: "" }, { text: 1 }, { text: "[[smile]]" }, { text: "爱".repeat(1001) }, { text: "你好", model: "s2.1-pro" }, { text: "你好", reference_id: "bad" }, { text: "你好", voiceId: "1234567890abcdef1234567890abcdef" }, { text: "你好", url: "https://evil.example" }, { text: "你好", prosody: { speed: 4, normalize_loudness: false } }, { text: "你好", speed: 1.04 }, { text: "你好", normalize_loudness: false }, { text: "你好", provider: "evil" }, { text: "你好", provider: `${SPACE}/queue/join` }, { text: "你好", provider: 1 }, Buffer.alloc(12_001)]) assert.equal((await call(handler, { body })).statusCode, 400);
     assert.equal((await call(handler, { headers: { "content-length": "12001" } })).statusCode, 400);
     assert.equal(networkCalls, before);
   });
@@ -452,6 +487,57 @@ async function test(name, run) { await run(); checks += 1; console.log(`通过�
     assert.equal(res.headers["cache-control"], "no-store");
     assert.equal(res.headers["x-content-type-options"], "nosniff");
     delete process.env.FISH_AUDIO_VOICE_ID;
+    mockFetch();
+  });
+
+  await test("新方案走公开 Space：纯日语文本与固定 speaker，回 wav 且不含 Fish 控制标记", async () => {
+    const calls = [];
+    mockFetch(() => audioResponse(), () => translationResponse(), spaceFetch(calls));
+    const res = await call(freshHandler(), { body: { text: "今天练琴很顺利。", provider: "vits2" } });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, WAV);
+    assert.equal(res.headers["content-type"], "audio/wav");
+    assert.equal(res.headers["content-language"], "ja");
+    assert.equal(res.headers["x-voice-truncated"], undefined);
+    const join = calls.find((entry) => entry.url.endsWith("/queue/join"));
+    assert.ok(join, "应调用 Space 的队列接口");
+    assert.equal(join.options.method, "POST");
+    assert.equal(join.options.redirect, "error");
+    const payload = JSON.parse(join.options.body);
+    assert.equal(payload.fn_index, 1);
+    assert.equal(payload.api_name, "infer");
+    assert.equal(payload.data[5], "愛音");
+    // Fish 的 [emotion, delivery] 标记与空格都不能进入这条链路。
+    assert.ok(!payload.data[0].includes("[") && !payload.data[0].includes(" "), payload.data[0]);
+    // 下载地址必须保留 Space 返回路径的前导斜杠，否则 Space 会回 403。
+    assert.ok(calls.some((entry) => entry.url === `${SPACE}/file=/tmp/gradio/abc/audio.wav`), JSON.stringify(calls.map((entry) => entry.url)));
+    mockFetch();
+  });
+
+  await test("单块方案超过一块时只送第一块并标注截断", async () => {
+    const calls = [];
+    mockFetch(() => audioResponse(), () => planResponse({ language: "ja", segments: [
+      { text: "あ".repeat(80), emotion: "happy", pauseAfter: "short", intensity: "normal", delivery: "lively" },
+      { text: "い".repeat(80), emotion: "neutral", pauseAfter: "none", intensity: "normal", delivery: "natural" },
+    ] }), spaceFetch(calls));
+    const res = await call(freshHandler(), { body: { text: "很长的回复", provider: "vits2" } });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers["x-voice-truncated"], "1");
+    const payload = JSON.parse(calls.find((entry) => entry.url.endsWith("/queue/join")).options.body);
+    assert.equal(payload.data[0], "あ".repeat(80));
+    assert.equal(payload.data[6], "明るく嬉しそうな声");
+    mockFetch();
+  });
+
+  await test("Space 失败或返回非 wav 时只回本站固定诊断", async () => {
+    mockFetch(() => audioResponse(), () => translationResponse(), spaceFetch([], { failure: true }));
+    const failed = await call(freshHandler(), { body: { text: "你好", provider: "vits2" } });
+    assert.equal(failed.statusCode, 503);
+    assert.equal(JSON.parse(failed.body).code, "VOICE_UNAVAILABLE");
+    mockFetch(() => audioResponse(), () => translationResponse(), spaceFetch([], { badAudio: true }));
+    const broken = await call(freshHandler(), { body: { text: "你好", provider: "vits2" } });
+    assert.equal(broken.statusCode, 503);
+    assert.equal(JSON.parse(broken.body).code, "VOICE_INVALID_AUDIO");
     mockFetch();
   });
 

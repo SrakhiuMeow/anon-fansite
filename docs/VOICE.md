@@ -1,6 +1,13 @@
 # 爱音聊天语音
 
-网站采用 Fish Audio 托管 TTS，固定使用站长指定的 `c5c17c9709384ba9a4b294662a2af0b1`，即社区用户“高尾祥子”发布的千早爱音音色。语音统一使用日语：服务端先用 DeepSeek 将完整 AI 回复转换为自然的日语，再交给 Fish Audio 合成。页面继续显示聊天原文，对话历史和 Live2D 情绪联动也使用原文；网页来源、情绪控制标签和按钮文字不作为台词。这是 AI 合成的同人音色，不是官方录音或声优本人发言。
+网站提供两条日语合成链路，可在聊天设置里的「语音方案」中二选一，默认 Fish Audio。两条都先用 DeepSeek 将完整 AI 回复转换成自然的日语，再交给所选方案合成。页面继续显示聊天原文，对话历史和 Live2D 情绪联动也使用原文；网页来源、情绪控制标签和按钮文字不作为台词。这是 AI 合成的同人音色，不是官方录音或声优本人发言。
+
+| 方案 | 音色 | 输出 | 覆盖范围 | 自动朗读 | 需要密钥 |
+| --- | --- | --- | --- | --- | --- |
+| Fish Audio | 站长指定的 `c5c17c9709384ba9a4b294662a2af0b1` | mp3 | 整条回复 | 支持 | `FISH_AUDIO_API_KEY` |
+| Bangstarlight VITS2 | Space 的 `愛音` | wav | 约 120 日文字（一块） | 不支持 | 无 |
+
+选择结果只存在本机 localStorage（键名 `anon-voice-provider`），换方案会作废已缓存的音频；服务端只接受白名单里的 id，客户端不能借此指定地址、模型或音色。
 
 ## 在 Vercel 启用
 
@@ -12,9 +19,11 @@
 
 | 变量 | 必需 | 说明 |
 | --- | --- | --- |
-| `FISH_AUDIO_API_KEY` | 是 | 只在 `/api/tts` 服务端使用，不发送给浏览器，不提交 Git |
-| `DEEPSEEK_API_KEY` | 是 | 复用现有 AI 聊天密钥，将待播放的单条 AI 原文转为日语，无需另申请翻译密钥 |
+| `FISH_AUDIO_API_KEY` | 否 | 只在 `/api/tts` 服务端使用，不发送给浏览器，不提交 Git；只影响 Fish Audio 方案 |
+| `DEEPSEEK_API_KEY` | 是 | 复用现有 AI 聊天密钥，将待播放的单条 AI 原文转为日语，两条方案都要用 |
 | `CHAT_ACCESS_CODE` | 否 | 与现有聊天共用密码设置，不新增另一套解锁密码 |
+
+**Bangstarlight VITS2 不需要任何密钥**，只要配好 `DEEPSEEK_API_KEY` 就可用；反过来，缺 `FISH_AUDIO_API_KEY` 只会把 Fish 方案标记为不可用，整体语音不会因此关闭。
 
 不要把密钥填入聊天、前端代码或以 `NEXT_PUBLIC_` / `VITE_` 开头的变量。指定的爱音音色来自[公开音色页](https://fish.audio/zh-CN/m/c5c17c9709384ba9a4b294662a2af0b1/)，可在该页试听。无需设置 `FISH_AUDIO_VOICE_ID`，旧的同名环境变量不再覆盖此音色；参考音色是否仍公开可用以服务商实际返回为准。
 
@@ -25,7 +34,8 @@
 - 语音专用台词将人物全名“千早爱音／千早愛音／Chihaya Anon”固定为官方假名读法「ちはや あのん」，短名为「あのん」。服务端另做有边界的姓名纠正，避免改写普通词、网址和邮箱。
 - 日语转换同时按完整句子或自然话意转折生成 1–4 段朗读方案，依据实际含义选择语气，不默认开心，也不将否定、引用中的情绪直接当成说话者情绪。每段区分轻微或普通情绪强度，并选择自然交谈、轻快、轻声、迟疑或冷静思考的表达方式；这些有限选项由服务端合成一条语气提示，不堆叠音效。正常标点优先，必要时增加短停顿；整段最多一次长停顿，末尾不追加停顿。
 - 朗读方案只能提交受限的情绪和停顿字段，台词中的原始控制标记会被拒绝。服务端统一生成 Fish 支持的情绪与停顿标签；停顿长短由语音模型处理，不保证固定毫秒数。整条回复仍只进行一次日语转换和一次语音合成，避免多段音频拼接打断语流。
-- 默认手动点击播放；开启自动朗读后，后续完整回复在文字显示结束后开始生成并播放。流式文字和原 Live2D 表情动作机制保持原样，此版不增加口型同步。
+- 默认手动点击播放；开启自动朗读后，后续完整回复在文字显示结束后开始生成并播放。自动朗读只在支持整条朗读的方案下可用：切到 Bangstarlight VITS2 时该开关会置灰并自动关掉。流式文字和原 Live2D 表情动作机制保持原样，此版不增加口型同步。
+- **Bangstarlight VITS2 只朗读开头。** 该 Space 的 DeBERTa 位置编码上限是 512，长文本必须先按标点切块再逐块合成，而单块实测约 20–50 秒（含排队）。因此这条链路只取朗读方案里能放进一块的前缀（约 120 日文字），超出部分不再合成，响应带 `X-Voice-Truncated: 1`，前端播放结束后显示「本方案只朗读开头」。同一原因，该方案的文本会先做字符清洗：`…` 换成 `。`、`〜` 换成 `ー`、破折号换成 `-`、空格全部删除，再按白名单兜底——这些字符会让 Space 在预处理阶段直接报错。Fish Audio 的控制标记（`[emotion, delivery]`、`[break]`）**不会**发往这条链路，只发纯日语文本加一句情感提示。
 - 同时只播放一条。发送新消息、停止回复、锁定、切换模式、清空、页面转到后台都会停止当前播放或生成。
 - 首次播放受浏览器的音频策略影响；自动播放被拒绝时显示“语音已就绪，请点击重播”，再次点击会播放已生成音频。
 - 重播优先使用当前页缓存，最多保留5条、合计12MiB；单条最多4MiB。清空、锁定、模式切换及离开页面会释放缓存。声音和自动朗读选择不存入 localStorage、数据库或聊天历史。
@@ -43,17 +53,22 @@
 
 固定请求 `https://api.fish.audio/v1/tts`，明确使用 `model: s2.1-pro-free`，不会漏填模型字段，也不自动切换付费模型。服务商公告的免费开发者窗口当前至 **2026年11月30日**，受公平使用规则及可用性限制，无延迟保证；后续政策可能变化，使用前查看[免费模型说明](https://fish.audio/es/blog/s2-1-pro-free-api/?articleLocale=en)和[价格与限制](https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits)。
 
-点击播放或开启自动朗读后，仅将待朗读的这一条 AI 回复经本站服务端发送给 DeepSeek 转为日语，再将日语译文发送给 Fish Audio；不发送用户的聊天输入、完整对话、聊天密码或网页来源。每条首次播放会新增一次 DeepSeek 日语转换调用，按现有账号计费；命中本页音频缓存的重播不会重复翻译或合成。本站不记录翻译文本和音频日志；服务商可能按其服务条款与隐私政策保留请求或用于改进模型。聊天设置中说明语音数据的去向。
+点击播放或开启自动朗读后，仅将待朗读的这一条 AI 回复经本站服务端发送给 DeepSeek 转为日语，再将日语译文发送给所选方案；不发送用户的聊天输入、完整对话、聊天密码或网页来源。每条首次播放会新增一次 DeepSeek 日语转换调用，按现有账号计费；命中本页音频缓存的重播不会重复翻译或合成。本站不记录翻译文本和音频日志；服务商可能按其服务条款与隐私政策保留请求或用于改进模型。聊天设置中说明语音数据的去向。
 
-`/api/tts` POST 使用与聊天相同的密码认证与同源检查。密钥、端点和音色由服务端决定，客户端不能指定外部请求地址或付费模型；二进制响应有类型、大小、超时和并发限制，禁止缓存到公共CDN。实例内限流是尽力而为的防误用措施，不是跨实例总额度保证。
+**Bangstarlight VITS2** 走公开的 Hugging Face Space `mahiruoshi-bangstarlight-vits2`，协议是 Gradio 队列三段式（`/queue/join` → `/queue/data` 的 SSE → `/file=` 下载 wav），无需密钥、不计费，但**排队时间由所有人共享**，空闲时单块约 20 秒、拥挤时可能到 50 秒以上，也没有可用性承诺。同一日语译文会发往该 Space。服务端整体超时 75 秒、客户端 85 秒，超时只影响本次播放并返回固定诊断，不回退中文，也不影响文字聊天。
+
+`/api/tts` POST 使用与聊天相同的密码认证与同源检查。`provider` 只允许服务端白名单里的 id，端点、模型、音色、音频格式与参考音频都由服务端决定，客户端不能指定外部请求地址或付费模型；二进制响应有类型、大小、超时和并发限制，禁止缓存到公共CDN。实例内限流是尽力而为的防误用措施，不是跨实例总额度保证。
 
 ## 验证
 
-运行 `node scripts/test-voice-performance.cjs`、`node scripts/test-tts-api.cjs`、`node scripts/test-voice-client.cjs`、`node scripts/test-chat-client.cjs` 和 `node scripts/check-site.cjs`。这些检查使用本地逻辑和模拟服务，不会消耗真实语音额度。部署后 `GET /api/tts` 返回 `language: "ja"`，音频响应带 `Content-Language: ja`；前端只接受已声明的日语能力和音频。`enabled` 只说明配置存在，不能代替真实翻译、合成及播放验证。语音规则更新后，刷新页面再生成语音；旧页面的重播缓存仍是原先的音频。
+运行 `node scripts/test-voice-performance.cjs`、`node scripts/test-tts-api.cjs`、`node scripts/test-voice-client.cjs`、`node scripts/test-chat-client.cjs` 和 `node scripts/check-site.cjs`。这些检查使用本地逻辑和模拟服务，不会消耗真实语音额度。部署后 `GET /api/tts` 返回 `language: "ja"` 与 `providers` 数组（含每条方案的 `available` 与 `auto`），音频响应带 `Content-Language: ja`；前端按方案接受 `audio/mpeg` 或 `audio/wav`。`enabled` 只说明至少有一条方案可用，不能代替真实翻译、合成及播放验证。语音规则更新后，刷新页面再生成语音；旧页面的重播缓存仍是原先的音频。
+
+真实网络与推理只能在部署后验证：Fish 需要有效的 `FISH_AUDIO_API_KEY`，Bangstarlight VITS2 需要能访问 `*.hf.space`。两条链路都不提供离线回退。
 
 ## 接口依据
 
 - [Fish Audio TTS API](https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech)
+- [Bangstarlight-VITS2 Space](https://huggingface.co/spaces/mahiruoshi/bangstarlight-vits2)（Gradio 队列协议；`/queue/join` → `/queue/data` → `/file=`）
 - [Fish Audio 情绪与停顿控制](https://docs.fish.audio/developer-guide/core-features/emotions)
 - [官方角色页与姓名假名](https://anime.bang-dream.com/bandorichan/character/mygo/)
 - [公开音色 ID 的使用方式](https://docs.fish.audio/developer-guide/getting-started/quickstart)
