@@ -146,7 +146,9 @@ Live2D 使用固定版本的 **PixiJS 6.5.10**、**pixi-live2d-display 0.4.0 全
 
 ## 部署与忽略规则
 
-仓库已连接 Vercel，推送到 `main` 后自动部署至 [https://anon.srakhiumeow.top](https://anon.srakhiumeow.top)。`vercel.json` 保留空构建命令与仓库根输出目录，`api/chat.js` 和 `api/tts.js` 自动部署为 Node.js Function；未配置密钥时仍可使用静态页面及本地互动。部署完成后刷新页面查看更新；若旧资源仍被缓存，可强制刷新。
+仓库已连接 Vercel，推送到 `main` 后自动部署至 [https://anon.srakhiumeow.top](https://anon.srakhiumeow.top)。
+
+**本地预览要用 `vercel dev`，不要只用 `python3 -m http.server`。** 后者不执行 `api/` 下的 Serverless Function，`/api/chat` 与 `/api/tts` 都是 404，页面会按设计降级：「对话模式」停在本地互动，联网搜索、自动朗读、语音方案与解锁密码等入口全部隐藏。这不是故障，AI 与语音相关的界面只能在 `vercel dev` 或已部署的环境中查看。`vercel.json` 保留空构建命令与仓库根输出目录，`api/chat.js` 和 `api/tts.js` 自动部署为 Node.js Function；未配置密钥时仍可使用静态页面及本地互动。部署完成后刷新页面查看更新；若旧资源仍被缓存，可强制刷新。
 
 ```sh
 git add -A
